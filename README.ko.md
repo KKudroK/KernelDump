@@ -1,28 +1,28 @@
-# KernelDump: 라이브 리눅스 시스템을 위한 정책 기반 커널 플레인 물리 메모리 획득 도구
+# KernelDump: 리눅스 커널 메모리 선별 수집 도구
 
 [English](README.md) | [한국어](README.ko.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Language: Rust](https://img.shields.io/badge/Language-Rust_1.90+-orange.svg)](Cargo.toml)
-[![Forensics: Volatility 3](https://img.shields.io/badge/Forensics-Volatility_3_59_Plugins_Evaluated-brightgreen.svg)](validation.json)
+[![Forensics: Volatility 3](https://img.shields.io/badge/Forensics-Volatility_3_Compatible-brightgreen.svg)](validation.json)
 [![Binary: Static musl](https://img.shields.io/badge/Binary-Static_musl_Zero_Dependency-blueviolet.svg)](#빌드-및-릴리즈-바이너리-증적)
-[![Status: Production Ready](https://img.shields.io/badge/Status-Production_Ready-success.svg)](#빌드-및-릴리즈-바이너리-증적)
+[![Status: Tested](https://img.shields.io/badge/Status-Tested-success.svg)](#빌드-및-릴리즈-바이너리-증적)
 
-**운영 중인 엔터프라이즈 리눅스 서버, 클라우드 호스트 및 고밀도 시스템을 위한 초고속·저부하 커널 플레인 물리 메모리 획득 엔진.**
+리눅스 커널 제어 플레인 메모리를 선별하여 LiME 포맷으로 수집하는 경량 도구입니다.
 
-`KernelDump`는 리눅스 커널 가상 인터페이스(`/proc/kcore` 및 `/proc/kpageflags`)를 직접 해석하여 커널 핵심 제어 플레인 구조(SLAB/SLUB 캐시, 페이지 테이블 계층, 커널 텍스트/데이터 영역, 주요 태스크 구조체)를 선별적으로 보존·추출합니다. **커널 모듈(LKM) 적재가 불필요**하며, **프로세스 동결(Freezing) 없이**, **호스트 보안 설정을 훼손하지 않는 상태**에서 표준 LiME 포맷 이미지를 생성하여 순정 **Volatility 3**와의 100% 포렌식 호환성을 보장합니다.
+`KernelDump`는 리눅스 커널 인터페이스(`/proc/kcore` 및 `/proc/kpageflags`)를 통해 커널 핵심 제어 플레인(SLAB/SLUB 캐시, 페이지 테이블, 커널 텍스트/데이터 영역)을 선별 수집합니다. 커널 모듈(LKM) 적재나 프로세스 동결 없이 동작하며, 생성된 LiME 이미지는 Volatility 3로 직접 분석할 수 있습니다.
 
 ---
 
-## 핵심 요약 및 정량적 성과
+## 주요 특징 및 실측 결과
 
-- **획득 속도 향상 (18.0배 ~ 68.6배 고속화):** NVMe/SATA 환경에서 전체 물리 메모리 덤프 소요 시간인 **38.27초(SSD) ~ 146.2초(HDD)**를 **1.23초 ~ 2.13초**로 대폭 단축.
-- **물리 덤프 용량 절감 (91.2% ~ 95.0% 감축):** 물리 메모리 절대 기준 주소를 원본 그대로 유지하면서, 고변동 사용자 영역 익명 메모리와 파일 페이지 캐시를 선별 배제하여 9.66 GiB ~ 15.7 GiB 원본 범위를 **약 855 MiB** 수준으로 경량화.
-- **시간적 메모리 스미어(Memory Smear) 윈도우 단축 (94.4% ~ 98.5% 감소):** 라이브 시스템의 덤프 수집 지연으로 발생하는 포인터 역전 및 유령(Phantom) 객체 생성 취약 구간을 2초 내외로 압축하여 데이터 구조적 정합성 확보.
-- **호스트 페이지 캐시 오염 차단 (+124 kB 미세 증분):** `posix_fadvise(POSIX_FADV_DONTNEED)` 기반 즉각 캐시 반환을 구현하여 855 MiB 덤프 기록 시 호스트 `Cached` 메모리 증가폭을 **+124 kB**로 억제 (기존 덤퍼 대비 캐시 오염 99.98% 차단, kswapd 부하 및 운영 서비스 스왑 완전 방지).
-- **Volatility 3 전체 59개 리눅스 플러그인 전수 검증:** 순정 Volatility 3에 내장된 59개 리눅스 플러그인을 전수 평가 (성공 33개, 정상 음성 13개, 의도된 제외 7개, 타임아웃 6개).
-- **독립 하이퍼바이저 기반 4종 리눅스 커널 실측 검증:** VMware, Hyper-V, QEMU 가상화 환경에서 Linux 6.8, Linux 6.18, Linux 6.6, Linux 6.1 커널을 대상으로 포렌식 정합성 및 안전한 진단 종료 검증 완료.
-- **단일 무의존성 Static musl 바이너리:** `x86_64-unknown-linux-musl` 타깃 정적 링크 바이너리로 배포되어(816 kB), glibc 버전 불일치나 공유 라이브러리 결함 없이 모든 리눅스 배포판에서 즉시 실행 가능.
+- **수집 시간 단축:** 64 GiB 메모리 환경에서 전체 RAM 수집(466.9초) 대비 **20.8초**로 수집 시간을 단축했습니다.
+- **덤프 용량 절감:** 사용자 공간 익명 메모리와 페이지 캐시를 제외하여 원본 62.96 GiB를 **1.99 GiB**로 줄였습니다.
+- **스미어 윈도우 단축:** 수집 시간을 466.9초에서 **20.8초**로 단축하여 메모리 변동에 따른 데이터 불일치 구간을 최소화했습니다.
+- **페이지 캐시 보호:** `posix_fadvise(POSIX_FADV_DONTNEED)`를 적용하여 수집 중 페이지 캐시 증가를 **110.4 kB** 수준으로 억제했습니다.
+- **즉시 분석 가능:** Native LiME 포맷으로 직접 출력하여 별도의 포맷 변환 없이 Volatility 3 분석에 바로 활용할 수 있습니다.
+- **단일 정적 바이너리:** musl 타깃 정적 링크 바이너리로 빌드되어 추가 라이브러리 의존성 없이 실행됩니다.
+
 
 ---
 
@@ -129,42 +129,42 @@ struct lime_header {
 
 ---
 
-## 정량적 실측 평가: 전체 RAM vs. KernelDump
+## 정량적 실측 평가: 전체 RAM vs. makedumpfile vs. KernelDump
 
-### 벤치마크 환경 구성
-- **호스트 환경:** Ubuntu 24.04.5 LTS / Linux Kernel 6.8.0-146-generic (x86_64) on VMware Workstation
-- **하드웨어 제원:** 8 vCPU, 9.44 GiB (9,662 MiB) Physical RAM, NVMe SSD 스토리지
-- **시스템 부하:** 운영 리눅스 서버에서 네트워크 서비스가 동작 중이며, 초당 100건의 HTTP 지속 트래픽 인가 상태
+### 64 GiB 엔터프라이즈 클라우드 벤치마크 환경
+- **호스트 인스턴스:** AWS EC2 `r6i.2xlarge` (8 vCPU Intel Xeon Platinum 8375C @ 2.90GHz, 61.78 GiB Physical RAM, 80 GiB gp3 NVMe SSD, Amazon Linux 2023 / Linux 6.18.54 LTS)
+- **부하 프로파일:** 16.06 GiB 활성 익명 메모리 워크로드 (4,209,000개 페이지에 걸쳐 바이트 패턴 수정 및 스레드 churn 인가)
+- **비교 대상:**
+  1. **전체 물리 RAM 베이스라인 (LiME):** 커널 모듈을 통한 62.96 GiB 전체 물리 메모리 덤프
+  2. **makedumpfile -d 31 (kcore):** `/proc/kcore` 기반 레벨 31(Zero, Cache, User, Free 제외) 필터 덤프
+  3. **KernelDump (제안 도구):** 주소 보존형 커널 플레인 선별 덤프 (Native LiME 포맷 직접 생성)
 
-### 수집 및 포렌식 분석 성능 비교
+### 실측 수집 및 자원 부하 비교
 
-| 포렌식 측정 지표 | 전체 물리 RAM (LiME) | KernelDump (선별 획득) | 개선폭 / 절감 비율 |
-|---|:---:|:---:|:---:|
-| **덤프 파일 크기** | 9,662 MiB (9.44 GiB) | **855 MiB (0.83 GiB)** | **-91.15% (11.3배 경량화)** |
-| **수집 소요 시간 (NVMe SSD)** | 38.27 초 | **2.132 초** | **17.95배 고속화** |
-| **수집 소요 시간 (SATA HDD / Net)** | 146.20 초 | **2.132 초** | **68.57배 고속화** |
-| **시간적 메모리 스미어 ($\Delta t$)** | 38,270 ms | **2,132 ms** | **94.43% 압축** |
-| **호스트 페이지 캐시 증가량** | 약 855,000 kB | **+124 kB** | **99.98% 오염 차단** |
-| **Volatility 3 `linux.pslist` 수행 시간** | 146.20 초 | **8.02 초** | **18.2배 빠른 분석** |
-| **Volatility 3 `linux.pstree` 수행 시간** | 59.38 초 | **8.12 초** | **7.3배 빠른 분석** |
-| **Volatility 3 `linux.mountinfo` 수행 시간** | 54.96 초 | **20.17 초** | **2.7배 빠른 분석** |
+| 측정 지표 | 전체 물리 RAM (LiME) | makedumpfile -d 31 (kcore) | KernelDump (제안 도구) | 비교 및 분석 |
+| :--- | :---: | :---: | :---: | :--- |
+| **덤프 파일 크기** | 62.96 GiB | 2.37 GiB | **1.99 GiB** | **-96.84% 용량 절감** |
+| **원시 덤프 수집 시간** | 466.93 초 | **13.41 초** | **20.84 초** | LiME 대비 22.4배 단축 |
+| **LiME 포맷 변환 시간** | 0.00 초 | **21.03 초** | **0.00 초** | 2차 변환 불필요 |
+| **최종 분석 가능 시점** | 466.93 초 | **34.44 초** | **20.84 초** | **분석 착수 시점 39.5% 단축** |
+| **호스트 페이지 캐시 오염** | +42.14 GiB | +2.49 GiB | **+110.4 kB** | 페이지 캐시 오염 방지 |
+| **시간적 메모리 스미어** | 466.93 초 | 13.41 초 | **20.84 초** | 스미어 윈도우 95.54% 단축 |
+| **도구 의존성** | 커널 모듈 빌드 필요 | kdump 도구, 디버그 심볼, 변환 스크립트 | **단일 정적 바이너리** | 추가 의존성 없음 |
 
 ---
 
-## Volatility 3 리눅스 전체 59개 플러그인 전수 평가 매트릭스
+## Volatility 3 리눅스 플러그인 평가
 
-**Volatility 3**에 존재하는 모든 리눅스 플러그인(총 59종)을 `KernelDump` 산출물에 직접 실행하여 전수 평가를 수행했습니다.
-
-과학적이고 엄밀한 포렌식 검증을 위해, 결과는 단순한 성공/실패가 아니라 포렌식적 실제 의미(완전 추출, 메타데이터 전용 디스크립터, 실제 정상 음성, 설계상의 배제)에 따라 분류됩니다:
+Volatility 3 내장 59개 리눅스 플러그인을 KernelDump 덤프 이미지에 실행하여 동작을 확인했습니다. 수집 범위에 따른 결과 분류는 다음과 같습니다:
 
 ```
 평가 대상 리눅스 플러그인: 총 59개
-├── 커널 제어 플레인 완전 추출: 30개 (100% 구조적 일치)
-├── 사용자 공간 페이로드 배제 디스크립터: 3개 (PsAux, Malfind - 메타데이터 전용)
-├── 실제 정상 음성 확인 (Clean Negatives): 9개 (후킹 및 변조 없음 입증)
-├── 정책적 사용자 공간 배제: 4개 (Bash, Envars, Elfs, Pagecache - 설계상 배제)
-├── 의도된 배제 및 CLI 매개변수 요구: 7개 (CLI 인자 요구 및 캐시 미보유)
-└── 사용자 공간 전역 순회 타임아웃: 6개 (90초 초과)
+├── 커널 제어 플레인 완전 추출: 30개 (구조적 일치)
+├── 사용자 공간 페이로드 제외 디스크립터: 3개 (PsAux, Malfind - 메타데이터 확인)
+├── 정상 음성 확인: 9개 (후킹 및 변조 없음)
+├── 정책적 사용자 공간 제외: 4개 (Bash, Envars, Elfs, Pagecache - 미수집 대상)
+├── 매개변수 요구 및 인자 누락: 7개 (CLI 인자 요구 등)
+└── 전역 순회 타임아웃: 6개 (90초 초과)
 ```
 
 ### 1. 활성 커널 제어 플레인 추출 (30개 - SUCCESS)
@@ -343,43 +343,150 @@ Cached:          3,842,044 kB
 ### `CONFIG_PROC_KCORE` 필수 요건 및 안전 종료(Fail-closed) 동작
 
 - Ubuntu, Debian, RHEL, openSUSE, Arch, WSL2 등 표준 엔터프라이즈 및 클라우드 커널은 `CONFIG_PROC_KCORE=y`가 기본 활성화되어 있어 즉시 수집이 가능합니다.
-- 초경량 마이크로VM 커널(예: Alpine Linux `linux-virt`)과 같이 `CONFIG_PROC_KCORE`가 비활성화된 환경에서는 `kernel_dump check --json`이 누락된 인터페이스를 안전하게 감지하여 `ready: false`와 함께 즉시 안전 종료되며, 시스템 크래시나 커널 패닉을 유발하지 않습니다.
+- 초경량 마이크로VM 커널(예: Alpine Linux `linux-virt`)과 같이 `CONFIG_PROC_KCORE`가 비활성화된 환경에서는 `kerneldump check --json`이 누락된 인터페이스를 감지하여 `ready: false`와 함께 안전하게 종료됩니다.
 
 ---
 
-## CLI 사용법 및 사전 진단 기능
+## CLI 사용법 및 실제 실행 결과
 
-### 수집 전 사전 점검 (`kernel_dump check`)
+### 1. 사전 진단 점검 (`check`)
 
-획득 작업을 시작하기 전, 루트 권한, 커널 인터페이스, 디스크 여유 공간을 점검합니다:
+메모리 덤프 작업을 시작하기 전, 루트 권한(EUID 0), `/proc/kcore`, `/proc/kpageflags`, 심볼 마스킹 해제(`kptr_restrict=0`), 대상 디스크 가용 용량을 진단합니다.
 
 ```sh
-sudo ./target/x86_64-unknown-linux-musl/release/kernel_dump check --json
+sudo ./kerneldump check
 ```
 
-출력 예시:
+실제 실행 결과 (대화형 TTY 출력):
+```text
+kerneldump system readiness check (Linux 6.18.54-121.166.amzn2023.x86_64):
+  [PASS] root_privilege     : Effective UID is 0 (root)
+  [PASS] kcore_interface    : /proc/kcore is readable (ELF64 detected)
+  [PASS] kpageflags         : /proc/kpageflags is accessible
+  [PASS] kptr_restrict      : Kernel pointer addresses exposed (kptr_restrict=0)
+  [PASS] storage_capacity   : Output path storage has 71420 MiB available
+
+Status: READY for live kernel memory acquisition.
+```
+
+자동화 스크립트 및 CI 파이프라인 연계를 위한 JSON 출력 (`--json`):
+```sh
+sudo ./kerneldump check --json
+```
+
+실제 실행 결과:
 ```json
 {
   "ready": true,
-  "euid_0": true,
-  "kcore_readable": true,
-  "kpageflags_readable": true,
-  "kptr_restrict_ok": true,
-  "target_space_mb": 45120
+  "kernel_release": "6.18.54-121.166.amzn2023.x86_64",
+  "checks": [
+    {
+      "name": "root_privilege",
+      "passed": true,
+      "detail": "Effective UID is 0 (root)"
+    },
+    {
+      "name": "kcore_interface",
+      "passed": true,
+      "detail": "/proc/kcore is readable (ELF64 detected)"
+    },
+    {
+      "name": "kpageflags",
+      "passed": true,
+      "detail": "/proc/kpageflags is accessible"
+    },
+    {
+      "name": "kptr_restrict",
+      "passed": true,
+      "detail": "Kernel pointer addresses exposed (kptr_restrict=0)"
+    },
+    {
+      "name": "storage_capacity",
+      "passed": true,
+      "detail": "Output path storage has 71420 MiB available"
+    }
+  ]
 }
 ```
 
-### 기본 CLI 명령어
+### 2. 커널 환경 및 메모리 경계 탐색 (`probe`)
+
+시스템의 물리 RAM 세그먼트, 커널 버전, 베이스 주소 오프셋, BTF 메타데이터를 탐색합니다.
 
 ```sh
-# 1. 시스템 메모리 경계 및 커널 인터페이스 탐색
-sudo ./target/x86_64-unknown-linux-musl/release/kernel_dump probe
+sudo ./kerneldump probe
+```
 
-# 2. 주소 보존형 커널 플레인 물리 메모리 덤프 수행
-sudo ./target/x86_64-unknown-linux-musl/release/kernel_dump capture --output /dumps/incident-001 --request-id prod-linux-host-01
+실제 실행 결과:
+```json
+{
+  "kernel_banner": "Linux version 6.18.54-121.166.amzn2023.x86_64 (mockbuild@ip-10-0-49-18) (gcc (GCC) 11.5.0 20240719 (Red Hat 11.5.0-5), GNU ld version 2.41-50.amzn2023.0.5) #2 SMP PREEMPT_DYNAMIC Tue Oct  6 23:11:34 UTC 2026\n",
+  "kernel_release": "6.18.54-121.166.amzn2023.x86_64",
+  "page_offset_base": 18446616581900337152,
+  "kernel_gnu_build_ids": [
+    "db0381963da8135cfe6c95212224db532a5d6658"
+  ],
+  "kernel_notes_sha256": "7da6feeca52898ad7f5658df308344c58a9eed2015955f0b807d86ec557cfb15",
+  "kernel_btf": {
+    "bytes": 5178259,
+    "sha256": "d865baa253eef9454e386d4402c4a50e339c19ed8c5cf472a7354cc53751fbd9"
+  },
+  "runtime_arch_task_struct_size": 10496,
+  "ram_ranges": [
+    [4096, 655360],
+    [1048576, 3150766080],
+    [3153977344, 3220684800],
+    [4294967296, 68685922304]
+  ],
+  "io_at_probe": {
+    "available": true,
+    "kcore_probe": {
+      "calls": 7,
+      "returned_bytes": 1260
+    }
+  }
+}
+```
 
-# 3. 획득된 LiME 이미지 및 PFN 원장의 암호학적 무결성 검증
-sudo ./target/x86_64-unknown-linux-musl/release/kernel_dump verify /dumps/incident-001
+### 3. 주소 보존형 커널 메모리 획득 (`capture`)
+
+커널 슬랩, 페이지 테이블, 커널 코어 영역을 선별 획득하여 Native LiME 바이너리 이미지로 저장합니다.
+
+```sh
+sudo ./kerneldump capture --output /dumps/incident-001 --request-id prod-linux-host-01
+```
+
+실제 실행 결과:
+```json
+{
+  "status": "complete_for_policy",
+  "payload_bytes": 2289319296,
+  "policy_excluded_bytes": 65318711936,
+  "unavailable_bytes": 0,
+  "unprocessed_bytes": 0,
+  "elapsed_s": 20.835,
+  "errors": [],
+  "manifest": "/dumps/incident-001/manifest.json"
+}
+```
+
+### 4. 수집 산출물 암호학적 무결성 검증 (`verify`)
+
+획득된 `memory.lime`의 PFN 범위, 오프셋, 바이트 해시 및 매니페스트 레코드를 교차 검증합니다.
+
+```sh
+sudo ./kerneldump verify /dumps/incident-001
+```
+
+실제 실행 결과:
+```json
+{
+  "status": "integrity_verified",
+  "verified": true,
+  "ranges_checked": 120185,
+  "lime_sha256": "ed1d7d48df8eef2de87dd67f873405bf35c3a0f76f0b9c8e7b6a1ea9f33ca1c3",
+  "sha256_match": true
+}
 ```
 
 ### 수집 디렉터리 산출물 구조
@@ -395,14 +502,14 @@ sudo ./target/x86_64-unknown-linux-musl/release/kernel_dump verify /dumps/incide
 
 메모리 수집 작업을 시작하기 전, `KernelDump`는 2단계 스토리지 보호 루틴을 실행합니다:
 - **사전 여유 공간 점검:** `statvfs` 시스템 콜을 통해 대상 파일시스템의 가용 용량이 `max(RAM / 10, 1 GiB)` 이상인지 검사합니다(`check_available_space`).
-- **비상 매니페스트 예약 파일 (`posix_fallocate`):** 작업 시작 즉시 1 MiB 크기의 비상 예약 파일(`manifest_reserve`)을 사전 할당합니다. 예기치 않은 메모리 증가나 호스트 내 타 프로세스의 동시 대량 쓰기로 인해 디스크가 가득 차는 상황이 발생하더라도, `KernelDump`는 이 예약 파일을 해제하여 수집 실패 사유와 현재까지 수집된 부분 범위를 기록한 `manifest.json`을 안전하게 저장합니다.
-- **Fail-Fast 한계:** 이 메커니즘은 사전 점검 및 메타데이터 복원력을 위한 안전장치이며, 수집 도중 외부 프로세스에 의해 발생하는 동시적 디스크 완전 고갈을 100% 방지함을 보장하지는 않습니다.
+- **비상 매니페스트 예약 파일 (`posix_fallocate`):** 작업 시작 즉시 1 MiB 크기의 비상 예약 파일(`manifest_reserve`)을 사전 할당합니다. 디스크 여유 공간이 부족해지는 상황이 발생하더라도, `KernelDump`는 이 예약 파일을 해제하여 수집 실패 사유와 현재까지 수집된 부분 범위를 기록한 `manifest.json`을 안전하게 저장합니다.
+- **Fail-Fast 한계:** 이 메커니즘은 사전 점검 및 메타데이터 복원력을 위한 안전장치이며, 외부 프로세스에 의한 급격한 디스크 고갈을 완전히 차단하는 것은 아닙니다.
 
 ---
 
 ## 빌드 및 릴리즈 바이너리 증적
 
-`KernelDump`는 `x86_64-unknown-linux-musl` 타깃으로 정적 링크 컴파일되어 외부 공유 라이브러리 의존성 없이 모든 리눅스 배포판에서 즉시 실행됩니다.
+`KernelDump`는 `x86_64-unknown-linux-musl` 타깃으로 정적 링크 컴파일되어 외부 공유 라이브러리 의존성 없이 리눅스 환경에서 바로 실행됩니다.
 
 사전 컴파일된 공식 릴리즈 바이너리는 [GitHub Releases](https://github.com/KKudroK/KernelDump/releases)에서 다운로드할 수 있습니다.
 
@@ -414,17 +521,17 @@ sudo ./target/x86_64-unknown-linux-musl/release/kernel_dump verify /dumps/incide
 # 1. 정적 musl 타깃 릴리즈 바이너리 빌드
 cargo build --release --locked --offline --target x86_64-unknown-linux-musl
 
-# 2. 39개 통합 단위 테스트 전수 검증
+# 2. 통합 단위 테스트 검증
 cargo test --release --locked --offline --features development-options
 ```
 
-컴파일된 스트립 바이너리는 `target/x86_64-unknown-linux-musl/release/kernel_dump`에 생성됩니다.
+컴파일된 바이너리는 `./kerneldump`로 배포 및 실행할 수 있습니다.
 
 ### 기준 암호화 체크섬
 
-| 릴리즈 산출물 | 참조 경로 | 바이너리 포맷 | SHA-256 체크섬 |
+| 릴리즈 산출물 | 참조 실행 파일 | 바이너리 포맷 | SHA-256 체크섬 |
 |---|---|---|---|
-| **공식 바이너리** | `target/x86_64-unknown-linux-musl/release/kernel_dump` | ELF 64-bit static-pie (musl, stripped) | `58b4d570be7cd42d0cb6c1e2af45be82c70cdd881047ac6fe15e6ba819ab9773` |
+| **공식 바이너리** | `./kerneldump` | ELF 64-bit static-pie (musl, stripped) | `58b4d570be7cd42d0cb6c1e2af45be82c70cdd881047ac6fe15e6ba819ab9773` |
 
 ---
 

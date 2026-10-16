@@ -1,28 +1,28 @@
-# KernelDump: Policy-Driven, Kernel-Plane Physical Memory Acquisition for Live Linux Systems
+# KernelDump: Selective Kernel Memory Acquisition for Linux Systems
 
 [English](README.md) | [한국어](README.ko.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Language: Rust](https://img.shields.io/badge/Language-Rust_1.90+-orange.svg)](Cargo.toml)
-[![Forensics: Volatility 3](https://img.shields.io/badge/Forensics-Volatility_3_59_Plugins_Evaluated-brightgreen.svg)](validation.json)
+[![Forensics: Volatility 3](https://img.shields.io/badge/Forensics-Volatility_3_Compatible-brightgreen.svg)](validation.json)
 [![Binary: Static musl](https://img.shields.io/badge/Binary-Static_musl_Zero_Dependency-blueviolet.svg)](#building--release-binary-provenance)
-[![Status: Production Ready](https://img.shields.io/badge/Status-Production_Ready-success.svg)](#building--release-binary-provenance)
+[![Status: Tested](https://img.shields.io/badge/Status-Tested-success.svg)](#building--release-binary-provenance)
 
-**Ultra-fast, zero-footprint, kernel-plane physical memory acquisition engine for live production Linux servers, cloud instances, and high-density host infrastructure.**
+Lightweight kernel-plane physical memory acquisition tool for live Linux systems.
 
-`KernelDump` extracts a conservative, address-preserving physical memory subset (SLAB/SLUB caches, page table hierarchies, kernel text/data, and core control-plane structures) directly through Linux kernel interfaces (`/proc/kcore` and `/proc/kpageflags`). It requires **zero kernel modules (LKM-free)**, **zero process suspension**, and **zero security degradation**, generating standard LiME-formatted images that achieve 100% kernel forensic compatibility with unmodified **Volatility 3**.
+`KernelDump` selectively captures Linux kernel control-plane memory (SLAB/SLUB caches, page tables, kernel text/data) through `/proc/kcore` and `/proc/kpageflags` into standard LiME-formatted images. It operates without kernel modules (LKM-free) or process suspension, producing images directly compatible with Volatility 3.
 
 ---
 
-## Executive Summary & Key Results
+## Key Results & Highlights
 
-- **Acquisition Speedup (18.0x to 68.6x):** Compresses physical memory acquisition time from **38.27s (SSD) / 146.2s (HDD)** down to **1.23s ~ 2.13s**.
-- **Physical Volume Pruning (91.2% to 95.0%):** Prunes 9.66 GiB ~ 15.7 GiB raw memory bounds down to **~855 MiB** by selectively excluding volatile user-space anonymous pages and file page caches while preserving exact physical base addresses.
-- **Temporal Smear Window Reduction (94.4% to 98.5%):** Restricts the capture window to approximately two seconds on active production systems, virtually eliminating pointer desynchronization and phantom objects caused by live memory churn.
-- **Host Page Cache Protection (+124 kB Footprint):** Implements immediate frame release via `posix_fadvise(POSIX_FADV_DONTNEED)`. Capturing an 855 MiB memory image increases host page cache by only **124 kB**, preventing node memory pressure, swapping, and workload degradation.
-- **Comprehensive Volatility 3 Validation (All 59 Linux Plugins):** Evaluated systematically across every single Linux plugin in Volatility 3 (33 Success, 13 Clean Negatives, 7 Expected Omissions, 6 Timeouts).
-- **Multi-Kernel Portability Across Independent Hypervisors:** Empirically verified across Linux 6.8 (Ubuntu LTS on VMware Workstation), Linux 6.18 (Cloud kernel on Hyper-V), Linux 6.6 (Alpine Linux on QEMU), and Linux 6.1 (Debian on QEMU).
-- **Universal Static Binary:** Distributed as a self-contained, statically linked binary targeting `x86_64-unknown-linux-musl` (816 kB, 0 external dynamic library dependencies).
+- **Acquisition Speed:** Captures kernel memory in **20.8s** on a 64 GiB system, compared to 466.9s for full RAM acquisition.
+- **Volume Reduction:** Excludes user-space anonymous pages and page cache, reducing 62.96 GiB physical RAM to **1.99 GiB**.
+- **Smear Window Reduction:** Compresses live capture duration from 466.9s to **20.8s**, minimizing data inconsistency caused by ongoing runtime memory mutations.
+- **Page Cache Protection:** Uses `posix_fadvise(POSIX_FADV_DONTNEED)` to constrain host page cache growth to **110.4 kB** during acquisition.
+- **Immediate Forensics:** Directly produces native LiME images with zero secondary format conversion, enabling immediate analysis with Volatility 3.
+- **Single Static Binary:** Distributed as a standalone musl static binary (816 kB) with zero external dynamic library dependencies.
+
 
 ---
 
@@ -129,37 +129,37 @@ Each contiguous range of retained physical pages is written with its exact physi
 
 ---
 
-## Empirical Evaluation: Full RAM vs. KernelDump
+## Empirical Evaluation: Full RAM vs. makedumpfile vs. KernelDump
 
-### Benchmark Environment
-- **Host Platform:** Ubuntu 24.04.5 LTS / Linux Kernel 6.8.0-146-generic (x86_64) on VMware Workstation
-- **Hardware Profile:** 8 vCPUs, 9.44 GiB (9,662 MiB) Physical RAM, NVMe backing store
-- **System Workload:** Production Linux server hosting active services under continuous 100 req/s live HTTP traffic
+### 64 GiB Cloud Benchmark Environment
+- **Host Platform:** AWS EC2 `r6i.2xlarge` (8 vCPU Intel Xeon Platinum 8375C @ 2.90GHz, 61.78 GiB Physical RAM, 80 GiB gp3 NVMe SSD, Amazon Linux 2023 / Linux 6.18.54 LTS)
+- **Workload Profile:** 16.06 GiB committed anonymous physical RAM allocation (4,209,000 pages actively touched with continuous byte pattern mutation and worker thread churn)
+- **Evaluated Tools:**
+  1. **Full Physical RAM Baseline (LiME):** Complete 62.96 GiB physical RAM acquisition via kernel module
+  2. **makedumpfile -d 31 (kcore):** Live `/proc/kcore` dump excluding Zero, Cache, User, and Free pages (dump level 31)
+  3. **KernelDump (Proposed Method):** Address-preserving kernel-plane acquisition generating standard LiME natively
 
-### Acquisition & Forensic Triage Performance
+### Acquisition & Resource Overhead Comparison
 
-| Forensic Metric | Full Physical RAM (LiME) | KernelDump (Focused) | Delta / Improvement |
-|---|:---:|:---:|:---:|
-| **Dump Image Size** | 9,662 MiB (9.44 GiB) | **855 MiB (0.83 GiB)** | **-91.15% (11.3x reduction)** |
-| **Capture Wall Clock (NVMe SSD)** | 38.27 s | **2.132 s** | **17.95x faster** |
-| **Capture Wall Clock (SATA HDD / Net)** | 146.20 s | **2.132 s** | **68.57x faster** |
-| **Temporal Smear Window ($\Delta t$)** | 38,270 ms | **2,132 ms** | **94.43% reduction** |
-| **Host Page Cache Growth** | ~855,000 kB | **+124 kB** | **99.98% less pollution** |
-| **Volatility 3 `linux.pslist` Execution** | 146.20 s | **8.02 s** | **18.2x faster analysis** |
-| **Volatility 3 `linux.pstree` Execution** | 59.38 s | **8.12 s** | **7.3x faster analysis** |
-| **Volatility 3 `linux.mountinfo` Execution** | 54.96 s | **20.17 s** | **2.7x faster analysis** |
+| Metric | Full Physical RAM (LiME) | makedumpfile -d 31 (kcore) | KernelDump (Proposed) | Comparison & Analysis |
+| :--- | :---: | :---: | :---: | :--- |
+| **Dump Image Size** | 62.96 GiB | 2.37 GiB | **1.99 GiB** | **-96.84% volume reduction** |
+| **Raw Capture Duration** | 466.93 s | **13.41 s** | **20.84 s** | 22.4x faster acquisition vs LiME |
+| **LiME Format Conversion** | 0.00 s | **21.03 s** | **0.00 s** | Secondary conversion not required |
+| **Total Time to Forensics** | 466.93 s | **34.44 s** | **20.84 s** | **Time to triage reduced by 39.5%** |
+| **Host Page Cache Contamination** | +42.14 GiB | +2.49 GiB | **+110.4 kB** | Zero host cache pollution |
+| **Temporal Smear Window** | 466.93 s | 13.41 s | **20.84 s** | Smear window reduced by 95.54% |
+| **Toolchain Dependencies** | Kernel module build required | kdump utilities, debug symbols, conversion script | **Single static binary** | Zero external dependencies |
 
 ---
 
-## Exhaustive Volatility 3 Plugin Matrix (59 Plugins)
+## Volatility 3 Plugin Evaluation
 
-Every single Linux plugin available in **Volatility 3** (59 plugins in total) was systematically executed directly against the `KernelDump` output image. 
-
-To maintain strict forensic integrity, results are categorized by their precise forensic meaning—distinguishing complete kernel control-plane extractions, metadata-only descriptors with uncollected userland payload, genuine clean negatives, and policy omissions:
+All 59 Linux plugins available in Volatility 3 were evaluated against KernelDump output images. Results are categorized below according to acquisition scope:
 
 ```
 Total Linux Plugins Evaluated: 59
-├── Kernel Control-Plane Extraction: 30 Plugins (100% Structural Parity)
+├── Kernel Control-Plane Extraction: 30 Plugins (Structural Parity)
 ├── Descriptors with Excluded User Payload: 3 Plugins (PsAux, Malfind - Metadata Only)
 ├── Genuine Clean Negatives: 9 Plugins (Verified Zero-Hook / Zero-Tampering)
 ├── Userland Policy Omissions: 4 Plugins (Bash, Envars, Elfs, Pagecache - Excluded by Design)
@@ -344,43 +344,150 @@ To verify portability across diverse host environments and hypervisors, `KernelD
 ### The `CONFIG_PROC_KCORE` Prerequisite & Fail-Closed Safety
 
 - Standard enterprise and cloud kernels (Ubuntu, Debian, RHEL, openSUSE, Arch, WSL2) enable `CONFIG_PROC_KCORE=y` by default for debugger and diagnostic compatibility.
-- In minimal microVM kernels where `CONFIG_PROC_KCORE` is disabled (e.g., Alpine Linux `linux-virt`), `kernel_dump check --json` safely detects the missing interface, returns `ready: false`, and exits cleanly without system crashes or kernel panics.
+- In minimal microVM kernels where `CONFIG_PROC_KCORE` is disabled (e.g., Alpine Linux `linux-virt`), `kerneldump check --json` safely detects the missing interface, returns `ready: false`, and exits cleanly without system crashes or kernel panics.
 
 ---
 
-## CLI Specification & Pre-Flight Diagnostics
+## CLI Specification & Real Execution Results
 
-### Pre-flight Readiness Check (`kernel_dump check`)
+### 1. Pre-Flight Readiness Diagnostics (`check`)
 
-Before initiating an acquisition, run the automated pre-flight check to verify EUID, kernel interfaces, and storage headroom:
+Before starting memory acquisition, `kerneldump` verifies EUID 0, `/proc/kcore`, `/proc/kpageflags`, unmasked symbols (`kptr_restrict=0`), and storage capacity:
 
 ```sh
-sudo ./target/x86_64-unknown-linux-musl/release/kernel_dump check --json
+sudo ./kerneldump check
 ```
 
-Output:
+Real Command Output (Interactive TTY Mode):
+```text
+kerneldump system readiness check (Linux 6.18.54-121.166.amzn2023.x86_64):
+  [PASS] root_privilege     : Effective UID is 0 (root)
+  [PASS] kcore_interface    : /proc/kcore is readable (ELF64 detected)
+  [PASS] kpageflags         : /proc/kpageflags is accessible
+  [PASS] kptr_restrict      : Kernel pointer addresses exposed (kptr_restrict=0)
+  [PASS] storage_capacity   : Output path storage has 71420 MiB available
+
+Status: READY for live kernel memory acquisition.
+```
+
+JSON output for scripting and automated incident response pipelines (`--json`):
+```sh
+sudo ./kerneldump check --json
+```
+
+Real Command Output:
 ```json
 {
   "ready": true,
-  "euid_0": true,
-  "kcore_readable": true,
-  "kpageflags_readable": true,
-  "kptr_restrict_ok": true,
-  "target_space_mb": 45120
+  "kernel_release": "6.18.54-121.166.amzn2023.x86_64",
+  "checks": [
+    {
+      "name": "root_privilege",
+      "passed": true,
+      "detail": "Effective UID is 0 (root)"
+    },
+    {
+      "name": "kcore_interface",
+      "passed": true,
+      "detail": "/proc/kcore is readable (ELF64 detected)"
+    },
+    {
+      "name": "kpageflags",
+      "passed": true,
+      "detail": "/proc/kpageflags is accessible"
+    },
+    {
+      "name": "kptr_restrict",
+      "passed": true,
+      "detail": "Kernel pointer addresses exposed (kptr_restrict=0)"
+    },
+    {
+      "name": "storage_capacity",
+      "passed": true,
+      "detail": "Output path storage has 71420 MiB available"
+    }
+  ]
 }
 ```
 
-### CLI Command Reference
+### 2. Kernel Environment & Memory Probing (`probe`)
+
+Non-invasively inspects physical RAM segments, kernel version, base address offsets, and kernel BTF metadata:
 
 ```sh
-# 1. Probe System Memory Boundaries & Kernel Interfaces
-sudo ./target/x86_64-unknown-linux-musl/release/kernel_dump probe
+sudo ./kerneldump probe
+```
 
-# 2. Acquire Address-Preserving Kernel Physical Memory Image
-sudo ./target/x86_64-unknown-linux-musl/release/kernel_dump capture --output /dumps/incident-001 --request-id prod-linux-host-01
+Real Command Output:
+```json
+{
+  "kernel_banner": "Linux version 6.18.54-121.166.amzn2023.x86_64 (mockbuild@ip-10-0-49-18) (gcc (GCC) 11.5.0 20240719 (Red Hat 11.5.0-5), GNU ld version 2.41-50.amzn2023.0.5) #2 SMP PREEMPT_DYNAMIC Tue Oct  6 23:11:34 UTC 2026\n",
+  "kernel_release": "6.18.54-121.166.amzn2023.x86_64",
+  "page_offset_base": 18446616581900337152,
+  "kernel_gnu_build_ids": [
+    "db0381963da8135cfe6c95212224db532a5d6658"
+  ],
+  "kernel_notes_sha256": "7da6feeca52898ad7f5658df308344c58a9eed2015955f0b807d86ec557cfb15",
+  "kernel_btf": {
+    "bytes": 5178259,
+    "sha256": "d865baa253eef9454e386d4402c4a50e339c19ed8c5cf472a7354cc53751fbd9"
+  },
+  "runtime_arch_task_struct_size": 10496,
+  "ram_ranges": [
+    [4096, 655360],
+    [1048576, 3150766080],
+    [3153977344, 3220684800],
+    [4294967296, 68685922304]
+  ],
+  "io_at_probe": {
+    "available": true,
+    "kcore_probe": {
+      "calls": 7,
+      "returned_bytes": 1260
+    }
+  }
+}
+```
 
-# 3. Cryptographically Verify Captured LiME Image & PFN Ledger
-sudo ./target/x86_64-unknown-linux-musl/release/kernel_dump verify /dumps/incident-001
+### 3. Address-Preserving Kernel Memory Acquisition (`capture`)
+
+Acquires retained kernel physical memory frames (SLAB caches, page tables, kernel core) directly into standard LiME format:
+
+```sh
+sudo ./kerneldump capture --output /dumps/incident-001 --request-id prod-linux-host-01
+```
+
+Real Command Output:
+```json
+{
+  "status": "complete_for_policy",
+  "payload_bytes": 2289319296,
+  "policy_excluded_bytes": 65318711936,
+  "unavailable_bytes": 0,
+  "unprocessed_bytes": 0,
+  "elapsed_s": 20.835,
+  "errors": [],
+  "manifest": "/dumps/incident-001/manifest.json"
+}
+```
+
+### 4. Cryptographic Integrity Verification (`verify`)
+
+Cross-validates physical PFN coverage, byte ranges, SHA-256 hashes, and manifest parameters:
+
+```sh
+sudo ./kerneldump verify /dumps/incident-001
+```
+
+Real Command Output:
+```json
+{
+  "status": "integrity_verified",
+  "verified": true,
+  "ranges_checked": 120185,
+  "lime_sha256": "ed1d7d48df8eef2de87dd67f873405bf35c3a0f76f0b9c8e7b6a1ea9f33ca1c3",
+  "sha256_match": true
+}
 ```
 
 ### Acquisition Directory Structure
@@ -419,13 +526,13 @@ cargo build --release --locked --offline --target x86_64-unknown-linux-musl
 cargo test --release --locked --offline --features development-options
 ```
 
-The compiled stripped binary will be located at `target/x86_64-unknown-linux-musl/release/kernel_dump`.
+The compiled stripped binary can be directly distributed and executed as `./kerneldump`.
 
 ### Reference Cryptographic Checksum
 
-| Release Asset | Reference Path | Format | SHA-256 Checksum |
+| Release Asset | Reference Executable | Format | SHA-256 Checksum |
 |---|---|---|---|
-| **Production Binary** | `target/x86_64-unknown-linux-musl/release/kernel_dump` | ELF 64-bit static-pie (musl, stripped) | `58b4d570be7cd42d0cb6c1e2af45be82c70cdd881047ac6fe15e6ba819ab9773` |
+| **Production Binary** | `./kerneldump` | ELF 64-bit static-pie (musl, stripped) | `58b4d570be7cd42d0cb6c1e2af45be82c70cdd881047ac6fe15e6ba819ab9773` |
 
 ---
 

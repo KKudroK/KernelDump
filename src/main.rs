@@ -43,7 +43,7 @@ fn run() -> Result<bool> {
         #[cfg(not(feature = "development-options"))]
         {
             println!(
-                "kernel_dump {}\nUsage:\n  kernel_dump check [--target-dir PATH] [--json]\n  kernel_dump capture --output NEW_DIR [--request-id ID]\n  kernel_dump probe\n  kernel_dump verify OUTPUT_DIR\n\nStandalone Rust live physical LiME acquisition for Linux x86-64/4KiB.\nCaptures a conservative kernel-focused PFN selection with explicit exclusions.\nExcludes user/cache/free PFNs; retains SLAB, page tables and ambiguous PFNs.\nA narrow free-only SLAB boundary exception supports bounded analyzer reads.\nNot atomic, not entire RAM, and not a strict kernel-only guarantee.\nBuffering, parallel writing and durable publication are managed internally.\nCaller determines invocation time and incident policy. No security settings are changed.\nExit 0 confirms complete acquisition for the recorded policy and durable publication; preserve stderr on failure.",
+                "kerneldump {}\nUsage:\n  kerneldump check [--target-dir PATH] [--json]\n  kerneldump capture --output NEW_DIR [--request-id ID]\n  kerneldump probe\n  kerneldump verify OUTPUT_DIR\n\nStandalone Rust live physical LiME acquisition for Linux x86-64/4KiB.\nCaptures a conservative kernel-focused PFN selection with explicit exclusions.\nExcludes user/cache/free PFNs; retains SLAB, page tables and ambiguous PFNs.\nA narrow free-only SLAB boundary exception supports bounded analyzer reads.\nNot atomic, not entire RAM, and not a strict kernel-only guarantee.\nBuffering, parallel writing and durable publication are managed internally.\nCaller determines invocation time and incident policy. No security settings are changed.\nExit 0 confirms complete acquisition for the recorded policy and durable publication; preserve stderr on failure.",
                 env!("CARGO_PKG_VERSION")
             );
             return Ok(true);
@@ -51,7 +51,7 @@ fn run() -> Result<bool> {
         #[cfg(feature = "development-options")]
         {
             println!(
-                "kernel_dump {}\n\nUsage:\n  kernel_dump check [--target-dir PATH] [--json]\n  kernel_dump probe\n  kernel_dump capture --output NEW_DIR [--scope full-ram|kernel-focused]\n                      [--chunk-mib 1..16] [--queue-depth 1..16]\n                      [--request-id ID]\n  kernel_dump verify OUTPUT_DIR\n\nStandalone Rust Linux x86-64/4KiB live physical LiME acquisition.\nDefaults: kernel-focused, chunk1MiB, queue2. Requires readable kcore/kpageflags and\nunmasked page_offset_base/linux_banner; no security settings are changed.\nNot atomic, not a kernel-only guarantee. No incident/trigger/round policy.\nExit0 confirms successful policy acquisition and durability;2 means incomplete.\nAn in-flight kernel I/O call can delay cooperative cancellation.",
+                "kerneldump {}\n\nUsage:\n  kerneldump check [--target-dir PATH] [--json]\n  kerneldump probe\n  kerneldump capture --output NEW_DIR [--scope full-ram|kernel-focused]\n                      [--chunk-mib 1..16] [--queue-depth 1..16]\n                      [--request-id ID]\n  kerneldump verify OUTPUT_DIR\n\nStandalone Rust Linux x86-64/4KiB live physical LiME acquisition.\nDefaults: kernel-focused, chunk1MiB, queue2. Requires readable kcore/kpageflags and\nunmasked page_offset_base/linux_banner; no security settings are changed.\nNot atomic, not a kernel-only guarantee. No incident/trigger/round policy.\nExit0 confirms successful policy acquisition and durability;2 means incomplete.\nAn in-flight kernel I/O call can delay cooperative cancellation.",
                 env!("CARGO_PKG_VERSION")
             );
             return Ok(true);
@@ -75,7 +75,7 @@ fn run() -> Result<bool> {
             if json_mode {
                 println!("{}", serde_json::to_string_pretty(&report)?);
             } else {
-                println!("kernel_dump system readiness check (Linux {}):", report["kernel_release"]);
+                println!("kerneldump system readiness check (Linux {}):", report["kernel_release"]);
                 if let Some(checks) = report["checks"].as_array() {
                     for c in checks {
                         let passed = c["passed"].as_bool().unwrap_or(false);
@@ -170,7 +170,7 @@ fn main() {
         Ok(true) => (),
         Ok(false) => std::process::exit(2),
         Err(e) => {
-            eprintln!("kernel_dump: {e}");
+            eprintln!("kerneldump: {e}");
             std::process::exit(1)
         }
     }

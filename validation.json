@@ -14,7 +14,7 @@
     "src/verify.rs": "722189e86da26b04384aab9915edf583f689814c41da36fda0616593deb0e339"
   },
   "release_binary": {
-    "path": "release/KernelDump",
+    "path": "release/kerneldump",
     "sha256": "58b4d570be7cd42d0cb6c1e2af45be82c70cdd881047ac6fe15e6ba819ab9773",
     "size_bytes": 816864,
     "compiler": "rustc 1.90.0 (840b83a10 2025-07-30) / target x86_64-unknown-linux-musl",

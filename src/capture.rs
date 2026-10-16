@@ -308,7 +308,7 @@ pub fn acquire<S: Memory + 'static>(
     let pinned_output = output_guard.path();
     let output = pinned_output.as_path();
     let started = now();
-    let mut m = json!({"schema":2,"tool":"kernel_dump","implementation":"rust","version":env!("CARGO_PKG_VERSION"),"scope":scope.name(),"atomic":false,"strict_kernel_only":false,
+    let mut m = json!({"schema":2,"tool":"kerneldump","implementation":"rust","version":env!("CARGO_PKG_VERSION"),"scope":scope.name(),"atomic":false,"strict_kernel_only":false,
         "build_provenance":serde_json::from_str::<Value>(include_str!("../build_provenance.json"))?,
         "status":"in_progress","source":info,"ram_ranges":ram,"expected_ram_bytes":expected,"start_ns":started,
         "wall_start_unix_ns":SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos(),"timebase":"CLOCK_MONOTONIC ns","chunk_bytes":chunk,"queue_depth":depth,
@@ -429,7 +429,7 @@ pub fn acquire<S: Memory + 'static>(
                     last_progress_bytes = total;
                     let pct = (processed_end as f64 / expected as f64 * 100.0).min(100.0);
                     eprint!(
-                        "\r\x1b[2K[kernel_dump] PFN scan: {:5.1}% | Selected: {:6.1} MiB | Output: {:6.1} MiB",
+                        "\r\x1b[2K[kerneldump] PFN scan: {:5.1}% | Selected: {:6.1} MiB | Output: {:6.1} MiB",
                         pct,
                         ledger_payload as f64 / (1024.0 * 1024.0),
                         offset as f64 / (1024.0 * 1024.0)
@@ -446,14 +446,14 @@ pub fn acquire<S: Memory + 'static>(
         file.sync_all()?;
         ledger.sync_all()?;
         if let Err(e) = crate::safe_output::advise_dontneed(&file, 0, offset as i64) {
-            eprintln!("[kernel_dump] warning: advise_dontneed on payload failed: {e}");
+            eprintln!("[kerneldump] warning: advise_dontneed on payload failed: {e}");
         }
         if let Err(e) = crate::safe_output::advise_dontneed(&ledger, 0, 0) {
-            eprintln!("[kernel_dump] warning: advise_dontneed on ledger failed: {e}");
+            eprintln!("[kerneldump] warning: advise_dontneed on ledger failed: {e}");
         }
         if is_tty {
             eprintln!(
-                "\r\x1b[2K[kernel_dump] Acquisition synced: {:.1} MiB payload durable on storage",
+                "\r\x1b[2K[kerneldump] Acquisition synced: {:.1} MiB payload durable on storage",
                 offset as f64 / (1024.0 * 1024.0)
             );
         }
