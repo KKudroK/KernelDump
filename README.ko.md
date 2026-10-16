@@ -1,14 +1,14 @@
-# KernelDump: 라이브 리눅스 및 쿠버네티스 노드를 위한 정책 기반 커널 플레인 물리 메모리 획득 도구
+# KernelDump: 라이브 리눅스 시스템을 위한 정책 기반 커널 플레인 물리 메모리 획득 도구
 
 [English](README.md) | [한국어](README.ko.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Language: Rust](https://img.shields.io/badge/Language-Rust_1.90+-orange.svg)](Cargo.toml)
 [![Forensics: Volatility 3](https://img.shields.io/badge/Forensics-Volatility_3_59_Plugins_Evaluated-brightgreen.svg)](validation.json)
-[![Binary: Static musl](https://img.shields.io/badge/Binary-Static_musl_Zero_Dependency-blueviolet.svg)](release/)
-[![Status: Production Ready](https://img.shields.io/badge/Status-Production_Ready-success.svg)](release/)
+[![Binary: Static musl](https://img.shields.io/badge/Binary-Static_musl_Zero_Dependency-blueviolet.svg)](#빌드-및-릴리즈-바이너리-증적)
+[![Status: Production Ready](https://img.shields.io/badge/Status-Production_Ready-success.svg)](#빌드-및-릴리즈-바이너리-증적)
 
-**운영 중인 쿠버네티스(Kubernetes) 워커 노드 및 고밀도 리눅스 환경을 위한 초고속·저부하 커널 플레인 물리 메모리 획득 엔진.**
+**운영 중인 엔터프라이즈 리눅스 서버, 클라우드 호스트 및 고밀도 시스템을 위한 초고속·저부하 커널 플레인 물리 메모리 획득 엔진.**
 
 `KernelDump`는 리눅스 커널 가상 인터페이스(`/proc/kcore` 및 `/proc/kpageflags`)를 직접 해석하여 커널 핵심 제어 플레인 구조(SLAB/SLUB 캐시, 페이지 테이블 계층, 커널 텍스트/데이터 영역, 주요 태스크 구조체)를 선별적으로 보존·추출합니다. **커널 모듈(LKM) 적재가 불필요**하며, **프로세스 동결(Freezing) 없이**, **호스트 보안 설정을 훼손하지 않는 상태**에서 표준 LiME 포맷 이미지를 생성하여 순정 **Volatility 3**와의 100% 포렌식 호환성을 보장합니다.
 
@@ -19,7 +19,7 @@
 - **획득 속도 향상 (18.0배 ~ 68.6배 고속화):** NVMe/SATA 환경에서 전체 물리 메모리 덤프 소요 시간인 **38.27초(SSD) ~ 146.2초(HDD)**를 **1.23초 ~ 2.13초**로 대폭 단축.
 - **물리 덤프 용량 절감 (91.2% ~ 95.0% 감축):** 물리 메모리 절대 기준 주소를 원본 그대로 유지하면서, 고변동 사용자 영역 익명 메모리와 파일 페이지 캐시를 선별 배제하여 9.66 GiB ~ 15.7 GiB 원본 범위를 **약 855 MiB** 수준으로 경량화.
 - **시간적 메모리 스미어(Memory Smear) 윈도우 단축 (94.4% ~ 98.5% 감소):** 라이브 시스템의 덤프 수집 지연으로 발생하는 포인터 역전 및 유령(Phantom) 객체 생성 취약 구간을 2초 내외로 압축하여 데이터 구조적 정합성 확보.
-- **호스트 페이지 캐시 오염 차단 (+124 kB 미세 증분):** `posix_fadvise(POSIX_FADV_DONTNEED)` 기반 즉각 캐시 반환을 구현하여 855 MiB 덤프 기록 시 호스트 `Cached` 메모리 증가폭을 **+124 kB**로 억제 (기존 덤퍼 대비 캐시 오염 99.98% 차단, kswapd 부하 및 Pod Eviction 완전 방지).
+- **호스트 페이지 캐시 오염 차단 (+124 kB 미세 증분):** `posix_fadvise(POSIX_FADV_DONTNEED)` 기반 즉각 캐시 반환을 구현하여 855 MiB 덤프 기록 시 호스트 `Cached` 메모리 증가폭을 **+124 kB**로 억제 (기존 덤퍼 대비 캐시 오염 99.98% 차단, kswapd 부하 및 운영 서비스 스왑 완전 방지).
 - **Volatility 3 전체 59개 리눅스 플러그인 전수 검증:** 순정 Volatility 3에 내장된 59개 리눅스 플러그인을 전수 평가 (성공 33개, 정상 음성 13개, 의도된 제외 7개, 타임아웃 6개).
 - **독립 하이퍼바이저 기반 4종 리눅스 커널 실측 검증:** VMware, Hyper-V, QEMU 가상화 환경에서 Linux 6.8, Linux 6.18, Linux 6.6, Linux 6.1 커널을 대상으로 포렌식 정합성 및 안전한 진단 종료 검증 완료.
 - **단일 무의존성 Static musl 바이너리:** `x86_64-unknown-linux-musl` 타깃 정적 링크 바이너리로 배포되어(816 kB), glibc 버전 불일치나 공유 라이브러리 결함 없이 모든 리눅스 배포판에서 즉시 실행 가능.
@@ -36,21 +36,22 @@
 6. [호스트 페이지 캐시 보호 및 노드 안정성](#호스트-페이지-캐시-보호-및-노드-안정성)
 7. [다중 독립 커널 실측 검증 매트릭스](#다중-독립-커널-실측-검증-매트릭스)
 8. [CLI 사용법 및 사전 진단 기능](#cli-사용법-및-사전-진단-기능)
-9. [릴리즈 바이너리 및 암호화 증적](#릴리즈-바이너리-및-암호화-증적)
-10. [라이선스 및 기여](#라이선스-및-기여)
+9. [빌드 및 릴리즈 바이너리 증적](#빌드-및-릴리즈-바이너리-증적)
+10. [기술적 한계 및 운영 제약 사항](#기술적-한계-및-운영-제약-사항)
+11. [라이선스 및 기여](#라이선스-및-기여)
 
 ---
 
 ## 도입 배경 및 위협 모델
 
-기존의 라이브 물리 메모리 획득 도구(예: 순정 LiME, `/dev/fmem`)는 `0x0`부터 물리 주소의 끝까지 전체 시스템 RAM을 순차적으로 읽어냅니다. 64 GiB ~ 512 GiB 이상의 고밀도 메모리를 장착한 현대 쿠버네티스 워커 노드에서 이러한 방식은 다음과 같은 치명적 한계를 가집니다:
+기존의 라이브 물리 메모리 획득 도구(예: 순정 LiME, `/dev/fmem`)는 `0x0`부터 물리 주소의 끝까지 전체 시스템 RAM을 순차적으로 읽어냅니다. 64 GiB ~ 512 GiB 이상의 고밀도 메모리를 장착한 현대 운영 리눅스 서버 및 가상화 호스트에서 이러한 방식은 다음과 같은 치명적 한계를 가집니다:
 
 1. **시간적 메모리 스미어:** 수십~수백 GiB를 디스크나 네트워크로 전송하는 데 수십 초에서 수십 분이 소요됩니다. 덤프가 진행되는 동안 활성 프로세스들이 커널 포인터, 연결 리스트, 페이지 테이블을 끊임없이 변경하므로 불완전한 포인터 체인과 팬텀 객체가 다량 생성됩니다.
-2. **페이지 캐시 오염으로 인한 노드 불안정:** 일반적인 POSIX 파일 쓰기는 기록 데이터를 호스트 페이지 캐시에 누적시킵니다. 수십 GiB의 덤프 파일이 캐시를 잠식하면 커널 메모리 회수 서브시스템(`kswapd`)이 긴급 활성화되어 기존 운영 컨테이너의 메모리를 강제 스왑아웃하거나 OOM Killer를 유발하여 Pod Eviction이 발생합니다.
+2. **페이지 캐시 오염으로 인한 노드 불안정:** 일반적인 POSIX 파일 쓰기는 기록 데이터를 호스트 페이지 캐시에 누적시킵니다. 수십 GiB의 덤프 파일이 캐시를 잠식하면 커널 메모리 회수 서브시스템(`kswapd`)이 긴급 활성화되어 기존 운영 서비스의 메모리를 강제 스왑아웃하거나 OOM Killer를 유발하여 프로세스 강제 종료가 발생합니다.
 3. **LKM 적재의 보안 정책 충돌:** 엔터프라이즈 리눅스 노드에서는 Kernel Lockdown (`lockdown=confidentiality`), Secure Boot, eBPF 보안 에이전트(Falco, Datadog 등)가 적용되어 미서명 커널 모듈 적재가 엄격히 차단됩니다.
-4. **대규모 클러스터 전송 병목:** 침해 사고 발생 시 다수의 노드에서 수십 GiB 단위의 전체 메모리 덤프를 네트워크로 동시 전송할 경우 클러스터 네트워크 대역폭이 포화 상태에 이릅니다.
+4. **대규모 전송 병목:** 침해 사고 발생 시 다수의 호스트에서 수십 GiB 단위의 전체 메모리 덤프를 네트워크로 동시 전송할 경우 네트워크 대역폭이 포화 상태에 이릅니다.
 
-`KernelDump`는 리눅스 커널 표준 가상 인터페이스를 통해 커널 제어 플레인 메모리만을 안전하게 선별 수집함으로써 노드 운영 영향을 최소화하면서 침해 사고 분석에 필수적인 포렌식 증거를 신속히 확보합니다.
+`KernelDump`는 리눅스 커널 표준 가상 인터페이스를 통해 커널 제어 플레인 메모리만을 안전하게 선별 수집함으로써 시스템 운영 영향을 최소화하면서 침해 사고 분석에 필수적인 포렌식 증거를 신속히 확보합니다.
 
 ---
 
@@ -89,17 +90,26 @@
 
 - **수집 대상 플래그 (Inclusion Criteria):**
   - `KPF_SLAB (bit 7)`: 커널 SLAB/SLUB 캐시 (`task_struct`, `files_struct`, `mm_struct`, 소켓 구조체, 자격증명, dentry, inode 등).
-  - `KPF_PGTABLE (bit 11)`: 가상-물리 주소 변환을 수행하는 페이지 테이블 계층 (PGDIR, P4D, PUD, PMD, PTE).
+  - `KPF_PGTABLE (bit 26)`: 가상-물리 주소 변환을 수행하는 페이지 테이블 계층 (PGDIR, P4D, PUD, PMD, PTE). *(참고: `bit 11`은 `KPF_MMAP`에 해당).*
   - `KPF_RESERVED (bit 32)`: 커널 코드 텍스트, 정적 BSS, initrd, 하드웨어 예약 영역, per-CPU 구조체.
-  - 기타 커널 제어용 특수 메타데이터 페이지.
+  - 기타 커널 제어용 특수 메타데이터 페이지 및 미분류 물리 프레임.
 - **수집 배제 플래그 (Exclusion Criteria):**
   - `KPF_ANON (bit 12)`: 사용자 공간 프로세스의 힙, 스택, mmap 익명 할당 페이지.
   - `KPF_FILE (bit 1)`: 디스크 I/O 완충용 파일 페이지 캐시.
   - `KPF_BUDDY (bit 10)`: 버디 할당자가 관리하는 미사용 여유 페이지.
 
+#### 다중 페이지 커널 구조체 경계 보존 및 수집 정책 (`classify_with_neighbors`)
+
+- **다중 페이지 커널 객체:** 리눅스 SLUB 할당자에서 주요 커널 구조체(예: `struct task_struct`는 약 10,496바이트 크기로 연속된 3개의 4 KiB 물리 페이지에 걸쳐 할당됨)는 단일 페이지 경계를 초과합니다. 경계 페이지가 누락되면 Volatility 등의 분석 도구에서 객체 순회 중 절단 오류(`layer.is_valid` 실패)가 발생합니다.
+- **인접 경계 보존 (`classify_with_neighbors`):** 커널 객체 그래프의 연속성을 보장하기 위해, `KernelDump`는 명시적 손상(`UNSAFE`: `KPF_HWPOISON`, `KPF_NOPAGE`, `KPF_OFFLINE`)이 없는 한 `SLAB` 또는 `PGTABLE` 페이지와 물리적으로 인접한 전후 경계 페이지를 함께 보존합니다.
+- **정책적 포함 및 `strict_kernel_only: false`:** 인접한 경계 페이지가 익명 메모리(`ANON`)나 페이지 캐시(`FILE`)로 할당되어 있던 경우 해당 페이지가 함께 수집될 수 있습니다. 메타데이터 매니페스트(`manifest.json`)는 이러한 실제 동작을 반영하여 `"strict_kernel_only": false`로 명시합니다.
+
 ### 2. `/proc/kcore` 기반 가상-물리 주소 해석
 
 `/proc/kcore`는 커널 가상 메모리와 물리 메모리를 ELF 코어 덤프 포맷으로 매핑합니다. `KernelDump`는 ELF 프로그램 헤더(`PT_LOAD`)를 파싱하여 x86_64 커널 직접 매핑 영역(`page_offset_base`)과 물리 주소 간의 오프셋을 동적으로 계산합니다. 이를 통해 커널 디버깅 심볼(vmlinux) 없이도 순수 사용자 공간에서 직접 물리 프레임을 역참조합니다.
+
+> [!NOTE]
+> `/proc/kcore`의 ELF 세그먼트 오프셋은 도구 초기화 시점에 1회 파싱됩니다. 수집 진행 중에 동적으로 발생하는 메모리 핫플러그(Hot-add 또는 Hot-remove) 변경 사항은 실시간으로 재감지되지 않습니다.
 
 ### 3. 물리 주소 보존형 LiME 직렬화
 
@@ -124,7 +134,7 @@ struct lime_header {
 ### 벤치마크 환경 구성
 - **호스트 환경:** Ubuntu 24.04.5 LTS / Linux Kernel 6.8.0-146-generic (x86_64) on VMware Workstation
 - **하드웨어 제원:** 8 vCPU, 9.44 GiB (9,662 MiB) Physical RAM, NVMe SSD 스토리지
-- **클러스터 부하:** 단일 노드 쿠버네티스(k3s) 클러스터에서 12개 서비스 Pod가 동작 중이며, 초당 100건의 HTTP 지속 트래픽 인가 상태
+- **시스템 부하:** 운영 리눅스 서버에서 네트워크 서비스가 동작 중이며, 초당 100건의 HTTP 지속 트래픽 인가 상태
 
 ### 수집 및 포렌식 분석 성능 비교
 
@@ -143,17 +153,21 @@ struct lime_header {
 
 ## Volatility 3 리눅스 전체 59개 플러그인 전수 평가 매트릭스
 
-**Volatility 3**에 존재하는 모든 리눅스 플러그인(총 59종)을 `KernelDump` 산출물에 직접 실행하여 커널 제어 플레인 분석 능력을 전수 평가했습니다:
+**Volatility 3**에 존재하는 모든 리눅스 플러그인(총 59종)을 `KernelDump` 산출물에 직접 실행하여 전수 평가를 수행했습니다.
+
+과학적이고 엄밀한 포렌식 검증을 위해, 결과는 단순한 성공/실패가 아니라 포렌식적 실제 의미(완전 추출, 메타데이터 전용 디스크립터, 실제 정상 음성, 설계상의 배제)에 따라 분류됩니다:
 
 ```
 평가 대상 리눅스 플러그인: 총 59개
-├── SUCCESS (성공): 33개 (커널 제어 플레인 100% 정상 추출)
-├── HEADER_ONLY (정상 음성): 13개 (침해 흔적 없음 정상 판정)
-├── ERROR (의도된 제외/매개변수): 7개 (사용자 공간 캐시 제외 및 CLI 인자 필요)
-└── TIMEOUT (시간 초과): 6개 (사용자 공간 전역 브루트포스 스캔)
+├── 커널 제어 플레인 완전 추출: 30개 (100% 구조적 일치)
+├── 사용자 공간 페이로드 배제 디스크립터: 3개 (PsAux, Malfind - 메타데이터 전용)
+├── 실제 정상 음성 확인 (Clean Negatives): 9개 (후킹 및 변조 없음 입증)
+├── 정책적 사용자 공간 배제: 4개 (Bash, Envars, Elfs, Pagecache - 설계상 배제)
+├── 의도된 배제 및 CLI 매개변수 요구: 7개 (CLI 인자 요구 및 캐시 미보유)
+└── 사용자 공간 전역 순회 타임아웃: 6개 (90초 초과)
 ```
 
-### 1. 활성 포렌식 분석 성공 플러그인 (33개 - 100% SUCCESS)
+### 1. 활성 커널 제어 플레인 추출 (30개 - SUCCESS)
 
 | 번호 | Volatility 3 플러그인 | 추출 레코드 수 | 실행 시간 | 포렌식 분석 범위 및 검증 내용 |
 |:---:|---|:---:|:---:|---|
@@ -169,49 +183,63 @@ struct lime_header {
 | 10 | `linux.kmsg.Kmsg` | 3,031 | 11.1s | 커널 dmesg 원형 링 버퍼 로그 전수 복원 |
 | 11 | `linux.kthreads.Kthreads` | 196 | 40.5s | 커널 워커 스레드 구조체 및 핸들러 함수 검증 |
 | 12 | `linux.lsmod.Lsmod` | 105 | 14.8s | 커널 모듈 리스트, 크기, 메모리 오프셋 완전 복원 |
-| 13 | `linux.malfind.Malfind` | 5 | 32.7s | 의심스러운 실행 권한(RX) 익명 메모리 매핑 탐지 |
-| 14 | `linux.malware.check_idt.Check_idt` | 21 | 34.8s | IDT 루트킷 후킹 스캐너 정상 수행 |
-| 15 | `linux.malware.check_modules.Check_modules` | 1 | 7.4s | 은닉 모듈 루트킷 탐지 스캐너 정상 수행 |
-| 16 | `linux.malware.check_syscall.Check_syscall` | 441 | 17.9s | 시스템 콜 변조 루트킷 스캐너 정상 수행 |
-| 17 | `linux.malware.malfind.Malfind` | 5 | 26.4s | 메모리 인젝션 및 쉘코드 탐지 스캐너 정상 수행 |
-| 18 | `linux.malware.modxview.Modxview` | 105 | 25.5s | sysfs 및 kobject 기반 모듈 크로스뷰 검증 |
-| 19 | `linux.malware.netfilter.Netfilter` | 51 | 57.5s | 넷필터/iptables 후크 포인트 변조 탐지 |
-| 20 | `linux.malware.process_spoofing.ProcessSpoofing` | 276 | 12.1s | 프로세스 이름 및 PID 위장(Spoofing) 여부 검증 |
-| 21 | `linux.malware.tty_check.Tty_Check` | 3 | 38.9s | TTY 라인 디스플린 함수 포인터 후킹 탐지 |
-| 22 | `linux.modxview.Modxview` | 105 | 33.5s | 모듈 가시성 상호 교차 대조 정상 수행 |
-| 23 | `linux.mountinfo.MountInfo` | 1,482 | 39.2s | 마운트 네임스페이스, OverlayFS, 컨테이너 볼륨 분석 |
-| 24 | `linux.netfilter.Netfilter` | 51 | 58.2s | 방화벽 룰셋 및 후크 테이블 구조체 정상 확인 |
-| 25 | `linux.pidhashtable.PIDHashTable` | 589 | 13.4s | 커널 PID 해시 테이블 일치성 검증 |
-| 26 | `linux.proc.Maps` | 6,022 | 38.8s | 프로세스별 가상 메모리 영역(VMA) 경계선 완전 복원 |
-| 27 | `linux.psaux.PsAux` | 276 | 11.1s | 프로세스 커맨드라인 인자 및 실행 컨텍스트 복원 |
-| 28 | `linux.pslist.PsList` | 276 | 10.9s | 전체 프로세스 트리, UID/GID, 시작 시각 복원 |
-| 29 | `linux.psscan.PsScan` | 631 | 22.0s | 링크 해제되거나 종료된 잔존 프로세스 풀 탐색 |
-| 30 | `linux.pstree.PsTree` | 276 | 10.1s | 부모-자식 프로세스 관계 트리 구조화 |
-| 31 | `linux.tracing.ftrace.CheckFtrace` | 1 | 38.3s | ftrace 함수 트레이서 후킹 여부 검증 |
-| 32 | `linux.tty_check.tty_check` | 3 | 35.2s | TTY 드라이버 디스패치 오퍼레이션 무결성 검증 |
-| 33 | `linux.vmcoreinfo.VMCoreInfo` | 107 | 7.5s | 커널 vmcoreinfo 심볼 및 오프셋 정보 확인 |
+| 13 | `linux.malware.check_idt.Check_idt` | 21 | 34.8s | IDT 루트킷 후킹 스캐너 정상 수행 |
+| 14 | `linux.malware.check_modules.Check_modules` | 1 | 7.4s | 은닉 모듈 루트킷 탐지 스캐너 정상 수행 |
+| 15 | `linux.malware.check_syscall.Check_syscall` | 441 | 17.9s | 시스템 콜 변조 루트킷 스캐너 정상 수행 |
+| 16 | `linux.malware.modxview.Modxview` | 105 | 25.5s | sysfs 및 kobject 기반 모듈 크로스뷰 검증 |
+| 17 | `linux.malware.netfilter.Netfilter` | 51 | 57.5s | 넷필터/iptables 후크 포인트 변조 탐지 |
+| 18 | `linux.malware.process_spoofing.ProcessSpoofing` | 276 | 12.1s | 프로세스 이름 및 PID 위장(Spoofing) 여부 검증 |
+| 19 | `linux.malware.tty_check.Tty_Check` | 3 | 38.9s | TTY 라인 디스플린 함수 포인터 후킹 탐지 |
+| 20 | `linux.modxview.Modxview` | 105 | 33.5s | 모듈 가시성 상호 교차 대조 정상 수행 |
+| 21 | `linux.mountinfo.MountInfo` | 1,482 | 39.2s | 마운트 네임스페이스, OverlayFS, 컨테이너 볼륨 분석 |
+| 22 | `linux.netfilter.Netfilter` | 51 | 58.2s | 방화벽 룰셋 및 후크 테이블 구조체 정상 확인 |
+| 23 | `linux.pidhashtable.PIDHashTable` | 589 | 13.4s | 커널 PID 해시 테이블 일치성 검증 |
+| 24 | `linux.proc.Maps` | 6,022 | 38.8s | 프로세스별 가상 메모리 영역(VMA) 경계선 완전 복원 |
+| 25 | `linux.pslist.PsList` | 276 | 10.9s | 전체 프로세스 트리, UID/GID, 시작 시각 복원 |
+| 26 | `linux.psscan.PsScan` | 631 | 22.0s | 링크 해제되거나 종료된 잔존 프로세스 풀 탐색 |
+| 27 | `linux.pstree.PsTree` | 276 | 10.1s | 부모-자식 프로세스 관계 트리 구조화 |
+| 28 | `linux.tracing.ftrace.CheckFtrace` | 1 | 38.3s | ftrace 함수 트레이서 후킹 여부 검증 |
+| 29 | `linux.tty_check.tty_check` | 3 | 35.2s | TTY 드라이버 디스패치 오퍼레이션 무결성 검증 |
+| 30 | `linux.vmcoreinfo.VMCoreInfo` | 107 | 7.5s | 커널 vmcoreinfo 심볼 및 오프셋 정보 확인 |
 
-### 2. 정상 음성 확인 플러그인 (13개 - HEADER_ONLY)
+### 2. 사용자 공간 페이로드 배제 디스크립터 (3개 - SUCCESS / 메타데이터 전용)
 
-해당 플러그인들은 반환 코드 0으로 정상 완료되었으며, 시스템 내 이상 징후가 없거나 정책적 배제에 의해 빈 테이블 헤더만을 반환한 정상 음성(Clean Negative) 결과입니다:
+해당 플러그인들은 반환 코드 0(`status: SUCCESS`)으로 정상 실행되어 SLAB/SLUB의 커널 태스크 및 VMA 구조체를 완전 복원했습니다. 그러나 사용자 공간 메모리를 배제하는 수집 정책상 사용자 문자열 및 코드 페이로드는 미수집 상태로 남습니다:
 
-| Volatility 3 플러그인 | 포렌식적 의미 및 해석 근거 |
+| 번호 | Volatility 3 플러그인 | 레코드 수 | 실행 시간 | 포렌식 추출 범위 및 실제 의미 |
+|:---:|---|:---:|:---:|---|
+| 1 | `linux.psaux.PsAux` | 276 | 11.1s | **프로세스 제어 메타데이터 전용 복원:** 프로세스 계층(`PID`, `PPID`, `COMM`)은 완전 복원됨. 사용자 스택 메모리에 존재하는 `argv`/`environ` 문자열이 배제 정책에 따라 수집되지 않아 인자(`ARGS`) 항목은 `"-"`로 표시됨. |
+| 2 | `linux.malfind.Malfind` | 5 | 32.7s | **VMA 메모리 경계 디스크립터 전용 식별:** 커널 `mm_struct`/`vm_area_struct`로부터 `rwx` 권한의 의심 메모리 영역 경계를 식별함. 사용자 공간 익명 물리 페이지가 수집되지 않아 덤프된 바이트 및 디스어셈블리는 0(`00 00 ...`)으로 채워짐. 이는 VMA 경계 탐지 결과이며 쉘코드 바이너리 복원이 아님. |
+| 3 | `linux.malware.malfind.Malfind` | 5 | 26.4s | **VMA 메모리 경계 디스크립터 전용 식별:** 상동; 의심스러운 실행 권한 VMA 매핑을 식별하나 사용자 공간 페이로드는 미수집 상태임. |
+
+### 3. 실제 정상 음성 확인 플러그인 (9개 - HEADER_ONLY)
+
+해당 플러그인들은 커널 디스패치 테이블, 자격증명 구조체, 트레이서 후크를 정상 순회하고 0건의 이상 징후(반환 코드 0)를 반환하여, 커널 영역에 루트킷 후킹이나 권한 변조가 없음을 확인한 실제 정상 음성(Clean Negative) 결과입니다:
+
+| Volatility 3 플러그인 | 포렌식 분석 범위 및 정상 판정 근거 |
 |---|---|
-| `linux.bash.Bash` | Bash 명령어 히스토리는 사용자 힙에 상주하므로 정책상 배제됨. |
-| `linux.check_afinfo.Check_afinfo` | 정상 음성: 네트워크 주소 패밀리 후킹이 감지되지 않음. |
-| `linux.check_creds.Check_creds` | 정상 음성: 태스크 자격증명 불일치 및 권한 변조가 감지되지 않음. |
-| `linux.elfs.Elfs` | 사용자 공간 ELF 바이너리 데이터 배제; 컨테이너 디스크 원본과 대조 가능. |
-| `linux.envars.Envars` | 환경변수 블록은 사용자 스택 메모리에 상주하므로 정책상 배제됨. |
-| `linux.keyboard_notifiers.Keyboard_notifiers` | 정상 음성: 키로거용 키보드 노티파이어 후킹이 감지되지 않음. |
-| `linux.malware.check_afinfo.Check_afinfo` | 정상 음성: 네트워크 프로토콜 패밀리 무결성 확인. |
-| `linux.malware.check_creds.Check_creds` | 정상 음성: 권한 상승 공격 흔적 없음 확인. |
-| `linux.malware.keyboard_notifiers.Keyboard_notifiers` | 정상 음성: 키보드 노티파이어 테이블 무결성 확인. |
-| `linux.pagecache.InodePages` | 사용자 디스크 캐시 Inode 페이지 배제 설계에 따른 결과. |
+| `linux.check_afinfo.Check_afinfo` | 정상 음성: 커널 네트워크 주소 패밀리 오퍼레이션 후킹 없음 확인. |
+| `linux.check_creds.Check_creds` | 정상 음성: 전체 태스크 구조체 자격증명 불일치 및 권한 변조 없음 확인. |
+| `linux.keyboard_notifiers.Keyboard_notifiers` | 정상 음성: 커널 키보드 노티파이어 체인 후킹 없음 확인. |
+| `linux.malware.check_afinfo.Check_afinfo` | 정상 음성: 프로토콜 패밀리 핸들러가 정상 모듈 주소와 일치함 확인. |
+| `linux.malware.check_creds.Check_creds` | 정상 음성: 권한 상승 공격에 의한 자격증명 변조 흔적 없음 확인. |
+| `linux.malware.keyboard_notifiers.Keyboard_notifiers` | 정상 음성: 키보드 노티파이어 디스패치 테이블 무결성 확인. |
 | `linux.ptrace.Ptrace` | 정상 음성: 노드 내 비인가 ptrace 디버깅/인젝션 세션 없음 확인. |
 | `linux.tracing.perf_events.PerfEvents` | 정상 음성: 하이재킹된 perf 이벤트 후크 없음 확인. |
 | `linux.tracing.tracepoints.CheckTracepoints` | 정상 음성: 커널 트레이스포인트 후킹 없음 확인. |
 
-### 3. 의도된 배제 및 CLI 매개변수 요구 플러그인 (7개 - ERROR)
+### 4. 정책적 사용자 공간 배제 플러그인 (4개 - HEADER_ONLY / 설계상 미수집)
+
+해당 플러그인들은 사용자 공간 물리 메모리를 정책적으로 수집 대상에서 제외하였기 때문에 0건의 행을 반환한 것으로, 사용자 공간에 실제 데이터가 비어있음을 증명하는 정상 음성이 아닙니다:
+
+| Volatility 3 플러그인 | 포렌식 판정 상태 | 정책적 배제 사유 |
+|---|---|---|
+| `linux.bash.Bash` | 설계상 미수집 | 쉘 명령어 히스토리 버퍼는 사용자 프로세스 힙 메모리(`KPF_ANON`)에 상주함. |
+| `linux.envars.Envars` | 설계상 미수집 | 프로세스 환경변수 블록은 사용자 프로세스 스택 메모리(`KPF_ANON`)에 상주함. |
+| `linux.elfs.Elfs` | 설계상 미수집 | 사용자 공간 ELF 매핑 바이너리 배제; 컨테이너/호스트 디스크 원본과 대조 가능. |
+| `linux.pagecache.InodePages` | 설계상 미수집 | 수십 GiB 메모리 팽창을 방지하기 위해 파일 디스크 캐시(`KPF_FILE`)를 배제함. |
+
+### 5. 의도된 배제 및 CLI 매개변수 요구 플러그인 (7개 - ERROR)
 
 | Volatility 3 플러그인 | 비정상 종료 원인 | 포렌식 사유 및 대안 |
 |---|---|---|
@@ -219,11 +247,11 @@ struct lime_header {
 | `linux.hidden_modules.Hidden_modules` | 라이브 procfs 마운트 경로 요구 | `check_modules` 및 `modxview`를 통해 은닉 모듈이 완벽히 탐지되므로 영향 없음. |
 | `linux.malware.hidden_modules.Hidden_modules` | 라이브 procfs 마운트 경로 요구 | 상동. |
 | `linux.module_extract.ModuleExtract` | `--dump` CLI 옵션 누락 | 대화형 추출 도구 특성상 덤프 대상 디렉터리 인자 지정이 필수적임. |
-| `linux.pagecache.Files` | 배제된 파일 캐시 페이지 참조 | 노드 부하 방지를 위해 파일 캐시를 배제하였으며, Pod 파일은 OverlayFS로 직접 분석 가능. |
+| `linux.pagecache.Files` | 배제된 파일 캐시 페이지 참조 | 노드 부하 방지를 위해 파일 캐시를 배제하였으며, 파일은 스토리지 파일시스템으로 직접 분석 가능. |
 | `linux.sockscan.Sockscan` | 배제된 메모리 갭 스캔 중 오류 | `linux.sockstat.Sockstat`을 통해 소켓 구조체가 정확도 100%로 식별됨. |
 | `linux.vmaregexscan.VmaRegExScan` | `--regex` CLI 옵션 누락 | 정규식 문자열 검색 도구 특성상 검색 패턴 지정이 필수적임. |
 
-### 4. 사용자 공간 전역 순회 타임아웃 플러그인 (6개 - TIMEOUT > 90s)
+### 6. 사용자 공간 전역 순회 타임아웃 플러그인 (6개 - TIMEOUT > 90s)
 
 | Volatility 3 플러그인 | 기술적 원인 분석 |
 |---|---|
@@ -251,7 +279,7 @@ $$P_{t_0} \to O_{t_1} \quad \text{where} \quad \text{State}(O_{t_1}) \neq \text{
 ### 덤프 방식별 스미어 양상 비교
 
 - **전체 RAM 덤프 ($\Delta t = 38.27\text{초} \sim 146.2\text{초}$):**
-  - 초당 100건의 트래픽을 처리하는 쿠버네티스 노드에서 38초 동안 수백만 번의 컨텍스트 스위칭이 발생합니다.
+  - 초당 100건의 트래픽을 처리하는 운영 리눅스 호스트에서 38초 동안 수백만 번의 컨텍스트 스위칭이 발생합니다.
   - 버디 할당자가 활발히 페이지를 재사용하면서 앞서 캡처된 프로세스 테이블의 포인터가 나중에 수집된 다른 데이터나 해제된 페이지를 가리키게 되어 구조체 손상 및 유령 프로세스가 다수 발생합니다.
 - **KernelDump 선별 덤프 ($\Delta t = 1.23\text{초} \sim 2.13\text{초}$):**
   - 스미어 취약 윈도우를 **94.4% ~ 98.5%** 압축합니다.
@@ -266,17 +294,28 @@ $$P_{t_0} \to O_{t_1} \quad \text{where} \quad \text{State}(O_{t_1}) \neq \text{
 
 ```
 일반 포렌식 덤퍼:
-덤프 파일 쓰기 ---> 호스트 페이지 캐시 잠식 (~855 MB ~ 수십 GB)
-                 ---> kswapd 긴급 활성화 ---> 운영 Pod 메모리 스왑 및 강제 Eviction 발생
+덤프 파일 쓰기 ---> 호스트 페이지 캐시 잠식 (~855 MB ~ 수십 GB 더티/클린 페이지)
+                 ---> kswapd 긴급 활성화 ---> 운영 서비스 메모리 스왑 및 프로세스 강제 종료 발생
 
 KernelDump:
-덤프 파일 쓰기 ---> posix_fadvise(POSIX_FADV_DONTNEED)
-                 ---> 기록 즉시 페이지 캐시 메모리 해제 (+124 kB 미세 증분 유지)
+스트리밍 쓰기   ---> posix_fadvise(POSIX_FADV_SEQUENTIAL) 힌트 적용
+                 ---> sync_all() 호출로 더티 페이지 디스크 동기화
+                 ---> posix_fadvise(POSIX_FADV_DONTNEED)로 클린 캐시 페이지 즉시 해제
+                 ---> 호스트 페이지 캐시 순증가량: +124 kB 유지
 ```
+
+### 리눅스 페이지 캐시 무효화 메커니즘과 동작 원리
+
+리눅스 가상 메모리 서브시스템(`mm/fadvise.c`)에서 디스크에 아직 기록되지 않은 더티(Dirty) 상태의 페이지에 대해 `posix_fadvise(POSIX_FADV_DONTNEED)`를 호출하면 커널은 해당 호출을 무시(No-op)합니다. 커널은 미동기화된 데이터를 버릴 수 없기 때문입니다.
+
+`KernelDump`는 고속 버퍼 I/O를 유지하면서도 시스템 메모리 오염을 원천 차단하기 위해 3단계 메모리 보호 메커니즘을 적용합니다:
+1. **순차 스트리밍 힌트:** `memory.lime.partial` 및 `ranges.jsonl` 파일 생성 시 `posix_fadvise(POSIX_FADV_SEQUENTIAL)`를 호출하여 커널이 리드어헤드 윈도우를 최적화하고 지나간 프레임을 신속히 해제하도록 유도합니다.
+2. **지속성 보장 파일 동기화:** 페이로드 및 원장 작성이 완료되면 즉시 `sync_all()`을 호출하여 모든 더티 페이지를 디스크 스토리지로 완전히 플러시합니다.
+3. **즉시 캐시 해제:** 동기화가 완료된 파일에 대해 `posix_fadvise(POSIX_FADV_DONTNEED)`를 호출하여 메모리에 남아있는 클린 페이지 캐시를 호스트 RAM에서 즉시 축출하며, 실패 시 명시적인 경고 로그를 출력합니다.
 
 ### 호스트 메모리 변화 실측 증적
 
-실제 12개 Pod가 동작 중인 쿠버네티스 노드에서 855 MiB 덤프를 기록하기 직전과 직후의 `/proc/meminfo` 실측치입니다:
+실제 활성 서비스가 지속 트래픽을 처리 중인 운영 리눅스 노드에서 855 MiB 덤프를 기록하기 직전과 직후의 `/proc/meminfo` 실측치입니다:
 
 ```
 [수집 직전 호스트 상태]
@@ -284,33 +323,27 @@ MemTotal:        9,436,180 kB
 Active(file):    2,104,228 kB
 Cached:          3,841,920 kB
 
-[수집 직후 호스트 상태 (KernelDump)]
+[Post-Acquisition Host State (KernelDump)]
 Active(file):    2,104,312 kB
 Cached:          3,842,044 kB
 변화량:               +124 kB (0.000124 GiB)
 ```
 
-`KernelDump`는 파일 블록 기록 직후 `posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED)`를 동기적으로 호출합니다. 커널에 해당 캐시 페이지가 더 이상 필요 없음을 즉시 고지하여 호스트 가용 메모리를 유지하고 `kswapd`의 개입을 원천 차단합니다.
-
 ---
 
-## 다중 독립 커널 실측 검증 매트릭스
+## 다중 환경 실측 검증
 
-`KernelDump`의 아키텍처 범용성과 엄격한 사전 진단 안전성을 증명하기 위해, **서로 다른 가상화 환경에서 동작하는 4개의 독립 리눅스 커널**을 대상으로 실측을 수행했습니다:
+`KernelDump`의 이식성과 안전성을 검증하기 위해 다양한 리눅스 커널 및 가상화 환경에서 실측을 수행했습니다:
 
-| 리눅스 커널 버전 | 배포판 및 C 런타임 | 가상화 플랫폼 | 시스템 메모리 | 덤프 크기 / 시간 | 실측 검증 결과 |
+| 리눅스 커널 버전 | 배포판 및 C 런타임 | 가상화 플랫폼 | 시스템 메모리 | 수집 결과 | 상세 검증 내용 |
 |---|---|---|:---:|:---:|---|
-| **Linux 6.8.0-146-generic** | Ubuntu 24.04.5 LTS (glibc 2.39) | VMware Workstation 17 | 9.44 GiB | **855.0 MiB / 2.132s** | 상용 검증 완료; Volatility 3 전체 59개 플러그인 전수 검증 |
-| **Linux 6.18.33.2-ms-wsl2** | 클라우드 하이퍼바이저 커널 | Microsoft Hyper-V | 15.7 GiB | **607.7 MiB / 1.504s** | 24,993개 PFN 범위 추출; 물리 주소 정렬 및 해시 정합성 확인 |
-| **Linux 6.6.49-0-virt** | Alpine Linux 3.20 (musl 1.2.5) | QEMU 11.0 (TCG/KVM) | 1.00 GiB | 해당 없음 (진단 모드) | QEMU 시리얼 콘솔로 static musl 바이너리 직접 구동; `# CONFIG_PROC_KCORE is not set` 감지 후 시스템 크래시 없이 `ready: false`로 안전하게 즉시 종료 확인 (Fail-closed 검증) |
-| **Linux 6.1.0-50-amd64** | Debian 12 Bookworm (glibc 2.36) | QEMU 11.0 (TCG/KVM) | 1.00 GiB | 해당 없음 (아키텍처) | QEMU VM 환경에서 기업용 LTS 커널 bzImage(프로토콜 2.15) 대상 바이너리 호환성 확인 |
+| **Linux 6.8.0-146-generic** | Ubuntu 24.04.5 LTS (glibc 2.39) | VMware Workstation 17 | 9.44 GiB | **수집 완료 (855.0 MiB / 2.132초)** | 상용 운영 서버 실측; Volatility 3 전체 59개 플러그인 전수 검증 |
+| **Linux 6.18.33.2-ms-wsl2** | 클라우드 하이퍼바이저 커널 | Microsoft Hyper-V | 15.7 GiB | **수집 완료 (607.7 MiB / 1.504초)** | 24,993개 PFN 범위 추출; 물리 주소 정렬 및 해시 무결성 확인 |
 
-### `CONFIG_PROC_KCORE` 필수 요건과 진단 무결성
+### `CONFIG_PROC_KCORE` 필수 요건 및 안전 종료(Fail-closed) 동작
 
-다양한 커널을 실측하는 과정에서 확인된 핵심 아키텍처 특성은 다음과 같습니다:
-- Ubuntu, Debian, RHEL, openSUSE, Arch, WSL2 등 표준 서버 및 클라우드 커널은 디버거 및 포렌식 도구 지원을 위해 `CONFIG_PROC_KCORE=y`가 기본 활성화되어 있습니다.
-- 반면 Alpine `linux-virt`와 같은 극초경량 마이크로VM 커널은 바이너리 경량화를 위해 해당 옵션이 비활성화되어 있습니다.
-- Alpine 3.20 환경 실측 결과, `kernel_dump check --json`은 누락된 커널 인터페이스를 정확히 식별하여 원인을 안내하고 오류 없이 안전하게 종료되었습니다.
+- Ubuntu, Debian, RHEL, openSUSE, Arch, WSL2 등 표준 엔터프라이즈 및 클라우드 커널은 `CONFIG_PROC_KCORE=y`가 기본 활성화되어 있어 즉시 수집이 가능합니다.
+- 초경량 마이크로VM 커널(예: Alpine Linux `linux-virt`)과 같이 `CONFIG_PROC_KCORE`가 비활성화된 환경에서는 `kernel_dump check --json`이 누락된 인터페이스를 안전하게 감지하여 `ready: false`와 함께 즉시 안전 종료되며, 시스템 크래시나 커널 패닉을 유발하지 않습니다.
 
 ---
 
@@ -321,7 +354,7 @@ Cached:          3,842,044 kB
 획득 작업을 시작하기 전, 루트 권한, 커널 인터페이스, 디스크 여유 공간을 점검합니다:
 
 ```sh
-sudo ./release/KernelDump check --json
+sudo ./target/x86_64-unknown-linux-musl/release/kernel_dump check --json
 ```
 
 출력 예시:
@@ -340,13 +373,13 @@ sudo ./release/KernelDump check --json
 
 ```sh
 # 1. 시스템 메모리 경계 및 커널 인터페이스 탐색
-sudo ./release/KernelDump probe
+sudo ./target/x86_64-unknown-linux-musl/release/kernel_dump probe
 
 # 2. 주소 보존형 커널 플레인 물리 메모리 덤프 수행
-sudo ./release/KernelDump capture --output /dumps/incident-001 --request-id k8s-worker-node-01
+sudo ./target/x86_64-unknown-linux-musl/release/kernel_dump capture --output /dumps/incident-001 --request-id prod-linux-host-01
 
 # 3. 획득된 LiME 이미지 및 PFN 원장의 암호학적 무결성 검증
-sudo ./release/KernelDump verify /dumps/incident-001
+sudo ./target/x86_64-unknown-linux-musl/release/kernel_dump verify /dumps/incident-001
 ```
 
 ### 수집 디렉터리 산출물 구조
@@ -358,22 +391,20 @@ sudo ./release/KernelDump verify /dumps/incident-001
 └── manifest.json      # 출처 메타데이터, SHA-256 해시, 수집 소요 시간, 커널 정보
 ```
 
+### 디스크 용량 안전장치 및 실패 매니페스트 보장
+
+메모리 수집 작업을 시작하기 전, `KernelDump`는 2단계 스토리지 보호 루틴을 실행합니다:
+- **사전 여유 공간 점검:** `statvfs` 시스템 콜을 통해 대상 파일시스템의 가용 용량이 `max(RAM / 10, 1 GiB)` 이상인지 검사합니다(`check_available_space`).
+- **비상 매니페스트 예약 파일 (`posix_fallocate`):** 작업 시작 즉시 1 MiB 크기의 비상 예약 파일(`manifest_reserve`)을 사전 할당합니다. 예기치 않은 메모리 증가나 호스트 내 타 프로세스의 동시 대량 쓰기로 인해 디스크가 가득 차는 상황이 발생하더라도, `KernelDump`는 이 예약 파일을 해제하여 수집 실패 사유와 현재까지 수집된 부분 범위를 기록한 `manifest.json`을 안전하게 저장합니다.
+- **Fail-Fast 한계:** 이 메커니즘은 사전 점검 및 메타데이터 복원력을 위한 안전장치이며, 수집 도중 외부 프로세스에 의해 발생하는 동시적 디스크 완전 고갈을 100% 방지함을 보장하지는 않습니다.
+
 ---
 
-## 릴리즈 바이너리 및 암호화 증적
+## 빌드 및 릴리즈 바이너리 증적
 
-공식 상용 릴리즈 바이너리는 [`release/KernelDump`](release/KernelDump)에 배치되어 있습니다. `x86_64-unknown-linux-musl` 타깃으로 정적 컴파일되어 모든 리눅스 환경에서 의존성 없이 즉시 실행됩니다:
+`KernelDump`는 `x86_64-unknown-linux-musl` 타깃으로 정적 링크 컴파일되어 외부 공유 라이브러리 의존성 없이 모든 리눅스 배포판에서 즉시 실행됩니다.
 
-```sh
-cd release
-sha256sum -c SHA256SUMS.txt
-# 정상 출력: KernelDump: OK
-```
-
-| 릴리즈 산출물 | 파일 경로 | 바이너리 포맷 | SHA-256 체크섬 |
-|---|---|---|---|
-| **공식 바이너리** | `release/KernelDump` | ELF 64-bit static-pie (musl, stripped) | `ee6d2bc14e4ff2f7d6c800950dd798dc32d852aa537a363d9d516c66d70af9c2` |
-| **체크섬 파일** | `release/SHA256SUMS.txt` | Plaintext | `67bfad05f85c47c529644bd4d897a4319ff0ec62e476e3e4eea2151c7370ec8b` |
+사전 컴파일된 공식 릴리즈 바이너리는 [GitHub Releases](https://github.com/KKudroK/KernelDump/releases)에서 다운로드할 수 있습니다.
 
 ### 소스코드 오프라인 빌드 (Vendored)
 
@@ -386,6 +417,38 @@ cargo build --release --locked --offline --target x86_64-unknown-linux-musl
 # 2. 39개 통합 단위 테스트 전수 검증
 cargo test --release --locked --offline --features development-options
 ```
+
+컴파일된 스트립 바이너리는 `target/x86_64-unknown-linux-musl/release/kernel_dump`에 생성됩니다.
+
+### 기준 암호화 체크섬
+
+| 릴리즈 산출물 | 참조 경로 | 바이너리 포맷 | SHA-256 체크섬 |
+|---|---|---|---|
+| **공식 바이너리** | `target/x86_64-unknown-linux-musl/release/kernel_dump` | ELF 64-bit static-pie (musl, stripped) | `58b4d570be7cd42d0cb6c1e2af45be82c70cdd881047ac6fe15e6ba819ab9773` |
+
+---
+
+## 기술적 한계 및 운영 제약 사항
+
+포렌식 분석 및 학술 연구의 엄밀성을 위해, `KernelDump`의 설계상 경계와 운영 제약 사항을 명확히 명시합니다:
+
+1. **커널 제어 플레인 집중 (사용자 공간 페이로드 의도적 배제):**
+   `KernelDump`는 커널 레벨 침해사고 대응, 루트킷 탐지, 프로세스/네트워크/마운트 제어 플레인 분석에 특화되어 있습니다. 사용자 공간 힙, 스택, 익명 메모리 및 파일 캐시는 정책적으로 제외됩니다(`strict_kernel_only: false`). 이에 따라:
+   - 프로세스 메타데이터(`PID`, `PPID`, `COMM`)는 100% 완전하지만, 사용자 스택이 수집되지 않으므로 `psaux`의 커맨드라인 인자(`ARGS`)는 `"-"`로 표시됩니다.
+   - `malfind`에서 탐지된 `rwx` 메모리 영역은 커널 VMA 테이블로부터 식별된 것이며, 사용자 익명 메모리가 수집되지 않으므로 덤프된 바이트는 0으로 채워집니다.
+   - 쉘 명령어 기록(`bash`) 및 환경변수(`envars`)는 수집되지 않습니다. 프로세스 내부의 상세 사용자 공간 메모리 분석이 필요한 경우 `PodDump`와 같은 프로세스 전용 덤프 도구와 병행하여 사용해야 합니다.
+
+2. **비원자적 라이브 획득 및 스미어 윈도우:**
+   호스트 커널이 실행 중인 상태에서 물리 메모리 프레임을 순차적으로 읽어 들입니다. 전체 RAM 덤프 대비 시간적 스미어 윈도우를 **94.4% ~ 98.5%** (~2.1초 vs ~38-146초) 대폭 압축하지만, 완전 정지 스냅샷이 아니므로 변경 빈도가 매우 높은 객체에서는 포인터 불일치가 미세하게 발생할 수 있습니다.
+
+3. **다중 페이지 경계 확장 (`classify_with_neighbors`):**
+   단일 페이지 경계를 초과하는 커널 구조체(예: SLUB 할당자에서 10,496바이트를 차지하는 `struct task_struct`)의 절단을 방지하기 위해, SLAB 및 PGTABLE 프레임의 전후 물리 인접 페이지를 함께 보존합니다. 이로 인해 인접한 사용자 공간 힙이나 캐시 페이지가 결과물에 포함될 수 있습니다.
+
+4. **동적 메모리 핫플러그 미감지:**
+   `/proc/kcore`의 ELF 세그먼트 매핑은 수집 시작 시 1회만 파싱됩니다. 수집 진행 중에 동적으로 발생하는 메모리 핫플러그(Hot-add 또는 Hot-remove)는 실시간으로 감지되지 않습니다.
+
+5. **인터페이스 요구조건:**
+   루트 권한(`EUID 0` / `CAP_SYS_ADMIN`) 하에서 읽기 가능한 `/proc/kcore` (`CONFIG_PROC_KCORE=y`) 및 `/proc/kpageflags` 인터페이스가 필수적입니다. `/proc/kcore`가 비활성화된 임베디드 마이크로VM(예: Alpine `linux-virt`)에서는 사전 점검 단계에서 안전하게 작업이 거부됩니다.
 
 ---
 

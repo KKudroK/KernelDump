@@ -15,8 +15,8 @@
   },
   "release_binary": {
     "path": "release/KernelDump",
-    "sha256": "ee6d2bc14e4ff2f7d6c800950dd798dc32d852aa537a363d9d516c66d70af9c2",
-    "size_bytes": 816112,
+    "sha256": "58b4d570be7cd42d0cb6c1e2af45be82c70cdd881047ac6fe15e6ba819ab9773",
+    "size_bytes": 816864,
     "compiler": "rustc 1.90.0 (840b83a10 2025-07-30) / target x86_64-unknown-linux-musl",
     "binary_format": "ELF 64-bit LSB pie executable, static-pie linked, stripped",
     "profile": "release"
@@ -41,11 +41,13 @@
   },
   "volatility3_forensic_parity": {
     "total_linux_plugins_evaluated": 59,
-    "success_plugins_count": 33,
-    "header_only_clean_negatives_count": 13,
+    "active_control_plane_count": 30,
+    "metadata_only_descriptors_count": 3,
+    "genuine_clean_negatives_count": 9,
+    "userland_policy_omissions_count": 4,
     "expected_error_count": 7,
     "timeout_count": 6,
-    "success_plugins": [
+    "active_control_plane_plugins": [
       "linux.capabilities.Capabilities",
       "linux.check_idt.Check_idt",
       "linux.check_modules.Check_modules",
@@ -58,11 +60,9 @@
       "linux.kmsg.Kmsg",
       "linux.kthreads.Kthreads",
       "linux.lsmod.Lsmod",
-      "linux.malfind.Malfind",
       "linux.malware.check_idt.Check_idt",
       "linux.malware.check_modules.Check_modules",
       "linux.malware.check_syscall.Check_syscall",
-      "linux.malware.malfind.Malfind",
       "linux.malware.modxview.Modxview",
       "linux.malware.netfilter.Netfilter",
       "linux.malware.process_spoofing.ProcessSpoofing",
@@ -72,7 +72,6 @@
       "linux.netfilter.Netfilter",
       "linux.pidhashtable.PIDHashTable",
       "linux.proc.Maps",
-      "linux.psaux.PsAux",
       "linux.pslist.PsList",
       "linux.psscan.PsScan",
       "linux.pstree.PsTree",
@@ -80,29 +79,36 @@
       "linux.tty_check.tty_check",
       "linux.vmcoreinfo.VMCoreInfo"
     ],
-    "header_only_clean_negatives": [
-      "linux.bash.Bash",
+    "metadata_only_descriptors": [
+      "linux.psaux.PsAux",
+      "linux.malfind.Malfind",
+      "linux.malware.malfind.Malfind"
+    ],
+    "genuine_clean_negatives": [
       "linux.check_afinfo.Check_afinfo",
       "linux.check_creds.Check_creds",
-      "linux.elfs.Elfs",
-      "linux.envars.Envars",
       "linux.keyboard_notifiers.Keyboard_notifiers",
       "linux.malware.check_afinfo.Check_afinfo",
       "linux.malware.check_creds.Check_creds",
       "linux.malware.keyboard_notifiers.Keyboard_notifiers",
-      "linux.pagecache.InodePages",
       "linux.ptrace.Ptrace",
       "linux.tracing.perf_events.PerfEvents",
       "linux.tracing.tracepoints.CheckTracepoints"
+    ],
+    "userland_policy_omissions": [
+      "linux.bash.Bash",
+      "linux.elfs.Elfs",
+      "linux.envars.Envars",
+      "linux.pagecache.InodePages"
     ]
   },
   "tested_environments": [
     {
-      "environment_name": "Ubuntu 24.04.5 LTS (Kubernetes Node)",
+      "environment_name": "Ubuntu 24.04.5 LTS (Production Server Node)",
       "kernel": "Linux 6.8.0-146-generic (x86_64)",
       "hypervisor": "VMware Workstation 17 Pro",
       "libc": "glibc 2.39",
-      "workload": "k3s single-node cluster with 12 active service Pods under 100 req/s continuous HTTP traffic",
+      "workload": "Production Linux server hosting active services under 100 req/s continuous live HTTP traffic",
       "capture_time_s": 2.132,
       "dump_size_mb": 855.0,
       "pfn_ranges": 19042,

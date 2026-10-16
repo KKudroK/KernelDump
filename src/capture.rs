@@ -315,7 +315,8 @@ pub fn acquire<S: Memory + 'static>(
         "payload_buffer_bound_bytes":(depth+2)*chunk,"filter":{"policy":"kernel-focused-v4","unsafe_mask":UNSAFE,"retain_mask":KEEP,"exclude_mask":EXCLUDE,"slab_neighbor_pages_retained":1,"exclusion_basis":"LRU, BUDDY, MMAP, ANON, SWAPCACHE, SWAPBACKED, KSM, THP and ZERO_PAGE are excluded unless SLAB/PGTABLE is set. Unsafe flags always exclude.","retained":"SLAB, PGTABLE and unclassified pages are retained. Immediate boundary neighbors of SLAB/PGTABLE pages are retained to prevent multi-page kernel structure (e.g. task_struct = 10,496 bytes) truncation, unless UNSAFE."},"errors":[],
         "limitations":["Non-atomic live acquisition: flags, addresses and payload are observed at different times.","Kernel-focused filtering can omit kernel-relevant information and retain user/residual bytes.",
         "kcore can return internally zero-filled bytes; read success is not proof of physical-byte availability.","Unsafe/unmapped PFNs are explicit omissions and prevent complete status.",
-        "Cancellation is cooperative; a kernel I/O syscall can block beyond the request.","Payload budget excludes metadata, allocator overhead and OS page cache.","Matching symbols and successful plugins do not prove complete forensic coverage."],
+        "Cancellation is cooperative; a kernel I/O syscall can block beyond the request.","Payload budget excludes metadata, allocator overhead and OS page cache.","Matching symbols and successful plugins do not prove complete forensic coverage.",
+        "Memory hotplug during acquisition is unmonitored; kcore ELF segments are sampled once at initialization."],
         "durability_contract":"Success exit requires payload, ledger, manifest and output/parent directory fsync; stderr/exit status is authoritative on final publication failure."});
     let reserve_path = output.join("manifest_reserve");
     let partial = output.join("memory.lime.partial");
@@ -353,6 +354,8 @@ pub fn acquire<S: Memory + 'static>(
         r.sync_all()?;
         let mut file = new_file(&partial)?;
         let mut ledger = new_file(&output.join("ranges.jsonl"))?;
+        let _ = crate::safe_output::advise_sequential(&file, 0, 0);
+        let _ = crate::safe_output::advise_sequential(&ledger, 0, 0);
         payload_owned = Some(file.try_clone()?);
         ledger_owned = Some(ledger.try_clone()?);
         let (tx, rx) = mpsc::sync_channel(depth);
@@ -442,8 +445,12 @@ pub fn acquire<S: Memory + 'static>(
         let t = now();
         file.sync_all()?;
         ledger.sync_all()?;
-        let _ = crate::safe_output::advise_dontneed(&file, 0, offset as i64);
-        let _ = crate::safe_output::advise_dontneed(&ledger, 0, 0);
+        if let Err(e) = crate::safe_output::advise_dontneed(&file, 0, offset as i64) {
+            eprintln!("[kernel_dump] warning: advise_dontneed on payload failed: {e}");
+        }
+        if let Err(e) = crate::safe_output::advise_dontneed(&ledger, 0, 0) {
+            eprintln!("[kernel_dump] warning: advise_dontneed on ledger failed: {e}");
+        }
         if is_tty {
             eprintln!(
                 "\r\x1b[2K[kernel_dump] Acquisition synced: {:.1} MiB payload durable on storage",

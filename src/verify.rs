@@ -80,17 +80,17 @@ pub fn verify(output: &Path) -> Result<Value> {
     let mut ranges = 0u64;
     let mut ram_index = 0usize;
     let mut cursor = ram[0].0;
-    // Limit each JSONL record: corrupt metadata must not cause an unbounded allocation.
+    // Limit each JSONL record: bounded to 1 MiB to support dense RLE metadata in 16 MiB chunks without unbounded allocation.
     let mut ledger = ledger;
     let mut line = Vec::new();
     loop {
         line.clear();
-        let n = ledger.by_ref().take(131073).read_until(b'\n', &mut line)?;
+        let n = ledger.by_ref().take(1048577).read_until(b'\n', &mut line)?;
         if n == 0 {
             break;
         }
         require(
-            n <= 131072 && line.last() == Some(&b'\n'),
+            n <= 1048576 && line.last() == Some(&b'\n'),
             "oversized or truncated range record",
         )?;
         ledger_hash.update(&line);

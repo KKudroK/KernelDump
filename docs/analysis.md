@@ -104,8 +104,8 @@ Evaluated across the 806.8 MiB focused image (`focused_capture/memory.lime`, 846
 | **I/O Memory** | `linux.iomem.IOMem` | SUCCESS | 125 | Hardware memory layout validated |
 | **Kernel Log** | `linux.kmsg.Kmsg` | SUCCESS | 3,024 | Complete dmesg ring buffer recovered |
 | **Virtual Maps**| `linux.proc.Maps` | SUCCESS | 5,983 | All VMA memory ranges mapped |
-| **Cmdline Args**| `linux.psaux.PsAux` | SUCCESS | 272 | Process command line strings recovered |
-| **Injection** | `linux.malfind.Malfind` | SUCCESS | 5 | Injected/executable segment detection functional |
+| **Cmdline Args**| `linux.psaux.PsAux` | SUCCESS | 272 | Process task descriptors enumerated; ARGS omitted by design (user stack excluded) |
+| **Injection** | `linux.malfind.Malfind` | SUCCESS | 5 | Injected/executable VMA ranges detected; code payload omitted by design (user anonymous pages excluded) |
 | **Page Cache** | `linux.pagecache.Files` | ERROR | 7,148 | Omitted by design (user-space page cache excluded) |
 | **Page Cache** | `linux.pagecache.RecoverFs` | TIMEOUT | 0 | Omitted by design (user-space page cache excluded) |
 | **ELF Dumper** | `linux.elfs.Elfs` | HEADER_ONLY | 0 | Omitted by design (user-space binaries excluded) |
