@@ -1,0 +1,25 @@
+{
+  "revision": "KernelDump_v0.1.0_production_release",
+  "status": "verified_production_release",
+  "timestamp_utc": "2026-10-16T19:33:00Z",
+  "source_sha256": {
+    "Cargo.toml": "b61c949c67318f89e4d6f4f2f977e7ea88e72e4b010b2261fc015c8b7bf1fa25",
+    "Cargo.lock": "b27ef4e396e4c1de27884aa25bd8e8ef81c050e15e03117404dc3966b7329148",
+    "src/capture.rs": "a134b294c5351ebac797051907834f9f4488048c544bf9089934a789fea17bf9",
+    "src/main.rs": "693c19c885c8596db5c2b5b40fa058825e100b15e78254ae0c8c2d7d0f1dda47",
+    "src/safe_output.rs": "ba67a2ae3edb24ea3a0f579db1c7de2658c1dbbaaa44d47c7446482b85f4ecad",
+    "src/source.rs": "fb1eb05eb73483392a4f956bc5c937f11529362cb1553b045dbcaafdcbe30925",
+    "src/tests.rs": "c8c56d35d9f85edc49e71b71c24d13241ce8e736427361a569a1cf2a6c623591",
+    "src/verify.rs": "722189e86da26b04384aab9915edf583f689814c41da36fda0616593deb0e339"
+  },
+  "binary_sha256": {
+    "KernelDump_release": "ee6d2bc14e4ff2f7d6c800950dd798dc32d852aa537a363d9d516c66d70af9c2"
+  },
+  "compiler": "rustc 1.90.0 (840b83a10 2025-07-30) / target x86_64-unknown-linux-musl",
+  "binary_type": "ELF 64-bit LSB pie executable, x86-64, static-pie linked, stripped",
+  "features": [
+    "production",
+    "development-options"
+  ],
+  "validation": "39/39 Rust unit tests passed. Static musl binary verified across Linux 6.8 (VMware), Linux 6.18 (Hyper-V), Linux 6.6 (QEMU), and Linux 6.1 (QEMU). All 59 Volatility 3 Linux plugins evaluated."
+}

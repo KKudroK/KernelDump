@@ -1,0 +1,852 @@
+{
+  "dump_path": "D:\\BoB\\Project\\KKudroK\\experiments\\kernel_pfn_taxonomy_20261016\\outputs\\focused_capture_v4\\memory.lime",
+  "timestamp_utc": "2026-10-16T11:17:22Z",
+  "total_plugins": 59,
+  "success_count": 33,
+  "header_only_count": 13,
+  "error_count": 7,
+  "timeout_count": 6,
+  "results": [
+    {
+      "plugin": "linux.bash.Bash",
+      "status": "HEADER_ONLY",
+      "returncode": 0,
+      "elapsed_s": 24.08,
+      "total_lines": 3,
+      "data_rows_count": 0,
+      "sample_output": [
+        "PID\tProcess\tCommandTime\tCommand"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.boottime.Boottime",
+      "status": "ERROR",
+      "returncode": 1,
+      "elapsed_s": 11.67,
+      "total_lines": 3,
+      "data_rows_count": 0,
+      "sample_output": [
+        "TIME NS\tBoot Time"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.capabilities.Capabilities",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 12.528,
+      "total_lines": 280,
+      "data_rows_count": 276,
+      "sample_output": [
+        "Name\tTid\tPid\tPPid\tEUID\tcap_inheritable\tcap_permitted\tcap_effective\tcap_bounding\tcap_ambient",
+        "systemd\t1\t1\t0\t0\t\tall\tall\tall\t",
+        "kthreadd\t2\t2\t0\t0\t\tall\tall\tall\t",
+        "pool_workqueue_\t3\t3\t2\t0\t\tall\tall\tall\t",
+        "kworker/R-rcu_g\t4\t4\t2\t0\t\tall\tall\tall\t",
+        "kworker/R-rcu_p\t5\t5\t2\t0\t\tall\tall\tall\t"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.check_afinfo.Check_afinfo",
+      "status": "HEADER_ONLY",
+      "returncode": 0,
+      "elapsed_s": 11.468,
+      "total_lines": 3,
+      "data_rows_count": 0,
+      "sample_output": [
+        "Symbol Name\tMember\tHandler Address"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.check_creds.Check_creds",
+      "status": "HEADER_ONLY",
+      "returncode": 0,
+      "elapsed_s": 6.969,
+      "total_lines": 3,
+      "data_rows_count": 0,
+      "sample_output": [
+        "CredVAddr\tPIDs"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.check_idt.Check_idt",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 24.675,
+      "total_lines": 25,
+      "data_rows_count": 21,
+      "sample_output": [
+        "Index\tAddress\tModule\tSymbol",
+        "0x0\t0xffffb6600950\t__kernel__\tasm_exc_divide_error",
+        "0x1\t0xffffb6600c90\t__kernel__\tasm_exc_debug",
+        "0x2\t0xffffb6601720\t__kernel__\tasm_exc_nmi",
+        "0x3\t0xffffb6600b60\t__kernel__\tasm_exc_int3",
+        "0x4\t0xffffb6600970\t__kernel__\tasm_exc_overflow"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.check_modules.Check_modules",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 7.725,
+      "total_lines": 5,
+      "data_rows_count": 1,
+      "sample_output": [
+        "Offset\tModule Name\tCode Size\tTaints\tLoad Arguments\tFile Output",
+        "0xffffc0b0f0d0\tvmw_vsock_virtio_transport_common\t0xe000\t\t\tN/A"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.check_syscall.Check_syscall",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 14.361,
+      "total_lines": 445,
+      "data_rows_count": 441,
+      "sample_output": [
+        "Table Address\tTable Name\tIndex\tHandler Address\tHandler Symbol",
+        "0xffff82600320\t64bit\t0\t0xffffb56f8550\t__x64_sys_read",
+        "0xffff82600320\t64bit\t1\t0xffffb56f86e0\t__x64_sys_write",
+        "0xffff82600320\t64bit\t2\t0xffffb56f35a0\t__x64_sys_open",
+        "0xffff82600320\t64bit\t3\t0xffffb56f0350\t__x64_sys_close",
+        "0xffff82600320\t64bit\t4\t0xffffb5700a30\t__x64_sys_newstat"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.ebpf.EBPF",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 9.296,
+      "total_lines": 65,
+      "data_rows_count": 61,
+      "sample_output": [
+        "Address\tName\tTag\tType",
+        "0xd18d40051000\thid_tail_call\t7cc47bbf07148bfe\tBPF_PROG_TYPE_TRACING",
+        "0xd18d4060b000\t-\t531db05b114e9af3\tBPF_PROG_TYPE_CGROUP_DEVICE",
+        "0xd18d4066f000\t-\t531db05b114e9af3\tBPF_PROG_TYPE_CGROUP_DEVICE",
+        "0xd18d406dd000\t-\t531db05b114e9af3\tBPF_PROG_TYPE_CGROUP_DEVICE",
+        "0xd18d40735000\t-\t531db05b114e9af3\tBPF_PROG_TYPE_CGROUP_DEVICE"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.elfs.Elfs",
+      "status": "HEADER_ONLY",
+      "returncode": 0,
+      "elapsed_s": 13.396,
+      "total_lines": 3,
+      "data_rows_count": 0,
+      "sample_output": [
+        "PID\tProcess\tStart\tEnd\tFile Path\tFile Output"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.envars.Envars",
+      "status": "HEADER_ONLY",
+      "returncode": 0,
+      "elapsed_s": 8.126,
+      "total_lines": 3,
+      "data_rows_count": 0,
+      "sample_output": [
+        "PID\tPPID\tCOMM\tKEY\tVALUE"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.graphics.fbdev.Fbdev",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 8.46,
+      "total_lines": 5,
+      "data_rows_count": 1,
+      "sample_output": [
+        "Address\tDevice\tID\tSize\tVirtual resolution\tBPP\tState\tFilename",
+        "0xd18d407fd000\tfb0\tvmwgfxdrmfb\t4096000\t1280x800\t32\tRUNNING\tDisabled"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.hidden_modules.Hidden_modules",
+      "status": "ERROR",
+      "returncode": 1,
+      "elapsed_s": 6.371,
+      "total_lines": 3,
+      "data_rows_count": 0,
+      "sample_output": [
+        "Offset\tModule Name\tCode Size\tTaints\tLoad Arguments\tFile Output"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.iomem.IOMem",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 6.86,
+      "total_lines": 129,
+      "data_rows_count": 125,
+      "sample_output": [
+        "Name\tStart\tEnd",
+        "PCI mem\t0x0\t0x1fffffffffff",
+        "* ACPI Non-volatile Storage\t0x0\t0xfff",
+        "* Reserved\t0x1000\t0x1fff",
+        "* System RAM\t0x2000\t0x9ffff",
+        "* PCI Bus 0000:00\t0xa0000\t0xbffff"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.ip.Addr",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 7.522,
+      "total_lines": 30,
+      "data_rows_count": 26,
+      "sample_output": [
+        "NetNS\tIndex\tInterface\tMAC\tPromiscuous\tIP\tPrefix\tScope Type\tState",
+        "4026531840\t1\tlo\t00:00:00:00:00:00\tFalse\t127.0.0.1\t8\thost\tUNKNOWN",
+        "4026531840\t1\tlo\t00:00:00:00:00:00\tFalse\t::1\t128\thost\tUNKNOWN",
+        "4026531840\t2\tens160\t00:0c:29:04:2e:17\tFalse\t10.10.10.25\t24\tglobal\tUP",
+        "4026531840\t2\tens160\t00:0c:29:04:2e:17\tFalse\tfe80::20c:29ff:fe04:2e17\t64\tlink\tUP",
+        "4026531840\t3\tcali05361096fe3\tee:ee:ee:ee:ee:ee\tFalse\tfe80::ecee:eeff:feee:eeee\t64\tlink\tUP"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.ip.Link",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 8.724,
+      "total_lines": 19,
+      "data_rows_count": 15,
+      "sample_output": [
+        "NS\tInterface\tMAC\tState\tMTU\tQdisc\tQlen\tFlags",
+        "4026531840\tlo\t00:00:00:00:00:00\tUNKNOWN\t65536\tnoqueue\t1000\tLOOPBACK,LOWER_UP,UP",
+        "4026531840\tens160\t00:0c:29:04:2e:17\tUP\t1500\tmq\t1000\tBROADCAST,LOWER_UP,MULTICAST,UP",
+        "4026531840\tcali05361096fe3\tee:ee:ee:ee:ee:ee\tUP\t1450\tnoqueue\t0\tBROADCAST,LOWER_UP,MULTICAST,UP",
+        "4026531840\tcali6ab4fcdead2\tee:ee:ee:ee:ee:ee\tUP\t1450\tnoqueue\t0\tBROADCAST,LOWER_UP,MULTICAST,UP",
+        "4026531840\tcaliffc258af840\tee:ee:ee:ee:ee:ee\tUP\t1450\tnoqueue\t0\tBROADCAST,LOWER_UP,MULTICAST,UP"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.kallsyms.Kallsyms",
+      "status": "TIMEOUT",
+      "returncode": -1,
+      "elapsed_s": 90,
+      "data_rows_count": 0,
+      "sample_output": [],
+      "stderr_snippet": "Timed out after 90s"
+    },
+    {
+      "plugin": "linux.keyboard_notifiers.Keyboard_notifiers",
+      "status": "HEADER_ONLY",
+      "returncode": 0,
+      "elapsed_s": 34.874,
+      "total_lines": 3,
+      "data_rows_count": 0,
+      "sample_output": [
+        "Address\tModule\tSymbol"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.kmsg.Kmsg",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 11.068,
+      "total_lines": 3035,
+      "data_rows_count": 3031,
+      "sample_output": [
+        "facility\tlevel\ttimestamp\tcaller\tline",
+        "kern\tnotice\t0.000000\tTask(0)\tLinux version 6.8.0-146-generic (buildd@lcy02-amd64-111) (x86_64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, GNU ld (GNU Binutils for Ubuntu) 2.42) #146-Ubuntu SMP PREEMPT_DYNAMIC Thu Sep  3 16:12:30 UTC 2026 (Ubuntu 6.8.0-146.146-generic 6.8.12)",
+        "kern\tinfo\t0.000000\tTask(0)\tCommand line: BOOT_IMAGE=/boot/vmlinuz-6.8.0-146-generic root=UUID=d56549f9-57b1-4396-b280-98baae89f510 ro console=ttyS0,115200n8 console=tty0",
+        "kern\tinfo\t0.000000\tTask(0)\tKERNEL supported cpus:",
+        "kern\tinfo\t0.000000\tTask(0)\t  Intel GenuineIntel",
+        "kern\tinfo\t0.000000\tTask(0)\t  AMD AuthenticAMD"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.kthreads.Kthreads",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 40.501,
+      "total_lines": 200,
+      "data_rows_count": 196,
+      "sample_output": [
+        "TID\tThread Name\tHandler Address\tModule\tSymbol",
+        "3\tpool_workqueue_release\t0xffffb533ef40\t__kernel__\tkthread_worker_fn",
+        "4\tkworker/R-rcu_gp\t0xffffb53344e0\t__kernel__\trescuer_thread",
+        "5\tkworker/R-rcu_par_gp\t0xffffb53344e0\t__kernel__\trescuer_thread",
+        "6\tkworker/R-slub_flushwq\t0xffffb53344e0\t__kernel__\trescuer_thread",
+        "7\tkworker/R-netns\t0xffffb53344e0\t__kernel__\trescuer_thread"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.library_list.LibraryList",
+      "status": "TIMEOUT",
+      "returncode": -1,
+      "elapsed_s": 90,
+      "data_rows_count": 0,
+      "sample_output": [],
+      "stderr_snippet": "Timed out after 90s"
+    },
+    {
+      "plugin": "linux.lsmod.Lsmod",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 14.845,
+      "total_lines": 109,
+      "data_rows_count": 105,
+      "sample_output": [
+        "Offset\tModule Name\tCode Size\tTaints\tLoad Arguments\tFile Output",
+        "0xffffc0d560c0\tcpuid\t0x3000\t\t\tN/A",
+        "0xffffc0d43340\txt_multiport\t0x4000\t\t\tN/A",
+        "0xffffc0d5a100\tiptable_filter\t0x3000\t\tforward=None\tN/A",
+        "0xffffc0d3c180\tipt_rpfilter\t0x3000\t\t\tN/A",
+        "0xffffc0d48d80\txt_set\t0x5000\t\t\tN/A"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.lsof.Lsof",
+      "status": "TIMEOUT",
+      "returncode": -1,
+      "elapsed_s": 90,
+      "data_rows_count": 0,
+      "sample_output": [],
+      "stderr_snippet": "Timed out after 90s"
+    },
+    {
+      "plugin": "linux.malfind.Malfind",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 32.713,
+      "total_lines": 9,
+      "data_rows_count": 5,
+      "sample_output": [
+        "PID\tProcess\tStart\tEnd\tPath\tProtection\tHexdump\tDisasm",
+        "912\tunattended-upgr\t0x75f07e4aa000\t0x75f07e4ab000\tAnonymous Mapping\trwx\t",
+        "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ................",
+        "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ................",
+        "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ................",
+        "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ................\t00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.malware.check_afinfo.Check_afinfo",
+      "status": "HEADER_ONLY",
+      "returncode": 0,
+      "elapsed_s": 12.355,
+      "total_lines": 3,
+      "data_rows_count": 0,
+      "sample_output": [
+        "Symbol Name\tMember\tHandler Address"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.malware.check_creds.Check_creds",
+      "status": "HEADER_ONLY",
+      "returncode": 0,
+      "elapsed_s": 8.486,
+      "total_lines": 3,
+      "data_rows_count": 0,
+      "sample_output": [
+        "CredVAddr\tPIDs"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.malware.check_idt.Check_idt",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 34.822,
+      "total_lines": 25,
+      "data_rows_count": 21,
+      "sample_output": [
+        "Index\tAddress\tModule\tSymbol",
+        "0x0\t0xffffb6600950\t__kernel__\tasm_exc_divide_error",
+        "0x1\t0xffffb6600c90\t__kernel__\tasm_exc_debug",
+        "0x2\t0xffffb6601720\t__kernel__\tasm_exc_nmi",
+        "0x3\t0xffffb6600b60\t__kernel__\tasm_exc_int3",
+        "0x4\t0xffffb6600970\t__kernel__\tasm_exc_overflow"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.malware.check_modules.Check_modules",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 7.403,
+      "total_lines": 5,
+      "data_rows_count": 1,
+      "sample_output": [
+        "Offset\tModule Name\tCode Size\tTaints\tLoad Arguments\tFile Output",
+        "0xffffc0b0f0d0\tvmw_vsock_virtio_transport_common\t0xe000\t\t\tN/A"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.malware.check_syscall.Check_syscall",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 17.89,
+      "total_lines": 445,
+      "data_rows_count": 441,
+      "sample_output": [
+        "Table Address\tTable Name\tIndex\tHandler Address\tHandler Symbol",
+        "0xffff82600320\t64bit\t0\t0xffffb56f8550\t__x64_sys_read",
+        "0xffff82600320\t64bit\t1\t0xffffb56f86e0\t__x64_sys_write",
+        "0xffff82600320\t64bit\t2\t0xffffb56f35a0\t__x64_sys_open",
+        "0xffff82600320\t64bit\t3\t0xffffb56f0350\t__x64_sys_close",
+        "0xffff82600320\t64bit\t4\t0xffffb5700a30\t__x64_sys_newstat"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.malware.hidden_modules.Hidden_modules",
+      "status": "ERROR",
+      "returncode": 1,
+      "elapsed_s": 5.532,
+      "total_lines": 3,
+      "data_rows_count": 0,
+      "sample_output": [
+        "Offset\tModule Name\tCode Size\tTaints\tLoad Arguments\tFile Output"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.malware.keyboard_notifiers.Keyboard_notifiers",
+      "status": "HEADER_ONLY",
+      "returncode": 0,
+      "elapsed_s": 30.613,
+      "total_lines": 3,
+      "data_rows_count": 0,
+      "sample_output": [
+        "Address\tModule\tSymbol"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.malware.malfind.Malfind",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 26.377,
+      "total_lines": 9,
+      "data_rows_count": 5,
+      "sample_output": [
+        "PID\tProcess\tStart\tEnd\tPath\tProtection\tHexdump\tDisasm",
+        "912\tunattended-upgr\t0x75f07e4aa000\t0x75f07e4ab000\tAnonymous Mapping\trwx\t",
+        "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ................",
+        "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ................",
+        "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ................",
+        "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ................\t00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.malware.modxview.Modxview",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 25.454,
+      "total_lines": 109,
+      "data_rows_count": 105,
+      "sample_output": [
+        "Name\tAddress\tIn procfs\tIn sysfs\tIn scan\tTaints",
+        "cpuid\t0xffffc0d560c0\tTrue\tTrue\tTrue\t-",
+        "xt_multiport\t0xffffc0d43340\tTrue\tTrue\tTrue\t-",
+        "iptable_filter\t0xffffc0d5a100\tTrue\tTrue\tTrue\t-",
+        "ipt_rpfilter\t0xffffc0d3c180\tTrue\tTrue\tTrue\t-",
+        "xt_set\t0xffffc0d48d80\tTrue\tTrue\tTrue\t-"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.malware.netfilter.Netfilter",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 57.539,
+      "total_lines": 55,
+      "data_rows_count": 51,
+      "sample_output": [
+        "Net NS\tProto\tHook\tPriority\tHandler\tModule\tSymbol\tIs Hooked",
+        "4026531840\tIPV4\tPRE_ROUTING\t-400\t0xffffc0ba71a0\txt_conntrack\t-\tFalse",
+        "4026531840\tIPV4\tPRE_ROUTING\t-300\t0xffffc0b51ab0\tnf_tables\t-\tFalse",
+        "4026531840\tIPV4\tPRE_ROUTING\t-300\t0xffffc0757b90\tip_tables\t-\tFalse",
+        "4026531840\tIPV4\tPRE_ROUTING\t-200\t0xffffc0bcad80\tnf_conntrack\t-\tFalse",
+        "4026531840\tIPV4\tPRE_ROUTING\t-150\t0xffffc0b51ab0\tnf_tables\t-\tFalse"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.malware.process_spoofing.ProcessSpoofing",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 12.085,
+      "total_lines": 280,
+      "data_rows_count": 276,
+      "sample_output": [
+        "PID\tPPID\tExe_Path\tCmdline_Basename\tComm\tCmdline_Spoofed\tComm_Spoofed\tExe_Deleted",
+        "1\t0\t/usr/lib/systemd/systemd\tN/A\tsystemd\tFalse\tFalse\tFalse",
+        "2\t0\tN/A\tN/A\tkthreadd\tFalse\tFalse\tFalse",
+        "3\t2\tN/A\tN/A\tpool_workqueue_\tFalse\tFalse\tFalse",
+        "4\t2\tN/A\tN/A\tkworker/R-rcu_g\tFalse\tFalse\tFalse",
+        "5\t2\tN/A\tN/A\tkworker/R-rcu_p\tFalse\tFalse\tFalse"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.malware.tty_check.Tty_Check",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 38.941,
+      "total_lines": 7,
+      "data_rows_count": 3,
+      "sample_output": [
+        "Name\tAddress\tModule\tSymbol",
+        "ttyS0\t0xffffb5d10630\t__kernel__\tn_tty_receive_buf",
+        "tty1\t0xffffb5d10630\t__kernel__\tn_tty_receive_buf",
+        "tty6\t0xffffb5d10630\t__kernel__\tn_tty_receive_buf"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.module_extract.ModuleExtract",
+      "status": "ERROR",
+      "returncode": 2,
+      "elapsed_s": 1.919,
+      "total_lines": 0,
+      "data_rows_count": 0,
+      "sample_output": [],
+      "stderr_snippet": "usage: vol.exe linux.module_extract.ModuleExtract [-h] --base BASE\nvol.exe linux.module_extract.ModuleExtract: error: the following arguments are required: --base"
+    },
+    {
+      "plugin": "linux.modxview.Modxview",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 33.521,
+      "total_lines": 109,
+      "data_rows_count": 105,
+      "sample_output": [
+        "Name\tAddress\tIn procfs\tIn sysfs\tIn scan\tTaints",
+        "cpuid\t0xffffc0d560c0\tTrue\tTrue\tTrue\t-",
+        "xt_multiport\t0xffffc0d43340\tTrue\tTrue\tTrue\t-",
+        "iptable_filter\t0xffffc0d5a100\tTrue\tTrue\tTrue\t-",
+        "ipt_rpfilter\t0xffffc0d3c180\tTrue\tTrue\tTrue\t-",
+        "xt_set\t0xffffc0d48d80\tTrue\tTrue\tTrue\t-"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.mountinfo.MountInfo",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 39.187,
+      "total_lines": 1486,
+      "data_rows_count": 1482,
+      "sample_output": [
+        "MNT_NS_ID\tMOUNT ID\tPARENT_ID\tMAJOR:MINOR\tROOT\tMOUNT_POINT\tMOUNT_OPTIONS\tFIELDS\tFSTYPE\tMOUNT_SRC\tSB_OPTIONS",
+        "4026531841\t515\t29\t0:55\t/\t/run/containerd/io.containerd.runtime.v2.task/k8s.io/ee92061822b4cd0d97e485abeb31509d6d993c510dd6a89e4f40e64a6e63d63c/rootfs\trw,relatime\tshared:400\toverlay\toverlay\trw",
+        "4026531841\t39\t27\t0:34\t/\t/dev/hugepages\trw,nosuid,nodev,relatime\tshared:15\thugetlbfs\thugetlbfs\trw",
+        "4026531841\t31\t1\t8:2\t/\t/\trw,relatime\tshared:1\text4\t/dev/sda2\trw",
+        "4026531841\t27\t31\t0:5\t/\t/dev\trw,nosuid,relatime\tshared:2\tdevtmpfs\tudev\trw",
+        "4026531841\t25\t31\t0:23\t/\t/sys\trw,nosuid,nodev,noexec,relatime\tshared:7\tsysfs\tsysfs\trw"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.netfilter.Netfilter",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 58.202,
+      "total_lines": 55,
+      "data_rows_count": 51,
+      "sample_output": [
+        "Net NS\tProto\tHook\tPriority\tHandler\tModule\tSymbol\tIs Hooked",
+        "4026531840\tIPV4\tPRE_ROUTING\t-400\t0xffffc0ba71a0\txt_conntrack\t-\tFalse",
+        "4026531840\tIPV4\tPRE_ROUTING\t-300\t0xffffc0b51ab0\tnf_tables\t-\tFalse",
+        "4026531840\tIPV4\tPRE_ROUTING\t-300\t0xffffc0757b90\tip_tables\t-\tFalse",
+        "4026531840\tIPV4\tPRE_ROUTING\t-200\t0xffffc0bcad80\tnf_conntrack\t-\tFalse",
+        "4026531840\tIPV4\tPRE_ROUTING\t-150\t0xffffc0b51ab0\tnf_tables\t-\tFalse"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.pagecache.Files",
+      "status": "ERROR",
+      "returncode": 1,
+      "elapsed_s": 57.75,
+      "total_lines": 8945,
+      "data_rows_count": 8941,
+      "sample_output": [
+        "SuperblockAddr\tMountPoint\tDevice\tInodeNum\tInodeAddr\tFileType\tInodePages\tCachedPages\tFileMode\tAccessTime\tModificationTime\tChangeTime\tFilePath\tInodeSize",
+        "0x8aa708bcd000\t/run/containerd/io.containerd.runtime.v2.task/k8s.io/ee92061822b4cd0d97e485abeb31509d6d993c510dd6a89e4f40e64a6e63d63c/rootfs\t0:55\t1318819\t0x8aa70820a1e0\tDIR\t1\t0\tdrwxr-xr-x\t2026-10-16 06:48:43.292527 UTC\t2026-10-16 06:48:43.292527 UTC\t2026-10-16 06:48:43.332527 UTC\t/run/containerd/io.containerd.runtime.v2.task/k8s.io/ee92061822b4cd0d97e485abeb31509d6d993c510dd6a89e4f40e64a6e63d63c/rootfs\t4096",
+        "0x8aa708bcd000\t/run/containerd/io.containerd.runtime.v2.task/k8s.io/ee92061822b4cd0d97e485abeb31509d6d993c510dd6a89e4f40e64a6e63d63c/rootfs\t0:55\t1441803\t0x8aa70826b2c0\tDIR\t1\t0\tdrwxr-xr-x\t2026-10-16 06:48:51.433526 UTC\t2026-10-16 06:49:08.702524 UTC\t2026-10-16 06:49:08.702524 UTC\t/run/containerd/io.containerd.runtime.v2.task/k8s.io/ee92061822b4cd0d97e485abeb31509d6d993c510dd6a89e4f40e64a6e63d63c/rootfs/usr\t4096",
+        "0x8aa708bcd000\t/run/containerd/io.containerd.runtime.v2.task/k8s.io/ee92061822b4cd0d97e485abeb31509d6d993c510dd6a89e4f40e64a6e63d63c/rootfs\t0:55\t1318322\t0x8aa79680df10\tDIR\t1\t0\tdrwxr-xr-x\t2026-10-16 06:49:08.702524 UTC\t2026-10-16 06:49:08.702524 UTC\t2026-10-16 06:49:08.702524 UTC\t/run/containerd/io.containerd.runtime.v2.task/k8s.io/ee92061822b4cd0d97e485abeb31509d6d993c510dd6a89e4f40e64a6e63d63c/rootfs/usr/libexec\t4096",
+        "0x8aa708bcd000\t/run/containerd/io.containerd.runtime.v2.task/k8s.io/ee92061822b4cd0d97e485abeb31509d6d993c510dd6a89e4f40e64a6e63d63c/rootfs\t0:55\t1318501\t0x8aa79680e1e0\tDIR\t1\t0\tdrwxr-xr-x\t2026-10-16 06:49:08.702524 UTC\t2026-10-16 06:49:08.702524 UTC\t2026-10-16 06:49:08.702524 UTC\t/run/containerd/io.containerd.runtime.v2.task/k8s.io/ee92061822b4cd0d97e485abeb31509d6d993c510dd6a89e4f40e64a6e63d63c/rootfs/usr/libexec/kubernetes\t4096",
+        "0x8aa708bcd000\t/run/containerd/io.containerd.runtime.v2.task/k8s.io/ee92061822b4cd0d97e485abeb31509d6d993c510dd6a89e4f40e64a6e63d63c/rootfs\t0:55\t1318584\t0x8aa79680c5c0\tDIR\t1\t0\tdrwxr-xr-x\t2026-10-16 06:49:08.702524 UTC\t2026-10-16 06:49:08.702524 UTC\t2026-10-16 06:49:08.702524 UTC\t/run/containerd/io.containerd.runtime.v2.task/k8s.io/ee92061822b4cd0d97e485abeb31509d6d993c510dd6a89e4f40e64a6e63d63c/rootfs/usr/libexec/kubernetes/kubelet-plugins\t4096"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.pagecache.InodePages",
+      "status": "HEADER_ONLY",
+      "returncode": 0,
+      "elapsed_s": 8.655,
+      "total_lines": 3,
+      "data_rows_count": 0,
+      "sample_output": [
+        "PageVAddr\tPagePAddr\tMappingAddr\tIndex\tDumpSafe\tFlags\tOutput File"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.pagecache.RecoverFs",
+      "status": "TIMEOUT",
+      "returncode": -1,
+      "elapsed_s": 90,
+      "data_rows_count": 0,
+      "sample_output": [],
+      "stderr_snippet": "Timed out after 90s"
+    },
+    {
+      "plugin": "linux.pidhashtable.PIDHashTable",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 13.426,
+      "total_lines": 593,
+      "data_rows_count": 589,
+      "sample_output": [
+        "OFFSET\tPID\tTID\tPPID\tCOMM",
+        "0x8aa700850000\t1\t1\t0\tsystemd",
+        "0x8aa700855200\t2\t2\t0\tkthreadd",
+        "0x8aa700852900\t3\t3\t2\tpool_workqueue_",
+        "0x8aa70086a900\t4\t4\t2\tkworker/R-rcu_g",
+        "0x8aa700868000\t5\t5\t2\tkworker/R-rcu_p"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.proc.Maps",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 38.767,
+      "total_lines": 6026,
+      "data_rows_count": 6022,
+      "sample_output": [
+        "PID\tProcess\tStart\tEnd\tFlags\tPgOff\tMajor\tMinor\tInode\tFile Path\tFile output",
+        "1\tsystemd\t0x58ef91d56000\t0x58ef91d5c000\tr--\t0x0\t8\t2\t165129\t/usr/lib/systemd/systemd\tDisabled",
+        "1\tsystemd\t0x58ef91d5c000\t0x58ef91d67000\tr-x\t0x6000\t8\t2\t165129\t/usr/lib/systemd/systemd\tDisabled",
+        "1\tsystemd\t0x58ef91d67000\t0x58ef91d6d000\tr--\t0x11000\t8\t2\t165129\t/usr/lib/systemd/systemd\tDisabled",
+        "1\tsystemd\t0x58ef91d6d000\t0x58ef91d6f000\tr--\t0x16000\t8\t2\t165129\t/usr/lib/systemd/systemd\tDisabled",
+        "1\tsystemd\t0x58ef91d6f000\t0x58ef91d70000\trw-\t0x18000\t8\t2\t165129\t/usr/lib/systemd/systemd\tDisabled"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.psaux.PsAux",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 11.052,
+      "total_lines": 280,
+      "data_rows_count": 276,
+      "sample_output": [
+        "PID\tPPID\tCOMM\tARGS",
+        "1\t0\tsystemd\t-",
+        "2\t0\tkthreadd\t[kthreadd]",
+        "3\t2\tpool_workqueue_\t[pool_workqueue_]",
+        "4\t2\tkworker/R-rcu_g\t[kworker/R-rcu_g]",
+        "5\t2\tkworker/R-rcu_p\t[kworker/R-rcu_p]"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.pscallstack.PsCallStack",
+      "status": "TIMEOUT",
+      "returncode": -1,
+      "elapsed_s": 90,
+      "data_rows_count": 0,
+      "sample_output": [],
+      "stderr_snippet": "Timed out after 90s"
+    },
+    {
+      "plugin": "linux.pslist.PsList",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 10.874,
+      "total_lines": 280,
+      "data_rows_count": 276,
+      "sample_output": [
+        "OFFSET (V)\tPID\tTID\tPPID\tCOMM\tUID\tGID\tEUID\tEGID\tCREATION TIME\tFile output",
+        "0x8aa700850000\t1\t1\t0\tsystemd\t0\t0\t0\t0\t-\tDisabled",
+        "0x8aa700855200\t2\t2\t0\tkthreadd\t0\t0\t0\t0\t-\tDisabled",
+        "0x8aa700852900\t3\t3\t2\tpool_workqueue_\t0\t0\t0\t0\t-\tDisabled",
+        "0x8aa70086a900\t4\t4\t2\tkworker/R-rcu_g\t0\t0\t0\t0\t-\tDisabled",
+        "0x8aa700868000\t5\t5\t2\tkworker/R-rcu_p\t0\t0\t0\t0\t-\tDisabled"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.psscan.PsScan",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 21.979,
+      "total_lines": 635,
+      "data_rows_count": 631,
+      "sample_output": [
+        "OFFSET (P)\tPID\tTID\tPPID\tCOMM\tEXIT_STATE",
+        "0x100850000\t1\t1\t0\tsystemd\tTASK_RUNNING",
+        "0x100852900\t3\t3\t2\tpool_workqueue_\tTASK_RUNNING",
+        "0x100855200\t2\t2\t0\tkthreadd\tTASK_RUNNING",
+        "0x100868000\t5\t5\t2\tkworker/R-rcu_p\tTASK_RUNNING",
+        "0x10086a900\t4\t4\t2\tkworker/R-rcu_g\tTASK_RUNNING"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.pstree.PsTree",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 10.09,
+      "total_lines": 280,
+      "data_rows_count": 276,
+      "sample_output": [
+        "OFFSET (V)\tPID\tTID\tPPID\tCOMM",
+        "0x8aa700850000\t1\t1\t0\tsystemd",
+        "* 0x8aa706c42900\t879\t879\t1\tdbus-daemon",
+        "* 0x8aa701925200\t890\t890\t1\tsystemd-logind",
+        "* 0x8aa701920000\t912\t912\t1\tunattended-upgr",
+        "* 0x8aa704a92900\t918\t918\t1\tcontainerd"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.ptrace.Ptrace",
+      "status": "HEADER_ONLY",
+      "returncode": 0,
+      "elapsed_s": 10.819,
+      "total_lines": 3,
+      "data_rows_count": 0,
+      "sample_output": [
+        "Process\tPID\tTID\tTracer TID\tTracee TID\tFlags"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.sockscan.Sockscan",
+      "status": "ERROR",
+      "returncode": 1,
+      "elapsed_s": 10.262,
+      "total_lines": 31,
+      "data_rows_count": 27,
+      "sample_output": [
+        "Sock Offset\tFamily\tType\tProto\tSource Addr\tSource Port\tDestination Addr\tDestination Port\tState\tFilter",
+        "0x1000a3660\tUnknown socket family\t\t-\t-\t-\t-\t-\tUnknown socket state\t-",
+        "0x1000a8fb0\tUnknown socket family\t\t-\t-\t-\t-\t-\tUnknown socket state\t-",
+        "0x1000ac870\tUnknown socket family\t\t-\t-\t-\t-\t-\tUnknown socket state\t-",
+        "0x1000b1570\tUnknown socket family\t\t-\t-\t-\t-\t-\tUnknown socket state\t-",
+        "0x1000fa190\tUnknown socket family\t\t-\t-\t-\t-\t-\tUnknown socket state\t-"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.sockstat.Sockstat",
+      "status": "TIMEOUT",
+      "returncode": -1,
+      "elapsed_s": 90,
+      "data_rows_count": 0,
+      "sample_output": [],
+      "stderr_snippet": "Timed out after 90s"
+    },
+    {
+      "plugin": "linux.tracing.ftrace.CheckFtrace",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 38.27,
+      "total_lines": 5,
+      "data_rows_count": 1,
+      "sample_output": [
+        "ftrace_ops address\tCallback\tCallback address\tHooked symbols\tModule\tModule address",
+        "0x8aa709440780\tcall_direct_funcs\t0xffffb548e340\t__hid_bpf_tail_call\t__kernel__\t0xffffb5200000"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.tracing.perf_events.PerfEvents",
+      "status": "HEADER_ONLY",
+      "returncode": 0,
+      "elapsed_s": 10.716,
+      "total_lines": 3,
+      "data_rows_count": 0,
+      "sample_output": [
+        "PID\tProcess\tEvent\tShort Program Name\tFull Name\tAddress"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.tracing.tracepoints.CheckTracepoints",
+      "status": "HEADER_ONLY",
+      "returncode": 0,
+      "elapsed_s": 33.502,
+      "total_lines": 3,
+      "data_rows_count": 0,
+      "sample_output": [
+        "tracepoint\ttracepoint address\tProbe\tProbe address\tProbe priority\tModule\tModule address"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.tty_check.tty_check",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 35.208,
+      "total_lines": 7,
+      "data_rows_count": 3,
+      "sample_output": [
+        "Name\tAddress\tModule\tSymbol",
+        "ttyS0\t0xffffb5d10630\t__kernel__\tn_tty_receive_buf",
+        "tty1\t0xffffb5d10630\t__kernel__\tn_tty_receive_buf",
+        "tty6\t0xffffb5d10630\t__kernel__\tn_tty_receive_buf"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    },
+    {
+      "plugin": "linux.vmaregexscan.VmaRegExScan",
+      "status": "ERROR",
+      "returncode": 2,
+      "elapsed_s": 0.91,
+      "total_lines": 0,
+      "data_rows_count": 0,
+      "sample_output": [],
+      "stderr_snippet": "usage: vol.exe linux.vmaregexscan.VmaRegExScan [-h] [--pid [PID ...]]\n                                               --pattern PATTERN\n                                               [--maxsize MAXSIZE]\nvol.exe linux.vmaregexscan.VmaRegExScan: error: the following arguments are required: --pattern"
+    },
+    {
+      "plugin": "linux.vmcoreinfo.VMCoreInfo",
+      "status": "SUCCESS",
+      "returncode": 0,
+      "elapsed_s": 7.487,
+      "total_lines": 111,
+      "data_rows_count": 107,
+      "sample_output": [
+        "Offset\tKey\tValue",
+        "0x8aa7002ea000\tOSRELEASE\t6.8.0-146-generic",
+        "0x8aa7002ea000\tBUILD-ID\t13c66e43eb7246daba94e1989d80d84129a6ba2a",
+        "0x8aa7002ea000\tPAGESIZE\t4096",
+        "0x8aa7002ea000\tSYMBOL(init_uts_ns)\t0xffffffffb7be9a00",
+        "0x8aa7002ea000\tOFFSET(uts_namespace.name)\t0"
+      ],
+      "stderr_snippet": "Progress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.00\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.01\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.05\t\tScanning LimeLayer using BytesScanner\n\nProgress:    0.06\t\tScanning LimeLayer using BytesScanner\n\nProgress: "
+    }
+  ]
+}
