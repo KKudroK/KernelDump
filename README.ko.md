@@ -19,6 +19,32 @@ sudo ./kerneldump capture --output /evidence/new_collection
 
 kcore/page monitor를 제공하는 커널과 필수 인터페이스·가려지지 않은 심볼에 대한 읽기 권한이 필요합니다. kcore가 없는 환경은 지원하지 않으며 보안 설정을 자동 변경하지 않습니다. [필수 조건과 실패 처리](docs/deployment.md).
 
+Ubuntu 24.04.5에서 실행한 v0.1.1의 실제 출력입니다. JSON을 읽기 좋게 정렬하고 manifest 경로와 이미지 해시만 생략했습니다.
+
+```json
+{
+  "status": "complete_for_policy",
+  "payload_bytes": 715538432,
+  "elapsed_s": 2.418713536,
+  "unavailable_bytes": 0,
+  "unprocessed_bytes": 0,
+  "errors": []
+}
+```
+
+같은 수집본의 검증 결과:
+
+```json
+{
+  "verified": true,
+  "status": "complete_for_policy",
+  "coverage_ranges": 14337,
+  "payload_bytes": 715538432
+}
+```
+
+[수집 stdout](docs/examples/capture.stdout) · [검증 stdout](docs/examples/verify.stdout).
+
 ## 검증한 환경
 
 아래 환경에 동일한 x86-64 릴리즈 바이너리를 사용했습니다.
@@ -39,16 +65,36 @@ Rocky는 SELinux Enforcing을 유지하고 unconfined 도메인에서 sudo로 �
 
 Kali cloud 이미지의 배포명은 2026.2이며, 내부 `VERSION_ID`는 2026.1입니다.
 
-## 측정 결과
+## AWS 비교
 
-2026-10-16 같은 Ubuntu 노드·부팅에서 모드별 1회 수집한 기록입니다. 커널은 Linux 6.8.0-146이며, 표는 payload 크기와 수집기 경과 시간입니다.
+AWS EC2 `r6i.2xlarge`에서 측정한 기록입니다. Amazon Linux 2023, Linux 6.18.54, RAM 61.78 GiB, gp3 저장소를 사용했습니다. 16 GiB를 할당해 페이지마다 쓴 뒤 메모리에 유지했습니다. 반복 측정값은 평균 ± 표본 표준편차입니다.
 
-| 방식 | Payload | 시간 |
-|---|---:|---:|
-| Full RAM | 9.663 GB | 38.27 s |
-| KernelDump focused | 0.839 GB | 2.02 s |
+| 도구 | 횟수 | 이미지 크기 | 명령 경과 시간 | 호스트 캐시 증가 |
+|---|---:|---:|---:|---:|
+| LiME, 전체 RAM | 1 | 62.965 GiB | 466.93 s | 40.19 GiB |
+| makedumpfile `-d 31` | 5 | 2.37 ± 0.62 GiB | 1.48 ± 0.25 s* | 2.37 ± 0.62 GiB |
+| **KernelDump** | **5** | **1.99 ± 0.17 GiB** | **20.84 ± 1.78 s** | **110 ± 65 KiB** |
 
-선별 수집의 용량은 전체 RAM의 약 **8.7%**였습니다. 정책상 사용자·캐시·빈 페이지를 제외하므로 모든 조사에서 전체 RAM 수집을 대체하지는 않습니다. 두 수집의 시점도 다릅니다. [원본 manifest와 측정 방법](docs/benchmark_summary.md).
+KernelDump 이미지는 전체 RAM LiME보다 **96.8% 작았고**, 관측된 캐시 증가가 작으며 별도 LiME 변환이 필요하지 않았습니다.
+
+*makedumpfile 시간에는 수집 후 sync가 포함되지 않고, KernelDump에는 내구 저장 완료가 포함됩니다. 따라서 같은 저장 완료 기준의 속도 비교는 아닙니다. 수집 정책과 시점도 다르며, AWS 측정은 v0.1.1 이전 기록입니다. [측정 방법과 원자료](docs/benchmark_summary.md).
+
+## Volatility 3 분석
+
+Volatility **2.28.0**, Debian 12 / Linux **6.1.0-53**, 일치하는 DWARF 심볼과 4단계 페이지 테이블에서 시험했습니다. 전체본과 그 바이트를 그대로 선별한 수집본을 비교해 선별 손실과 분석기 오류를 구분했습니다.
+
+| 결과 | 플러그인 | 확인 내용 |
+|---|---|---|
+| 커널 메타데이터 확인 | `pslist`, `pstree`, `sockstat`, `lsof`, `lsmod`, `mountinfo`, `ip`, `kmsg`, `ebpf` | 전체본과 같은 레코드; 시험 소켓 5개 모두 유지 |
+| 프로세스 메모리 내용 제외 | `psaux`, `envars`, `elfs`, `library_list`, `vmaregexscan` | 인자·환경변수·ELF 헤더·프로세스 버퍼는 수집 정책에서 제외 |
+| 불완전한 입력으로 결과 변화 | `process_spoofing` | 명령행 부재로 `True`가 `False`로 바뀔 수 있음; `False`는 위장 없음의 근거가 아님 |
+| 파일 메타데이터 보존, 내용 제한 | `pagecache.Files`, `pagecache.RecoverFs` | 경로·inode는 일치하지만 제외한 파일 캐시 때문에 내용의 완전한 복구는 불가 |
+| 미수집 구간의 분석 호환성 한계 | `psscan` | 누락 페이지 읽기 예외로 스캔 중단; 실제 릴리즈 수집본에서도 재현 |
+| 전체 RAM에서도 실패 | `sockscan`, `capabilities`, `kallsyms` | 분석기 오류로, 선별 때문이라고 단정할 수 없음 |
+
+`malfind`, `check_creds` 등의 빈 출력은 탐지 성공으로 세지 않았습니다. 분석에는 커널에 맞는 심볼이 필요하며, 수집은 여전히 실행 파일 하나로 가능합니다. [59개 실행 결과와 원인 상세](docs/plugin_compatibility.md).
+
+**`psscan`의 한계:** KernelDump가 제외한 페이지는 수집본에 공백으로 남습니다. 동일 바이트 비교에서는 Volatility가 잘못된 프로세스 후보를 검사하다 이 공백을 읽었고, 누락 페이지 예외를 처리하지 않아 스캔이 중단됐습니다. 전체본에서 해당 후보의 종료 상태와 PID는 `-1`이었으므로, 이 최초 실패가 실제 유효 프로세스 누락을 뜻하지는 않습니다. 공백은 KernelDump의 선별로 생기고, 분석 전체 중단은 분석기의 공백 처리에서 발생합니다. 선별본의 `psscan` 동작은 보장하지 않으며, `pslist`도 숨김·잔존 프로세스 검색을 대신하지 않습니다. 이 오류를 피하려고 주변 페이지나 수집 옵션을 추가하지 않습니다.
 
 ## 산출물과 종료 상태
 

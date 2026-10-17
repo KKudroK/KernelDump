@@ -1,0 +1,163 @@
+{
+  "trials_count": 5,
+  "host_ram_gib": 61.78,
+  "active_workload_anon_gib": 16.06,
+  "lime_baseline": {
+    "status": "SUCCESS",
+    "wall_clock_seconds": 466.9279,
+    "temporal_smear_ms": 466927.9,
+    "output_size_bytes": 67608031360,
+    "output_size_mib": 64476.04,
+    "output_size_gib": 62.965,
+    "ram_reduction_percent": 0.0,
+    "throughput_mb_s": 138.09,
+    "page_cache_delta_kb": 42144724,
+    "dirty_pages_delta_kb": 6467004
+  },
+  "kerneldump_stats": {
+    "wall_clock_s": {
+      "mean": 20.835,
+      "stddev": 1.778,
+      "min": 18.974,
+      "max": 23.046,
+      "raw": [
+        18.9744,
+        19.4119,
+        20.4505,
+        23.0457,
+        22.2915
+      ]
+    },
+    "size_mib": {
+      "mean": 2041.52,
+      "stddev": 176.189,
+      "min": 1862.862,
+      "max": 2264.404,
+      "raw": [
+        1862.8617,
+        1897.5931,
+        1999.4781,
+        2264.4041,
+        2183.265
+      ]
+    },
+    "throughput_mb_s": {
+      "mean": 97.98,
+      "stddev": 0.23,
+      "min": 97.754,
+      "max": 98.257,
+      "raw": [
+        98.1776,
+        97.754,
+        97.7714,
+        98.2571,
+        97.9415
+      ]
+    },
+    "cache_delta_kb": {
+      "mean": 110.4,
+      "stddev": 64.597,
+      "min": 40,
+      "max": 200,
+      "raw": [
+        40,
+        200,
+        56,
+        136,
+        120
+      ]
+    }
+  },
+  "makedumpfile_stats": {
+    "wall_clock_s": {
+      "mean": 1.483,
+      "stddev": 0.249,
+      "min": 1.249,
+      "max": 1.854,
+      "raw": [
+        1.2584,
+        1.2494,
+        1.5585,
+        1.8543,
+        1.4948
+      ]
+    },
+    "size_mib": {
+      "mean": 2430.919,
+      "stddev": 629.978,
+      "min": 1831.179,
+      "max": 3360.83,
+      "raw": [
+        1859.179,
+        1831.1786,
+        2610.8657,
+        3360.8303,
+        2492.5438
+      ]
+    },
+    "throughput_mb_s": {
+      "mean": 1619.666,
+      "stddev": 147.063,
+      "min": 1465.624,
+      "max": 1812.49,
+      "raw": [
+        1477.4624,
+        1465.6237,
+        1675.2411,
+        1812.4897,
+        1667.5123
+      ]
+    },
+    "cache_delta_kb": {
+      "mean": 2489308.0,
+      "stddev": 644954.673,
+      "min": 1875236,
+      "max": 3441404,
+      "raw": [
+        1904116,
+        1875236,
+        2673304,
+        3441404,
+        2552480
+      ]
+    }
+  },
+  "volatility_verification": {
+    "linux.pslist.PsList": {
+      "exit_code": 0,
+      "elapsed_s": 13.55,
+      "record_count": 156,
+      "status": "SUCCESS"
+    },
+    "linux.pstree.PsTree": {
+      "exit_code": 0,
+      "elapsed_s": 6.01,
+      "record_count": 156,
+      "status": "SUCCESS"
+    },
+    "linux.check_modules.Check_modules": {
+      "exit_code": 0,
+      "elapsed_s": 5.77,
+      "record_count": 0,
+      "status": "SUCCESS"
+    },
+    "linux.check_creds.Check_creds": {
+      "exit_code": 0,
+      "elapsed_s": 5.77,
+      "record_count": 0,
+      "status": "SUCCESS"
+    },
+    "linux.sockstat.Sockstat": {
+      "exit_code": 0,
+      "elapsed_s": 19.25,
+      "record_count": 289,
+      "status": "SUCCESS"
+    },
+    "linux.mountinfo.MountInfo": {
+      "exit_code": 0,
+      "elapsed_s": 10.66,
+      "record_count": 665,
+      "status": "SUCCESS"
+    }
+  }
+}

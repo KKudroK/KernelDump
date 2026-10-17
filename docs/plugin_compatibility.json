@@ -1,0 +1,1764 @@
+{
+  "verified_on": "2026-10-17",
+  "experiment": "collector_readme_validation_20261017",
+  "volatility_version": "2.28.0",
+  "unmodified_distribution_sources": 314,
+  "environment": {
+    "os": "Debian 12",
+    "kernel": "6.1.0-53-cloud-amd64",
+    "kernel_package": "6.1.187-1",
+    "architecture": "x86-64",
+    "paging_levels": 4,
+    "qemu_cpu": "max,la57=off",
+    "vm_memory_mib": 1024,
+    "kernel_gnu_build_id": "4409ab2b8a5a626c1ee41412e8e6189fb23ae77c",
+    "symbol_source": "Official matching Debian DWARF and System.map",
+    "isf_sha256": "b625ce77189edbace1ac70939167a99fc261fc088b7c2f3deceacfa4dc6237ef"
+  },
+  "release": {
+    "version": "0.1.1",
+    "sha256": "04de7dfa0e67340844d32ed4f8e3d649fdf8c20c4a4cbf170b1128404b044378"
+  },
+  "control": {
+    "kind": "derived_same_bytes_control_not_a_new_live_capture",
+    "policy": "release kernel-focused-v4 classification using recorded full-capture PFN flags and immediate SLAB/PGTABLE neighbors",
+    "full_sha256": "eba0e1d7bec8327033d6c5292e275a65867b18626e2e3cfe66e977302dceb6fe",
+    "focused_sha256": "c535b448fb6351d9ea8b23e1d80b2c3bd7c28963a5218df37a7bf33de05e78df",
+    "full_payload_bytes": 1073197056,
+    "selected_payload_bytes": 119758848,
+    "segments": 388,
+    "selected_bytes_sha256": "a949503e7d3d56e5bb5745366e51e0302c6e1f0968aae88052536b03c54ce5e8",
+    "copied_payload_verified": true,
+    "limitation": "Flags and bytes in the original live capture were observed sequentially; this control isolates omitted pages, not live snapshot atomicity."
+  },
+  "counts": {
+    "empty_both": 19,
+    "identical_rows": 28,
+    "failed_on_both": 3,
+    "different_rows": 8,
+    "failed_only_after_filtering": 1
+  },
+  "counting_note": "59 CLI plugin names include legacy aliases. JSON records, including children, are counted; they are not verified object counts or detection accuracy. Live release has 31 matrix invocations plus a PsScan diagnostic.",
+  "results": [
+    {
+      "plugin": "linux.bash.Bash",
+      "comparison": "empty_both",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.boottime.Boottime",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 1,
+        "stdout_sha256": "535fc4784c507daf7c1ab07e404a95c9e83dc5d1defc8c6d1c5961cd1979f63c",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 1,
+        "stdout_sha256": "535fc4784c507daf7c1ab07e404a95c9e83dc5d1defc8c6d1c5961cd1979f63c",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 1,
+        "stdout_sha256": "535fc4784c507daf7c1ab07e404a95c9e83dc5d1defc8c6d1c5961cd1979f63c",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.capabilities.Capabilities",
+      "comparison": "failed_on_both",
+      "note": "Both images: unsupported kernel capabilities implementation (cap[2] layout versus the analyzer handler).",
+      "full": {
+        "exit_code": 1,
+        "status": "completed",
+        "records": null,
+        "stdout_sha256": "aea52d27230b89ca1b732866afbe137a98e65100049a56b3293def8d5fe7dda0",
+        "stderr_sha256": "33e1afd76c2222fc4e32bc5bd9d201a37dc80e5c579ffb6f46581ad61e19247d"
+      },
+      "projected": {
+        "exit_code": 1,
+        "status": "completed",
+        "records": null,
+        "stdout_sha256": "aea52d27230b89ca1b732866afbe137a98e65100049a56b3293def8d5fe7dda0",
+        "stderr_sha256": "33e1afd76c2222fc4e32bc5bd9d201a37dc80e5c579ffb6f46581ad61e19247d"
+      },
+      "release": {
+        "exit_code": 1,
+        "status": "completed",
+        "records": null,
+        "stdout_sha256": "aea52d27230b89ca1b732866afbe137a98e65100049a56b3293def8d5fe7dda0",
+        "stderr_sha256": "33e1afd76c2222fc4e32bc5bd9d201a37dc80e5c579ffb6f46581ad61e19247d"
+      }
+    },
+    {
+      "plugin": "linux.check_afinfo.Check_afinfo",
+      "comparison": "empty_both",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "78448a13f149c5f5868cb271fe0dcda1034758ba4ac4d9fa5f3f886d1a48c60d"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "78448a13f149c5f5868cb271fe0dcda1034758ba4ac4d9fa5f3f886d1a48c60d"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.check_creds.Check_creds",
+      "comparison": "empty_both",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "4654f404946fd39c1128aae9e2c953c3f22101af710a844d15bc51d3163d2748"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "4654f404946fd39c1128aae9e2c953c3f22101af710a844d15bc51d3163d2748"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "4654f404946fd39c1128aae9e2c953c3f22101af710a844d15bc51d3163d2748"
+      }
+    },
+    {
+      "plugin": "linux.check_idt.Check_idt",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 21,
+        "stdout_sha256": "7b143cc082eb00d565d1b10d0fbc1bec9c08e275780149f2913fe413739771fc",
+        "stderr_sha256": "299d1f2680ed3f8b86614ffae4bef7252c8a31d8b5d2f9b5bc4648cd6414e96c"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 21,
+        "stdout_sha256": "7b143cc082eb00d565d1b10d0fbc1bec9c08e275780149f2913fe413739771fc",
+        "stderr_sha256": "299d1f2680ed3f8b86614ffae4bef7252c8a31d8b5d2f9b5bc4648cd6414e96c"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 21,
+        "stdout_sha256": "7b143cc082eb00d565d1b10d0fbc1bec9c08e275780149f2913fe413739771fc",
+        "stderr_sha256": "299d1f2680ed3f8b86614ffae4bef7252c8a31d8b5d2f9b5bc4648cd6414e96c"
+      }
+    },
+    {
+      "plugin": "linux.check_modules.Check_modules",
+      "comparison": "empty_both",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "b1132b94dd4988c56947efb86d87101a6b9f5b7fba5aea30c33e1529bc4cf207"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "b1132b94dd4988c56947efb86d87101a6b9f5b7fba5aea30c33e1529bc4cf207"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "b1132b94dd4988c56947efb86d87101a6b9f5b7fba5aea30c33e1529bc4cf207"
+      }
+    },
+    {
+      "plugin": "linux.check_syscall.Check_syscall",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 430,
+        "stdout_sha256": "5cc69d93770a14b6ea5b6e07261b1519cd43ee8cb2e6330cc723852a968c4a65",
+        "stderr_sha256": "5dd8ebc4ca7da530be98fc20781b78bc632fdfad9f680d2744fb26b9281bee28"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 430,
+        "stdout_sha256": "5cc69d93770a14b6ea5b6e07261b1519cd43ee8cb2e6330cc723852a968c4a65",
+        "stderr_sha256": "5dd8ebc4ca7da530be98fc20781b78bc632fdfad9f680d2744fb26b9281bee28"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 430,
+        "stdout_sha256": "5cc69d93770a14b6ea5b6e07261b1519cd43ee8cb2e6330cc723852a968c4a65",
+        "stderr_sha256": "5dd8ebc4ca7da530be98fc20781b78bc632fdfad9f680d2744fb26b9281bee28"
+      }
+    },
+    {
+      "plugin": "linux.ebpf.EBPF",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 11,
+        "stdout_sha256": "12ca1fab045f0e4525eeb6549c6626c2d500ed1dae056377eb7fb21bf824fca1",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 11,
+        "stdout_sha256": "12ca1fab045f0e4525eeb6549c6626c2d500ed1dae056377eb7fb21bf824fca1",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 11,
+        "stdout_sha256": "12ca1fab045f0e4525eeb6549c6626c2d500ed1dae056377eb7fb21bf824fca1",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.elfs.Elfs",
+      "comparison": "different_rows",
+      "note": "385 to 0 rows; depends on process address-space content.",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 385,
+        "stdout_sha256": "8c2fd25f8017523c17e9effa86e1568ec231b32c038a0054e2365fe2fedf9b7d",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.envars.Envars",
+      "comparison": "different_rows",
+      "note": "188 to 0 rows; the fixture environment marker is lost.",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 188,
+        "stdout_sha256": "75420e3026d2198961a265c73e980dbd92a5391f281deae7a852f2b90374bc9b",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.graphics.fbdev.Fbdev",
+      "comparison": "empty_both",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.hidden_modules.Hidden_modules",
+      "comparison": "empty_both",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "ccc725beff60a2bd084cfb5b4e621f3b1b519fdc34e4ff829423989aef0dd93b"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "ccc725beff60a2bd084cfb5b4e621f3b1b519fdc34e4ff829423989aef0dd93b"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "ccc725beff60a2bd084cfb5b4e621f3b1b519fdc34e4ff829423989aef0dd93b"
+      }
+    },
+    {
+      "plugin": "linux.iomem.IOMem",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 31,
+        "stdout_sha256": "7ba53eb3559be10e2c5efaa6b623cf66b0abaeff2a94b2ab56ca81a42b5c1089",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 31,
+        "stdout_sha256": "7ba53eb3559be10e2c5efaa6b623cf66b0abaeff2a94b2ab56ca81a42b5c1089",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.ip.Addr",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 5,
+        "stdout_sha256": "cffde43edc719ae0a8199ed68c9337c3173e9eb785da35ac4d1647ce6427c28f",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 5,
+        "stdout_sha256": "cffde43edc719ae0a8199ed68c9337c3173e9eb785da35ac4d1647ce6427c28f",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 5,
+        "stdout_sha256": "cffde43edc719ae0a8199ed68c9337c3173e9eb785da35ac4d1647ce6427c28f",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.ip.Link",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 2,
+        "stdout_sha256": "e037cfef88253470bd36c6b80713ff7fd7e2318bae986b8f57b707fc58ea21a0",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 2,
+        "stdout_sha256": "e037cfef88253470bd36c6b80713ff7fd7e2318bae986b8f57b707fc58ea21a0",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 2,
+        "stdout_sha256": "e037cfef88253470bd36c6b80713ff7fd7e2318bae986b8f57b707fc58ea21a0",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.kallsyms.Kallsyms",
+      "comparison": "failed_on_both",
+      "note": "Both images: TypeError (pointer_to_string takes a Pointer).",
+      "full": {
+        "exit_code": 1,
+        "status": "completed",
+        "records": null,
+        "stdout_sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6",
+        "stderr_sha256": "a93b78f315c873aa640913ced3c90e0cf8685b6c7abd757c60858550fe86d1a9"
+      },
+      "projected": {
+        "exit_code": 1,
+        "status": "completed",
+        "records": null,
+        "stdout_sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6",
+        "stderr_sha256": "a93b78f315c873aa640913ced3c90e0cf8685b6c7abd757c60858550fe86d1a9"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.keyboard_notifiers.Keyboard_notifiers",
+      "comparison": "empty_both",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "899168a09a9998faf9f78777d11294a00220da4e1456d3ab40052aab14b70051"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "899168a09a9998faf9f78777d11294a00220da4e1456d3ab40052aab14b70051"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.kmsg.Kmsg",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 653,
+        "stdout_sha256": "ac56fe051c933908d27859c19f1f8e78de88f2a98385205e5e0d769602cb4c36",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 653,
+        "stdout_sha256": "ac56fe051c933908d27859c19f1f8e78de88f2a98385205e5e0d769602cb4c36",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 653,
+        "stdout_sha256": "ac56fe051c933908d27859c19f1f8e78de88f2a98385205e5e0d769602cb4c36",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.kthreads.Kthreads",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 64,
+        "stdout_sha256": "771123bbe09f8f6e0eb987e925609c2dbb71e5614a1ab4d3a4bdfb728d199466",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 64,
+        "stdout_sha256": "771123bbe09f8f6e0eb987e925609c2dbb71e5614a1ab4d3a4bdfb728d199466",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.library_list.LibraryList",
+      "comparison": "different_rows",
+      "note": "299 to 0 rows. Fixture-only repeat: 7 to 0 libraries. Completed full retry replaces a harness interruption.",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 299,
+        "stdout_sha256": "dc1af6851e1abe08964caee676993588de5a77df110dc496fb442e75be0408f4",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.lsmod.Lsmod",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 49,
+        "stdout_sha256": "654706776c1e5dbee2649c3810bd7d2b4753ddb264e319fd0f106c5624015f21",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 49,
+        "stdout_sha256": "654706776c1e5dbee2649c3810bd7d2b4753ddb264e319fd0f106c5624015f21",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 49,
+        "stdout_sha256": "654706776c1e5dbee2649c3810bd7d2b4753ddb264e319fd0f106c5624015f21",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.lsof.Lsof",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 335,
+        "stdout_sha256": "36c0daca518b0954793fb9b0752a6758733eb5a335f8564324d9ffdf5af1c9cc",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 335,
+        "stdout_sha256": "36c0daca518b0954793fb9b0752a6758733eb5a335f8564324d9ffdf5af1c9cc",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 335,
+        "stdout_sha256": "81eedab2d55819be31c49dd957c1926d86b5c759437bae8d1723268949c165ba",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.malfind.Malfind",
+      "comparison": "empty_both",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "b03ad165697c36518194a07607dcfac7d1867ad081258bbeebde52869ec399e7"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "b03ad165697c36518194a07607dcfac7d1867ad081258bbeebde52869ec399e7"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.malware.check_afinfo.Check_afinfo",
+      "comparison": "empty_both",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.malware.check_creds.Check_creds",
+      "comparison": "empty_both",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.malware.check_idt.Check_idt",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 21,
+        "stdout_sha256": "7b143cc082eb00d565d1b10d0fbc1bec9c08e275780149f2913fe413739771fc",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 21,
+        "stdout_sha256": "7b143cc082eb00d565d1b10d0fbc1bec9c08e275780149f2913fe413739771fc",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.malware.check_modules.Check_modules",
+      "comparison": "empty_both",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.malware.check_syscall.Check_syscall",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 430,
+        "stdout_sha256": "5cc69d93770a14b6ea5b6e07261b1519cd43ee8cb2e6330cc723852a968c4a65",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 430,
+        "stdout_sha256": "5cc69d93770a14b6ea5b6e07261b1519cd43ee8cb2e6330cc723852a968c4a65",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.malware.hidden_modules.Hidden_modules",
+      "comparison": "empty_both",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.malware.keyboard_notifiers.Keyboard_notifiers",
+      "comparison": "empty_both",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.malware.malfind.Malfind",
+      "comparison": "empty_both",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.malware.modxview.Modxview",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 49,
+        "stdout_sha256": "ec788bcd3098a12986b527b01b10b0f494df49c98326ab5748eab59343bfa1dd",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 49,
+        "stdout_sha256": "ec788bcd3098a12986b527b01b10b0f494df49c98326ab5748eab59343bfa1dd",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.malware.netfilter.Netfilter",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 2,
+        "stdout_sha256": "aec5c9b28004a3157d30ff943003017af702d1b1a65ef1e8b302d578a854c599",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 2,
+        "stdout_sha256": "aec5c9b28004a3157d30ff943003017af702d1b1a65ef1e8b302d578a854c599",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 2,
+        "stdout_sha256": "aec5c9b28004a3157d30ff943003017af702d1b1a65ef1e8b302d578a854c599",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.malware.process_spoofing.ProcessSpoofing",
+      "comparison": "different_rows",
+      "note": "21 of 86 rows change, including command-line-derived flags; do not interpret missing arguments as a negative finding.",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 86,
+        "stdout_sha256": "8c1ce679890083f5518428284edbec8d90285584aae6719230b0a31511a41a97",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 86,
+        "stdout_sha256": "ac2a2c34c450404523dafda69d2a531de14553b7c23679df327987c828435a39",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.malware.tty_check.Tty_Check",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 3,
+        "stdout_sha256": "baa85f249f2388437accecca740377fd8d250bd165882b96354caa4f12024a2b",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 3,
+        "stdout_sha256": "baa85f249f2388437accecca740377fd8d250bd165882b96354caa4f12024a2b",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.module_extract.ModuleExtract",
+      "comparison": "identical_rows",
+      "note": "One isofs module: both 71,334-byte ELF files have the same SHA-256.",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 1,
+        "stdout_sha256": "e027aed8f367e46dd6592e450fd78c0f253d1ca8d0eae53519c04e197cbe600d",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 1,
+        "stdout_sha256": "e027aed8f367e46dd6592e450fd78c0f253d1ca8d0eae53519c04e197cbe600d",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 1,
+        "stdout_sha256": "e027aed8f367e46dd6592e450fd78c0f253d1ca8d0eae53519c04e197cbe600d",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.modxview.Modxview",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 49,
+        "stdout_sha256": "ec788bcd3098a12986b527b01b10b0f494df49c98326ab5748eab59343bfa1dd",
+        "stderr_sha256": "af41c8bee1812d7fb15badaf43b960c04020fdb753c9db78fa47b4aca52ed899"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 49,
+        "stdout_sha256": "ec788bcd3098a12986b527b01b10b0f494df49c98326ab5748eab59343bfa1dd",
+        "stderr_sha256": "af41c8bee1812d7fb15badaf43b960c04020fdb753c9db78fa47b4aca52ed899"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.mountinfo.MountInfo",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 338,
+        "stdout_sha256": "dfe52db4e3599213472018133b0e3b7647931189658fa3350a4be6cc5405efbe",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 338,
+        "stdout_sha256": "dfe52db4e3599213472018133b0e3b7647931189658fa3350a4be6cc5405efbe",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 338,
+        "stdout_sha256": "dfe52db4e3599213472018133b0e3b7647931189658fa3350a4be6cc5405efbe",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.netfilter.Netfilter",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 2,
+        "stdout_sha256": "aec5c9b28004a3157d30ff943003017af702d1b1a65ef1e8b302d578a854c599",
+        "stderr_sha256": "db01d047dd13fcc85ebba5131e3ada3a4eca9499242fb9367de32f531a27f2be"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 2,
+        "stdout_sha256": "aec5c9b28004a3157d30ff943003017af702d1b1a65ef1e8b302d578a854c599",
+        "stderr_sha256": "db01d047dd13fcc85ebba5131e3ada3a4eca9499242fb9367de32f531a27f2be"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.pagecache.Files",
+      "comparison": "identical_rows",
+      "note": "18,196 metadata rows are identical; this does not verify file-content recovery.",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 18196,
+        "stdout_sha256": "3c8647649512789e1e1075bdee43ab5376e285935644a67300825556f6b142ff",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 18196,
+        "stdout_sha256": "3c8647649512789e1e1075bdee43ab5376e285935644a67300825556f6b142ff",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 18203,
+        "stdout_sha256": "24181acd3cb64bf0afdf1e711fa27bce32f67134d27a9fb98c732df0f504120e",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.pagecache.InodePages",
+      "comparison": "empty_both",
+      "note": "Default invocation has no target. Explicit fixture inode also yields an empty file on BOTH images, with an address-space mismatch warning; recovery is unverified.",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "57f3081061a386d1d5c07e3d1e9749912ab0bb8ba5668bad84ed0564b0079337"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "57f3081061a386d1d5c07e3d1e9749912ab0bb8ba5668bad84ed0564b0079337"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "57f3081061a386d1d5c07e3d1e9749912ab0bb8ba5668bad84ed0564b0079337"
+      }
+    },
+    {
+      "plugin": "linux.pagecache.RecoverFs",
+      "comparison": "different_rows",
+      "note": "Metadata traversal completes; 1,162 archive files change. Recovered content falls from 90,604,972 to 1,671,168 bytes.",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 17209,
+        "stdout_sha256": "a69c2ff71eba1c4b0213e3439494d3c20aaaa8e0203fe4c7009d638c8d05d86c",
+        "stderr_sha256": "e5b930e0309882bc4f2714d250b0b77405cdc1deb1767de85b3b07ed2bb933d5"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 17209,
+        "stdout_sha256": "1f6ca5caf3d5a78a21dc69cac749028f41a1e049aedbe6673f13c46076151c42",
+        "stderr_sha256": "9fa26300888009175c90c99cf4d6881c017216f29db2229b3adacb7018d5c861"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.pidhashtable.PIDHashTable",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 88,
+        "stdout_sha256": "7014f4fd503f4dfaf6d7e702cafb183557d1470f61ecd77aafe0f910efec8b92",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 88,
+        "stdout_sha256": "7014f4fd503f4dfaf6d7e702cafb183557d1470f61ecd77aafe0f910efec8b92",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.proc.Maps",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 2488,
+        "stdout_sha256": "7765937ccd589a2ff943c1cf214a489967ef8363bd28c50e75f3ccaefcf07fc8",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 2488,
+        "stdout_sha256": "7765937ccd589a2ff943c1cf214a489967ef8363bd28c50e75f3ccaefcf07fc8",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 2474,
+        "stdout_sha256": "bf45ab5954989a9b2a2a28dc0d70b9e34c8576e3957d06540b47a7cace144cf8",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.psaux.PsAux",
+      "comparison": "different_rows",
+      "note": "86 task rows remain, but the fixture argv marker is lost.",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 86,
+        "stdout_sha256": "6162fc63f62ddb3566541e8e5eae22113b31ce01dd6b279755b47baaf37e6e8b",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 86,
+        "stdout_sha256": "7eac5cb1905f30c4ede1e20efe785d6b1e9097029477b85fd394ab714f5f2050",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 86,
+        "stdout_sha256": "d357301721a1375ff0d0a6783668ce5651d1b31d7605982715e5be21b5e8e03d",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.pscallstack.PsCallStack",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 995,
+        "stdout_sha256": "e55f902aee1bcd76afc2f628772025c8b0b053a59361f968d00184bdd83bf949",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 995,
+        "stdout_sha256": "e55f902aee1bcd76afc2f628772025c8b0b053a59361f968d00184bdd83bf949",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.pslist.PsList",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 86,
+        "stdout_sha256": "c818ca2ddde370869b2a92d9de78f5245f12d2aefff837331e5599c4fa5d1a15",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 86,
+        "stdout_sha256": "c818ca2ddde370869b2a92d9de78f5245f12d2aefff837331e5599c4fa5d1a15",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 86,
+        "stdout_sha256": "16cb5d1cfdac2810da51ba543544eb8e57d5b73db26bd8f1806a81b172a3bd1d",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.psscan.PsScan",
+      "comparison": "failed_only_after_filtering",
+      "note": "Full: 301 scan records. Projected and live release: abort while reading an omitted page; scanner does not catch the sparse-address exception.",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 301,
+        "stdout_sha256": "22e6353f4d86b439f7387917994ea9c1274b58e8750b0df002c23ae6a77e0b41",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 1,
+        "status": "completed",
+        "records": null,
+        "stdout_sha256": "aea52d27230b89ca1b732866afbe137a98e65100049a56b3293def8d5fe7dda0",
+        "stderr_sha256": "c615e974a3982524a1c5dba252986638c0dc2156a8ab56845d23014d6d279b50"
+      },
+      "release": {
+        "exit_code": 1,
+        "status": "completed",
+        "records": null,
+        "stdout_sha256": "aea52d27230b89ca1b732866afbe137a98e65100049a56b3293def8d5fe7dda0",
+        "stderr_sha256": "8bafc27ed293e2f5916382fdd8b1444cdc8b9f2d8495e5090d764e5a16d0dfd5"
+      }
+    },
+    {
+      "plugin": "linux.pstree.PsTree",
+      "comparison": "identical_rows",
+      "note": "86 records including nested children; two root rows in JSON.",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 86,
+        "stdout_sha256": "8ac5623acda65b1ab8d7fc60ea088ab8006d12dec93eeaafb8df97f9ecb29097",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 86,
+        "stdout_sha256": "8ac5623acda65b1ab8d7fc60ea088ab8006d12dec93eeaafb8df97f9ecb29097",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 86,
+        "stdout_sha256": "96a1be14c2e1b2f7c61f4eb994ae40fcb10b8d874454cd7a6677cca0c841bc61",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.ptrace.Ptrace",
+      "comparison": "empty_both",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.sockscan.Sockscan",
+      "comparison": "failed_on_both",
+      "note": "Both images: AttributeError (NoneType.socket); the failure precedes any filtering-only conclusion.",
+      "full": {
+        "exit_code": 1,
+        "status": "completed",
+        "records": null,
+        "stdout_sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6",
+        "stderr_sha256": "210c7611156a36c271ac287d2eec063171fedeba491f3bb704d295174b114da8"
+      },
+      "projected": {
+        "exit_code": 1,
+        "status": "completed",
+        "records": null,
+        "stdout_sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6",
+        "stderr_sha256": "210c7611156a36c271ac287d2eec063171fedeba491f3bb704d295174b114da8"
+      },
+      "release": {
+        "exit_code": 1,
+        "status": "completed",
+        "records": null,
+        "stdout_sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6",
+        "stderr_sha256": "210c7611156a36c271ac287d2eec063171fedeba491f3bb704d295174b114da8"
+      }
+    },
+    {
+      "plugin": "linux.sockstat.Sockstat",
+      "comparison": "identical_rows",
+      "note": "152 rows identical, including all five controlled TCP/UDP/UNIX sockets.",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 152,
+        "stdout_sha256": "98de46fafdfa8a59de8ba4e803f1a1e3c8bfd2404adac347772a2e16ea2230a3",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 152,
+        "stdout_sha256": "98de46fafdfa8a59de8ba4e803f1a1e3c8bfd2404adac347772a2e16ea2230a3",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 152,
+        "stdout_sha256": "98de46fafdfa8a59de8ba4e803f1a1e3c8bfd2404adac347772a2e16ea2230a3",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.tracing.ftrace.CheckFtrace",
+      "comparison": "empty_both",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.tracing.perf_events.PerfEvents",
+      "comparison": "empty_both",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.tracing.tracepoints.CheckTracepoints",
+      "comparison": "empty_both",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.tty_check.tty_check",
+      "comparison": "identical_rows",
+      "note": "",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 3,
+        "stdout_sha256": "baa85f249f2388437accecca740377fd8d250bd165882b96354caa4f12024a2b",
+        "stderr_sha256": "e9e4c7534c282595976ef183188dfdcaf78899bd05e7aa3203161e2a5593cd67"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 3,
+        "stdout_sha256": "baa85f249f2388437accecca740377fd8d250bd165882b96354caa4f12024a2b",
+        "stderr_sha256": "e9e4c7534c282595976ef183188dfdcaf78899bd05e7aa3203161e2a5593cd67"
+      },
+      "release": null
+    },
+    {
+      "plugin": "linux.vmaregexscan.VmaRegExScan",
+      "comparison": "different_rows",
+      "note": "Fixture memory marker: 4,103 to 0 matches (--pid 577 with a fixed marker pattern).",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 4103,
+        "stdout_sha256": "1aac26b9cf6a33b8677eb376138bca793c30bb9834352ef2ace71bf9c46bcbdb",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 0,
+        "stdout_sha256": "d9163d874acf3f2987f4d52821f2dfb8c7a95473603f039c99e0b2102a306482",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    },
+    {
+      "plugin": "linux.vmcoreinfo.VMCoreInfo",
+      "comparison": "different_rows",
+      "note": "Three copies become one copy; all 108 unique key/value pairs remain identical.",
+      "full": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 324,
+        "stdout_sha256": "e29b5fbc4db1a10935beaae716a104d7bffec503aff4bcca647b2d592108cb98",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "projected": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 108,
+        "stdout_sha256": "0df689e912caf65a25e82e9eecb8bd0e934a5e2912a5730ec6f00dccf91818e2",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      "release": {
+        "exit_code": 0,
+        "status": "completed",
+        "records": 108,
+        "stdout_sha256": "0df689e912caf65a25e82e9eecb8bd0e934a5e2912a5730ec6f00dccf91818e2",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      }
+    }
+  ],
+  "fixture_sockets": {
+    "full": [
+      {
+        "PID": 577,
+        "Family": "AF_INET",
+        "Type": "STREAM",
+        "Proto": "TCP",
+        "Source Addr": "127.0.0.1",
+        "Source Port": "51449",
+        "Destination Addr": "0.0.0.0",
+        "Destination Port": "0"
+      },
+      {
+        "PID": 577,
+        "Family": "AF_INET",
+        "Type": "STREAM",
+        "Proto": "TCP",
+        "Source Addr": "127.0.0.1",
+        "Source Port": "46012",
+        "Destination Addr": "127.0.0.1",
+        "Destination Port": "51449"
+      },
+      {
+        "PID": 577,
+        "Family": "AF_INET",
+        "Type": "STREAM",
+        "Proto": "TCP",
+        "Source Addr": "127.0.0.1",
+        "Source Port": "51449",
+        "Destination Addr": "127.0.0.1",
+        "Destination Port": "46012"
+      },
+      {
+        "PID": 577,
+        "Family": "AF_INET",
+        "Type": "DGRAM",
+        "Proto": "UDP",
+        "Source Addr": "127.0.0.1",
+        "Source Port": "54299",
+        "Destination Addr": "0.0.0.0",
+        "Destination Port": "0"
+      },
+      {
+        "PID": 577,
+        "Family": "AF_UNIX",
+        "Type": "STREAM",
+        "Proto": null,
+        "Source Addr": "/var/tmp/kernel_plugin_control/fixture.sock",
+        "Source Port": "15482",
+        "Destination Addr": null,
+        "Destination Port": null
+      }
+    ],
+    "projected": [
+      {
+        "PID": 577,
+        "Family": "AF_INET",
+        "Type": "STREAM",
+        "Proto": "TCP",
+        "Source Addr": "127.0.0.1",
+        "Source Port": "51449",
+        "Destination Addr": "0.0.0.0",
+        "Destination Port": "0"
+      },
+      {
+        "PID": 577,
+        "Family": "AF_INET",
+        "Type": "STREAM",
+        "Proto": "TCP",
+        "Source Addr": "127.0.0.1",
+        "Source Port": "46012",
+        "Destination Addr": "127.0.0.1",
+        "Destination Port": "51449"
+      },
+      {
+        "PID": 577,
+        "Family": "AF_INET",
+        "Type": "STREAM",
+        "Proto": "TCP",
+        "Source Addr": "127.0.0.1",
+        "Source Port": "51449",
+        "Destination Addr": "127.0.0.1",
+        "Destination Port": "46012"
+      },
+      {
+        "PID": 577,
+        "Family": "AF_INET",
+        "Type": "DGRAM",
+        "Proto": "UDP",
+        "Source Addr": "127.0.0.1",
+        "Source Port": "54299",
+        "Destination Addr": "0.0.0.0",
+        "Destination Port": "0"
+      },
+      {
+        "PID": 577,
+        "Family": "AF_UNIX",
+        "Type": "STREAM",
+        "Proto": null,
+        "Source Addr": "/var/tmp/kernel_plugin_control/fixture.sock",
+        "Source Port": "15482",
+        "Destination Addr": null,
+        "Destination Port": null
+      }
+    ],
+    "release": [
+      {
+        "PID": 577,
+        "Family": "AF_INET",
+        "Type": "STREAM",
+        "Proto": "TCP",
+        "Source Addr": "127.0.0.1",
+        "Source Port": "51449",
+        "Destination Addr": "0.0.0.0",
+        "Destination Port": "0"
+      },
+      {
+        "PID": 577,
+        "Family": "AF_INET",
+        "Type": "STREAM",
+        "Proto": "TCP",
+        "Source Addr": "127.0.0.1",
+        "Source Port": "46012",
+        "Destination Addr": "127.0.0.1",
+        "Destination Port": "51449"
+      },
+      {
+        "PID": 577,
+        "Family": "AF_INET",
+        "Type": "STREAM",
+        "Proto": "TCP",
+        "Source Addr": "127.0.0.1",
+        "Source Port": "51449",
+        "Destination Addr": "127.0.0.1",
+        "Destination Port": "46012"
+      },
+      {
+        "PID": 577,
+        "Family": "AF_INET",
+        "Type": "DGRAM",
+        "Proto": "UDP",
+        "Source Addr": "127.0.0.1",
+        "Source Port": "54299",
+        "Destination Addr": "0.0.0.0",
+        "Destination Port": "0"
+      },
+      {
+        "PID": 577,
+        "Family": "AF_UNIX",
+        "Type": "STREAM",
+        "Proto": null,
+        "Source Addr": "/var/tmp/kernel_plugin_control/fixture.sock",
+        "Source Port": "15482",
+        "Destination Addr": null,
+        "Destination Port": null
+      }
+    ]
+  },
+  "vmcoreinfo": {
+    "full": {
+      "notes": 3,
+      "unique_key_value_pairs": 108,
+      "each_note_fields": [
+        108,
+        108,
+        108
+      ]
+    },
+    "projected": {
+      "notes": 1,
+      "unique_key_value_pairs": 108,
+      "each_note_fields": [
+        108
+      ]
+    },
+    "same_unique_values": true
+  },
+  "module_extract": {
+    "full": {
+      "name": "kernel_module.isofs.0xffffc08de0c0.elf",
+      "bytes": 71334,
+      "sha256": "e915da3aed56869a372953d6373a9fc7862d68dab2b2284413650b4b591ce9d6"
+    },
+    "projected": {
+      "name": "kernel_module.isofs.0xffffc08de0c0.elf",
+      "bytes": 71334,
+      "sha256": "e915da3aed56869a372953d6373a9fc7862d68dab2b2284413650b4b591ce9d6"
+    }
+  },
+  "recover_fs": {
+    "full_files": 13611,
+    "projected_files": 13611,
+    "changed_files": 1162,
+    "full_bytes": 90604972,
+    "projected_bytes": 1671168,
+    "size_interpretation": "full_bytes/projected_bytes are summed apparent output file sizes, not validated recovered-byte counts; stock exporter may create sparse or zero-filled holes."
+  },
+  "psscan_missing_page": {
+    "fault_address": "0x29a648c",
+    "pfn": 10662,
+    "flags": "0x68",
+    "set_flag_bits": [
+      3,
+      5,
+      6
+    ],
+    "left": "0x0",
+    "right": "0x800000060",
+    "cause": "Filtering creates a hole; stock PsScan propagates the missing-page exception while checking an invalid candidate. The first candidate is rejected in full RAM, not a demonstrated lost valid task.",
+    "product_action": "Document the limit; no neighboring-page expansion, zero filling, new options or analyzer modifications."
+  },
+  "limitations": [
+    "Reference full RAM uses the development full-RAM mode of the same collector; this does not independently validate its acquisition engine.",
+    "Projection applies the release PFN policy to the full-capture ledger, then copies selected bytes without rereading RAM. Retained payload hashes were checked.",
+    "Original live flags and memory are sequential, not atomic. The separate production capture occurred later.",
+    "Default empty plugin output does not demonstrate successful detection or a clean system.",
+    "Initial LA57 guest failed stock four-level translation even with full RAM; a manual five-level walk read the correct banner. The main comparison uses four-level paging.",
+    "The full LibraryList invocation interrupted during a harness restart is excluded in favor of its completed 299-row retry."
+  ],
+  "experimental_psscan_probe": {
+    "scope": "Experimental analyzer-only missing-page guard, not a release fix or part of the stock 59-plugin matrix",
+    "source_sha256": "70b5fe46b408093045f71f4898d9ec393461a482698b960cd51f32eb22b33197",
+    "experimental_plugin_sha256": "aa037da129990b1087c8bd31264f51fca8a0af1a8f935d4e8f14ba6e8c98159d",
+    "first_candidate": {
+      "candidate_task_physical_base": "0x29a5b88",
+      "fault_address": "0x29a648c",
+      "fields": {
+        "exit_state": -1,
+        "pid": -1,
+        "tgid": -1,
+        "comm_hex": "00000000000000000000000000000000",
+        "sched_class": "0xffffffff95597230"
+      },
+      "full_plugin_would_reject_at_exit_state": true
+    },
+    "identity_comparison": {
+      "pslist_identities": 86,
+      "full_scan_unique_identities": 101,
+      "filtered_scan_unique_identities": 101,
+      "pslist_missing_full_scan": [],
+      "pslist_missing_filtered_scan": [],
+      "full_scan_identities_absent_after_filter": [],
+      "row_multisets_equal": false,
+      "fixture_in_filtered_scan": true
+    },
+    "full_unchanged_from_stock": true,
+    "same_byte_filtered_identical_to_full": false,
+    "results": [
+      {
+        "image": "full",
+        "rc": 0,
+        "status": "completed",
+        "rows": 301,
+        "skipped_candidate_warnings": 0,
+        "stdout_sha256": "22e6353f4d86b439f7387917994ea9c1274b58e8750b0df002c23ae6a77e0b41",
+        "stderr_sha256": "03b60431c1b579b11fc1543ff319c4cd91ba40d9f7aa96865cac868ba5f68311"
+      },
+      {
+        "image": "projected",
+        "rc": 0,
+        "status": "completed",
+        "rows": 101,
+        "skipped_candidate_warnings": 4,
+        "stdout_sha256": "7267f7804ff112f3a9a2fe67805870e71f2ad0d4b0734f3119bc1ed79d71e0dd",
+        "stderr_sha256": "79cd394a2ab1ab8bb7163e7436bbe456de58a52928328c1c7da2eebb8ca3f2f1"
+      },
+      {
+        "image": "release",
+        "rc": 0,
+        "status": "completed",
+        "rows": 106,
+        "skipped_candidate_warnings": 6,
+        "stdout_sha256": "1545626855fe9b0834932f99164a41841dc8728269b9a4045282068b2e70dcc2",
+        "stderr_sha256": "45b74a0475753b7b45e0190e80ee0b81374a1ffc2976bd11ec3435bd50c30908"
+      }
+    ]
+  },
+  "collector_dependency_review": {
+    "experiment": "kerneldump_plugin_review_20261017",
+    "method": "Independent read-only LiME/page-table audit against exact ISF; stock CLI rechecks; no product change",
+    "kernel_object_checks": {
+      "task_struct": {
+        "equal": 86
+      },
+      "mm_struct": {
+        "equal": 21
+      },
+      "process_pgd": {
+        "equal": 21
+      },
+      "executable_file": {
+        "equal": 21
+      },
+      "inode": {
+        "equal": 18196
+      },
+      "address_space": {
+        "equal": 18196
+      },
+      "super_block": {
+        "equal": 33
+      },
+      "kernel_stack_return_slot": {
+        "equal": 995
+      }
+    },
+    "kernel_object_failures": 0,
+    "process_ranges": 42,
+    "elf_headers": {
+      "omitted": 385
+    },
+    "marker_pages": {
+      "omitted": 4102
+    },
+    "spoof_changed_rows": 21,
+    "spoof_true_to_false": 9,
+    "recoverfs_changed_fields": {
+      "Recovered FileSize": 1162
+    },
+    "inode_examples": [
+      {
+        "same_page_metadata": true,
+        "page_count": 1,
+        "full_output_bytes": 284,
+        "filtered_output_bytes": 0
+      },
+      {
+        "same_page_metadata": true,
+        "page_count": 4,
+        "full_output_bytes": 15565,
+        "filtered_output_bytes": 0
+      },
+      {
+        "same_page_metadata": true,
+        "page_count": 1,
+        "full_output_bytes": 121,
+        "filtered_output_bytes": 0
+      }
+    ],
+    "stock_reruns": 14,
+    "installed_analyzer_sources_checked": 314,
+    "result": "No additional unintended kernel-object omission was found among these checked objects. Process data and file contents require expanding collection scope.",
+    "limitations": [
+      "Objects enumerated from this reference are not a complete oracle for hidden objects.",
+      "No new live VM or additional kernel-version coverage in this follow-up.",
+      "ProcessSpoofing flag changes are not verified attacks or clean-system findings."
+    ]
+  }
+}

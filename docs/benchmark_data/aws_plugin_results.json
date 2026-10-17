@@ -1,0 +1,74 @@
+{
+  "linux.pslist.PsList": {
+    "kerneldump": {
+      "rc": 0,
+      "records": 156,
+      "time": 6.151020978000361
+    },
+    "makedumpfile_sorted": {
+      "rc": 0,
+      "records": 151,
+      "time": 5.851353487000324
+    }
+  },
+  "linux.pstree.PsTree": {
+    "kerneldump": {
+      "rc": 0,
+      "records": 156,
+      "time": 6.068932075999783
+    },
+    "makedumpfile_sorted": {
+      "rc": 0,
+      "records": 151,
+      "time": 5.843556626999998
+    }
+  },
+  "linux.check_modules.Check_modules": {
+    "kerneldump": {
+      "rc": 0,
+      "records": 0,
+      "time": 5.822695173000284
+    },
+    "makedumpfile_sorted": {
+      "rc": 0,
+      "records": 0,
+      "time": 5.534726282000065
+    }
+  },
+  "linux.check_creds.Check_creds": {
+    "kerneldump": {
+      "rc": 0,
+      "records": 0,
+      "time": 6.006164025000089
+    },
+    "makedumpfile_sorted": {
+      "rc": 0,
+      "records": 0,
+      "time": 5.863278197999989
+    }
+  },
+  "linux.sockstat.Sockstat": {
+    "kerneldump": {
+      "rc": 0,
+      "records": 289,
+      "time": 19.533996230999946
+    },
+    "makedumpfile_sorted": {
+      "rc": 0,
+      "records": 287,
+      "time": 19.33404406999989
+    }
+  },
+  "linux.mountinfo.MountInfo": {
+    "kerneldump": {
+      "rc": 0,
+      "records": 665,
+      "time": 10.921303877000355
+    },
+    "makedumpfile_sorted": {
+      "rc": 0,
+      "records": 665,
+      "time": 10.524879659999897
+    }
+  }
+}

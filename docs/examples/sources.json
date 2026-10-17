@@ -1,0 +1,19 @@
+{
+  "experiment": "collector_portable_release_20261017",
+  "run": "collector_portable_release_20261017_smoke",
+  "environment": "Ubuntu 24.04.5 / Linux 6.8.0-147",
+  "files": [
+    {
+      "source_file": "kerneldump_after.stdout",
+      "sha256": "934135dba874855b196dba0938f1c03a99354c940a94c66b0f1447b845348ec5",
+      "file": "capture.stdout"
+    },
+    {
+      "file": "verify.stdout",
+      "source_file": "kerneldump_after_verify.json",
+      "source_wrapper_sha256": "4dd12ce9b64aeb41fb8d063bcb2d657f3b939d44d21366bc7c30e181119bb17e",
+      "sha256": "443e4a8ad7ec2cc234eb32a4a79eef1f8b6ae78575b11a6a8962bcd7e14218ab",
+      "transform": "Extracted stdout from the recorded command wrapper; no output fields changed."
+    }
+  ]
+}
