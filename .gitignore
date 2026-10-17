@@ -1,5 +1,24 @@
+# Build and release artifacts
 /target/
 /release/
+/releases/
+/release_assets/
+
+# Developer and maintenance scripts
+/scripts/
+
+# Execution outputs, dumps, and cases
+/artifacts/
+/dumps/
+/cases/
+/benchmarks/
 *.core
 *.lime
 *.partial
+
+# Python and IDE cache
+__pycache__/
+*.py[cod]
+.env
+/.idea/
+/.vscode/
