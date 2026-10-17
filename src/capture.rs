@@ -301,7 +301,10 @@ pub fn acquire<S: Memory + 'static>(
         .try_fold(0u64, |sum, (a, b)| sum.checked_add(b.checked_sub(*a)?))
         .ok_or("RAM size overflow")?;
     let info = source.info();
-    let parent = output.parent().unwrap_or(Path::new("."));
+    let parent = output
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
     let min_required = (expected / 10).max(1024 * 1024 * 1024);
     crate::safe_output::check_available_space(parent, min_required)?;
     let output_guard = crate::safe_output::OutputDir::create(output)?;
@@ -309,7 +312,7 @@ pub fn acquire<S: Memory + 'static>(
     let output = pinned_output.as_path();
     let started = now();
     let mut m = json!({"schema":2,"tool":"kerneldump","implementation":"rust","version":env!("CARGO_PKG_VERSION"),"scope":scope.name(),"atomic":false,"strict_kernel_only":false,
-        "build_provenance":serde_json::from_str::<Value>(include_str!("../build_provenance.json"))?,
+        "build_provenance":crate::build_info::current(),
         "status":"in_progress","source":info,"ram_ranges":ram,"expected_ram_bytes":expected,"start_ns":started,
         "wall_start_unix_ns":SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos(),"timebase":"CLOCK_MONOTONIC ns","chunk_bytes":chunk,"queue_depth":depth,
         "payload_buffer_bound_bytes":(depth+2)*chunk,"filter":{"policy":"kernel-focused-v4","unsafe_mask":UNSAFE,"retain_mask":KEEP,"exclude_mask":EXCLUDE,"slab_neighbor_pages_retained":1,"exclusion_basis":"LRU, BUDDY, MMAP, ANON, SWAPCACHE, SWAPBACKED, KSM, THP and ZERO_PAGE are excluded unless SLAB/PGTABLE is set. Unsafe flags always exclude.","retained":"SLAB, PGTABLE and unclassified pages are retained. Immediate boundary neighbors of SLAB/PGTABLE pages are retained to prevent multi-page kernel structure (e.g. task_struct = 10,496 bytes) truncation, unless UNSAFE."},"errors":[],
@@ -425,7 +428,10 @@ pub fn acquire<S: Memory + 'static>(
                     _ => unavailable += size,
                 }
                 processed_end = writing_address.unwrap() + size;
-                if is_tty && (total.saturating_sub(last_progress_bytes) >= 16 * 1024 * 1024 || processed_end >= expected) {
+                if is_tty
+                    && (total.saturating_sub(last_progress_bytes) >= 16 * 1024 * 1024
+                        || processed_end >= expected)
+                {
                     last_progress_bytes = total;
                     let pct = (processed_end as f64 / expected as f64 * 100.0).min(100.0);
                     eprint!(

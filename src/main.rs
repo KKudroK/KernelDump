@@ -1,3 +1,4 @@
+mod build_info;
 mod capture;
 mod safe_output;
 mod source;
@@ -39,11 +40,19 @@ fn clock_pair() -> Value {
 fn run() -> Result<bool> {
     use source::Memory;
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.len() == 1 && args[0] == "--version" {
+        println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+        return Ok(true);
+    }
+    if args.len() == 1 && args[0] == "--build-info" {
+        println!("{}", build_info::current());
+        return Ok(true);
+    }
     if args.is_empty() || args.iter().any(|s| s == "--help") {
         #[cfg(not(feature = "development-options"))]
         {
             println!(
-                "kerneldump {}\nUsage:\n  kerneldump check [--target-dir PATH] [--json]\n  kerneldump capture --output NEW_DIR [--request-id ID]\n  kerneldump probe\n  kerneldump verify OUTPUT_DIR\n\nStandalone Rust live physical LiME acquisition for Linux x86-64/4KiB.\nCaptures a conservative kernel-focused PFN selection with explicit exclusions.\nExcludes user/cache/free PFNs; retains SLAB, page tables and ambiguous PFNs.\nA narrow free-only SLAB boundary exception supports bounded analyzer reads.\nNot atomic, not entire RAM, and not a strict kernel-only guarantee.\nBuffering, parallel writing and durable publication are managed internally.\nCaller determines invocation time and incident policy. No security settings are changed.\nExit 0 confirms complete acquisition for the recorded policy and durable publication; preserve stderr on failure.",
+                "kerneldump {}\nUsage:\n  kerneldump check [--target-dir PATH] [--json]\n  kerneldump capture --output NEW_DIR [--request-id ID]\n  kerneldump probe\n  kerneldump verify OUTPUT_DIR\n\n--target-dir is an existing output parent; check performs a temporary write/fsync/publication probe and removes it.\n--version / --build-info report version / actual executable hash.\nStandalone Rust live physical LiME acquisition for Linux x86-64/4KiB.\nCaptures a conservative kernel-focused PFN selection with explicit exclusions.\nExcludes user/cache/free PFNs; retains SLAB, page tables and ambiguous PFNs.\nA narrow free-only SLAB boundary exception supports bounded analyzer reads.\nNot atomic, not entire RAM, and not a strict kernel-only guarantee.\nBuffering, parallel writing and durable publication are managed internally.\nCaller determines invocation time and incident policy. No security settings are changed.\nExit 0 confirms complete acquisition for the recorded policy and durable publication; preserve stderr on failure.",
                 env!("CARGO_PKG_VERSION")
             );
             return Ok(true);
@@ -61,33 +70,60 @@ fn run() -> Result<bool> {
         "check" => {
             let mut target_dir = None;
             let mut json_mode = false;
-            for arg in &args[1..] {
-                if arg == "--json" {
+            let mut index = 1;
+            while index < args.len() {
+                let arg = &args[index];
+                if arg == "--json" && !json_mode {
                     json_mode = true;
-                } else if arg.starts_with("--target-dir=") {
-                    target_dir = Some(PathBuf::from(&arg["--target-dir=".len()..]));
-                } else if target_dir.is_none() && !arg.starts_with('-') {
-                    target_dir = Some(PathBuf::from(arg));
+                } else if arg == "--target-dir" && target_dir.is_none() {
+                    index += 1;
+                    let value = args
+                        .get(index)
+                        .filter(|v| !v.starts_with("--"))
+                        .ok_or("--target-dir requires a value")?;
+                    target_dir = Some(PathBuf::from(value));
+                } else if let Some(value) = arg.strip_prefix("--target-dir=") {
+                    if target_dir.is_some() || value.is_empty() {
+                        return Err("duplicate or empty --target-dir".into());
+                    }
+                    target_dir = Some(PathBuf::from(value));
+                } else {
+                    return Err(format!("unknown/duplicate check option: {arg}").into());
                 }
+                index += 1;
             }
             let report = source::check_readiness(target_dir.as_deref())?;
             let ready = report["ready"].as_bool().unwrap_or(false);
             if json_mode {
                 println!("{}", serde_json::to_string_pretty(&report)?);
             } else {
-                println!("kerneldump system readiness check (Linux {}):", report["kernel_release"]);
+                println!(
+                    "kerneldump system readiness check (Linux {}):",
+                    report["kernel_release"]
+                );
                 if let Some(checks) = report["checks"].as_array() {
                     for c in checks {
                         let passed = c["passed"].as_bool().unwrap_or(false);
-                        let symbol = if passed { "[\x1b[32mPASS\x1b[0m]" } else { "[\x1b[31mFAIL\x1b[0m]" };
-                        println!("  {} {:<18} : {}", symbol, c["name"].as_str().unwrap_or(""), c["detail"].as_str().unwrap_or(""));
+                        let symbol = if passed {
+                            "[\x1b[32mPASS\x1b[0m]"
+                        } else {
+                            "[\x1b[31mFAIL\x1b[0m]"
+                        };
+                        println!(
+                            "  {} {:<18} : {}",
+                            symbol,
+                            c["name"].as_str().unwrap_or(""),
+                            c["detail"].as_str().unwrap_or("")
+                        );
                     }
                 }
                 println!();
                 if ready {
                     println!("\x1b[32mStatus: READY for live kernel memory acquisition.\x1b[0m");
                 } else {
-                    println!("\x1b[31mStatus: NOT READY. Please address failed checks above.\x1b[0m");
+                    println!(
+                        "\x1b[31mStatus: NOT READY. Please address failed checks above.\x1b[0m"
+                    );
                 }
             }
             Ok(ready)

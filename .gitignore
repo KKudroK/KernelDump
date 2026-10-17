@@ -5,7 +5,8 @@
 /release_assets/
 
 # Developer and maintenance scripts
-/scripts/
+/scripts/*
+!/scripts/build_release.py
 
 # Execution outputs, dumps, and cases
 /artifacts/

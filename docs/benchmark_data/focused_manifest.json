@@ -1,0 +1,327 @@
+{
+  "accounted_bytes": 9662648320,
+  "actual_file_bytes": 839461408,
+  "artifact": "memory.lime",
+  "artifact_path_validated": true,
+  "atomic": false,
+  "build_provenance": {
+    "bundle_adopted": false,
+    "previous_build_provenance_sha256": "e8a747b3583066594da7ed518fae7ae8ccd03537adfdd3382804f6061c7faa8f",
+    "revision": "kernel_operations_verify_bounds_20261015",
+    "selection_policy_changed": false,
+    "source_sha256": {
+      "Cargo.lock": "b27ef4e396e4c1de27884aa25bd8e8ef81c050e15e03117404dc3966b7329148",
+      "Cargo.toml": "b61c949c67318f89e4d6f4f2f977e7ea88e72e4b010b2261fc015c8b7bf1fa25",
+      "src/capture.rs": "52e29c3ec66ce9ab233c988342287f5fa83566ffd50527748259d8b301c91b61",
+      "src/main.rs": "125953dbfb49f8efbd2df3419f7930300325b22693fcef53ad240382fe629fe6",
+      "src/safe_output.rs": "791021c07294789f722fa1bf7c45685bc991ce33d8ddae7fc518b572280d0f06",
+      "src/source.rs": "6a84f331de4fc81b6e31f7c8ca1d8748aba4192dc327d14bacce86ef5084e5c7",
+      "src/tests.rs": "a68d5e7411700d23920d9fb85abe770025a4b369c3de309658a83f465566484c",
+      "src/verify.rs": "722189e86da26b04384aab9915edf583f689814c41da36fda0616593deb0e339"
+    },
+    "status": "source_candidate_pending_Linux_validation",
+    "strict_kernel_only": false,
+    "validation": "This build-time checkpoint adds a16MiB manifest input cap and rejects unknown scope/status. Runtime tests, actual focused acquisition and analysis comparisons are recorded externally."
+  },
+  "capture_complete_ns": 7538657387147,
+  "chunk_bytes": 1048576,
+  "clock_correlation_end": {
+    "monotonic_after_ns": 7539513810085,
+    "monotonic_before_ns": 7539513808468,
+    "wall_unix_utc_ns": 1792140852807968690
+  },
+  "durability_contract": "Success exit requires payload, ledger, manifest and output/parent directory fsync; stderr/exit status is authoritative on final publication failure.",
+  "elapsed_s": 2.018971632,
+  "end_ns": 7539513915497,
+  "errors": [],
+  "expected_ram_bytes": 9662648320,
+  "file_bytes": 839461408,
+  "filter": {
+    "exclude_mask": 23100448,
+    "exclusion_basis": "LRU, BUDDY, MMAP, ANON, SWAPCACHE, SWAPBACKED, KSM, THP and ZERO_PAGE are excluded unless SLAB/PGTABLE is set. Unsafe flags always exclude.",
+    "policy": "kernel-focused-v4",
+    "retain_mask": 67108992,
+    "retained": "SLAB, PGTABLE and unclassified pages are retained. Immediate boundary neighbors of SLAB/PGTABLE pages are retained to prevent multi-page kernel structure (e.g. task_struct = 10,496 bytes) truncation, unless UNSAFE.",
+    "slab_neighbor_pages_retained": 1,
+    "unsafe_mask": 9961472
+  },
+  "implementation": "rust",
+  "lime_sha256": "cbc56df579a23f279e1eb432f942135c7da01f8b27e9ac607111f3de9fab0c7e",
+  "limitations": [
+    "Non-atomic live acquisition: flags, addresses and payload are observed at different times.",
+    "Kernel-focused filtering can omit kernel-relevant information and retain user/residual bytes.",
+    "kcore can return internally zero-filled bytes; read success is not proof of physical-byte availability.",
+    "Unsafe/unmapped PFNs are explicit omissions and prevent complete status.",
+    "Cancellation is cooperative; a kernel I/O syscall can block beyond the request.",
+    "Payload budget excludes metadata, allocator overhead and OS page cache.",
+    "Matching symbols and successful plugins do not prove complete forensic coverage."
+  ],
+  "payload_buffer_bound_bytes": 4194304,
+  "payload_bytes": 839311360,
+  "payload_durable_ns": 7539513661752,
+  "payload_sync_ns": 854433097,
+  "policy_excluded_bytes": 8823336960,
+  "queue_depth": 2,
+  "ram_ranges": [
+    [
+      8192,
+      655360
+    ],
+    [
+      1048576,
+      116154368
+    ],
+    [
+      116166656,
+      116170752
+    ],
+    [
+      116178944,
+      116183040
+    ],
+    [
+      116191232,
+      116219904
+    ],
+    [
+      116224000,
+      245370880
+    ],
+    [
+      245374976,
+      263647232
+    ],
+    [
+      264237056,
+      3221225472
+    ],
+    [
+      4294967296,
+      10737418240
+    ]
+  ],
+  "ranges": 16888,
+  "ranges_sha256": "7dfa5d9396ff1c4369464ae925990ca0c1256676c154cea46ec11b76cedc6fdf",
+  "read_stages": {
+    "address_resolve_ns": 505934,
+    "begin_ns": 7537496459002,
+    "buffer_allocate_zero_ns": 35275068,
+    "chunks": 9221,
+    "end_ns": 7538657387147,
+    "flags_hash_ns": 15710897,
+    "flags_read_ns": 115781466,
+    "kcore_read_ns": 300227011,
+    "payload_bytes": 839311360,
+    "payload_hash_ns": 277225307,
+    "pfn_select_ns": 58606488,
+    "queue_wait_ns": 337870391,
+    "ranges": 16888,
+    "source_io": {
+      "available": true,
+      "kcore_payload": {
+        "calls": 4689,
+        "error_calls": 0,
+        "interrupted_calls": 0,
+        "returned_bytes": 839311360,
+        "zero_byte_calls": 0
+      },
+      "kcore_probe": {
+        "calls": 22,
+        "error_calls": 0,
+        "interrupted_calls": 0,
+        "returned_bytes": 1596,
+        "zero_byte_calls": 0
+      },
+      "kcore_total_returned_bytes": 839312956,
+      "kpageflags": {
+        "calls": 9221,
+        "error_calls": 0,
+        "interrupted_calls": 0,
+        "returned_bytes": 19019752,
+        "zero_byte_calls": 0
+      },
+      "semantics": "Successful pread return bytes, including partial reads before error; not filesystem or physical disk traffic. Metadata files other than kcore/kpageflags are excluded."
+    }
+  },
+  "reader_join_begin_ns": 7539513668453,
+  "reader_join_complete_ns": 7539513700212,
+  "reader_join_status": "joined",
+  "schema": 2,
+  "scope": "kernel-focused",
+  "source": {
+    "boot_id": "33dddcf8-947d-4a69-bda7-00cdb3136020",
+    "clock_correlation_start": {
+      "monotonic_after_ns": 7537494751202,
+      "monotonic_before_ns": 7537494749869,
+      "wall_unix_utc_ns": 1792140850788910001
+    },
+    "io_at_probe": {
+      "available": true,
+      "kcore_payload": {
+        "calls": 0,
+        "error_calls": 0,
+        "interrupted_calls": 0,
+        "returned_bytes": 0,
+        "zero_byte_calls": 0
+      },
+      "kcore_probe": {
+        "calls": 22,
+        "error_calls": 0,
+        "interrupted_calls": 0,
+        "returned_bytes": 1596,
+        "zero_byte_calls": 0
+      },
+      "kcore_total_returned_bytes": 1596,
+      "kpageflags": {
+        "calls": 0,
+        "error_calls": 0,
+        "interrupted_calls": 0,
+        "returned_bytes": 0,
+        "zero_byte_calls": 0
+      },
+      "semantics": "Successful pread return bytes, including partial reads before error; not filesystem or physical disk traffic. Metadata files other than kcore/kpageflags are excluded."
+    },
+    "kernel_banner": "Linux version 6.8.0-146-generic (buildd@lcy02-amd64-111) (x86_64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, GNU ld (GNU Binutils for Ubuntu) 2.42) #146-Ubuntu SMP PREEMPT_DYNAMIC Thu Sep  3 16:12:30 UTC 2026 (Ubuntu 6.8.0-146.146-generic 6.8.12)\n",
+    "kernel_btf": {
+      "bytes": 6101831,
+      "sha256": "d3805cbdc4a8882d216f45a7615961634651256d3dc07b4ff69ba4e528247b8e"
+    },
+    "kernel_gnu_build_ids": [
+      "13c66e43eb7246daba94e1989d80d84129a6ba2a"
+    ],
+    "kernel_notes_sha256": "ef91fdb7765a8c5342ff10c1069c391abfb34a675784a68cd198b99d0f095dd4",
+    "kernel_release": "6.8.0-146-generic",
+    "meminfo_before": "MemTotal:        9151168 kB\nMemFree:         3305768 kB\nMemAvailable:    6800720 kB\nBuffers:           36112 kB\nCached:          3530124 kB\nSwapCached:            0 kB\nActive:          3015012 kB\nInactive:        2299824 kB\nActive(anon):    1757436 kB\nInactive(anon):     3344 kB\nActive(file):    1257576 kB\nInactive(file):  2296480 kB\nUnevictable:       27568 kB\nMlocked:           27456 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:              2296 kB\nWriteback:             0 kB\nAnonPages:       1776240 kB\nMapped:           847036 kB\nShmem:              3420 kB\nKReclaimable:     250324 kB\nSlab:             358944 kB\nSReclaimable:     250324 kB\nSUnreclaim:       108620 kB\nKernelStack:        9480 kB\nPageTables:        15132 kB\nSecPageTables:         0 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     4575584 kB\nCommitted_AS:    5156216 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:       30532 kB\nVmallocChunk:          0 kB\nPercpu:             3168 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nUnaccepted:            0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:      214460 kB\nDirectMap2M:     5027840 kB\nDirectMap1G:     6291456 kB\n",
+    "node": "kkudrok-node",
+    "page_offset_base": 18446615044302045184,
+    "physical_segments": [
+      {
+        "filesz": 647168,
+        "offset": 11708080873472,
+        "paddr": 8192,
+        "vaddr": 18446615044302053376
+      },
+      {
+        "filesz": 115105792,
+        "offset": 11708081913856,
+        "paddr": 1048576,
+        "vaddr": 18446615044303093760
+      },
+      {
+        "filesz": 4096,
+        "offset": 11708197031936,
+        "paddr": 116166656,
+        "vaddr": 18446615044418211840
+      },
+      {
+        "filesz": 4096,
+        "offset": 11708197044224,
+        "paddr": 116178944,
+        "vaddr": 18446615044418224128
+      },
+      {
+        "filesz": 28672,
+        "offset": 11708197056512,
+        "paddr": 116191232,
+        "vaddr": 18446615044418236416
+      },
+      {
+        "filesz": 129146880,
+        "offset": 11708197089280,
+        "paddr": 116224000,
+        "vaddr": 18446615044418269184
+      },
+      {
+        "filesz": 18272256,
+        "offset": 11708326240256,
+        "paddr": 245374976,
+        "vaddr": 18446615044547420160
+      },
+      {
+        "filesz": 2956988416,
+        "offset": 11708345102336,
+        "paddr": 264237056,
+        "vaddr": 18446615044566282240
+      },
+      {
+        "filesz": 6442450944,
+        "offset": 11712375832576,
+        "paddr": 4294967296,
+        "vaddr": 18446615048597012480
+      }
+    ],
+    "ram_ranges": [
+      [
+        8192,
+        655360
+      ],
+      [
+        1048576,
+        116154368
+      ],
+      [
+        116166656,
+        116170752
+      ],
+      [
+        116178944,
+        116183040
+      ],
+      [
+        116191232,
+        116219904
+      ],
+      [
+        116224000,
+        245370880
+      ],
+      [
+        245374976,
+        263647232
+      ],
+      [
+        264237056,
+        3221225472
+      ],
+      [
+        4294967296,
+        10737418240
+      ]
+    ],
+    "request_id": "case-fixed-v4",
+    "runtime_task_struct_allocation": {
+      "bytes": 10496,
+      "observed_ns": 7537482604999,
+      "source": "arch_task_struct_size boot-time allocation size; distinct from static BTF sizeof",
+      "symbol_va": 18446744072497694632
+    },
+    "source": "/proc/kcore + /proc/kpageflags + /proc/iomem",
+    "source_init_begin_ns": 7537403020669,
+    "source_init_end_ns": 7537494747839,
+    "symbols": {
+      "_stext": 18446744072453357568,
+      "arch_task_struct_size": 18446744072497694632,
+      "init_task": 18446744072493267776,
+      "linux_banner": 18446744072478205504,
+      "page_offset_base": 18446744072484066808
+    }
+  },
+  "start_ns": 7537494944576,
+  "status": "complete_for_policy",
+  "strict_kernel_only": false,
+  "timebase": "CLOCK_MONOTONIC ns",
+  "tool": "kernel_dump",
+  "unavailable_bytes": 0,
+  "unledgered_payload_bytes": 0,
+  "unprocessed_bytes": 0,
+  "unprocessed_ranges": [],
+  "version": "0.1.0-dev",
+  "wall_start_unix_ns": 1792140850789122527,
+  "write_complete_ns": 7538659219485,
+  "write_stages": {
+    "file_hash_ns": 274235434,
+    "file_write_ns": 538160336,
+    "ledger_serialize_write_hash_ns": 90849851,
+    "queue_receive_wait_ns": 207137804
+  }
+}

@@ -159,11 +159,98 @@ pub fn remove_owned(path: &Path, owned: &File) -> io::Result<()> {
     fs::remove_file(path)
 }
 
+/// Exercise the same storage contract as capture, using only a new private
+/// child. The supplied parent must exist. All cleanup errors are reported.
+pub fn probe_storage(parent_path: &Path) -> io::Result<()> {
+    use std::io::Write;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+    let parent = open_directory(parent_path)?;
+    let (name, directory) = loop {
+        let name = format!(
+            ".kerneldump_check_{}_{}",
+            std::process::id(),
+            SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        );
+        let c = cstring(OsStr::new(&name))?;
+        if unsafe { libc::mkdirat(parent.as_raw_fd(), c.as_ptr(), 0o700) } == 0 {
+            break (name.clone(), child_directory(&parent, OsStr::new(&name))?);
+        }
+        let error = io::Error::last_os_error();
+        if error.kind() != io::ErrorKind::AlreadyExists {
+            return Err(error);
+        }
+    };
+    let pinned = PathBuf::from(format!("/proc/self/fd/{}", directory.as_raw_fd()));
+    let partial = pinned.join("probe.partial");
+    let final_path = pinned.join("probe");
+    let mut owned = None;
+    let mut published = false;
+    let result = (|| -> io::Result<()> {
+        let m = directory.metadata()?;
+        if m.uid() != unsafe { libc::geteuid() } || m.mode() & 0o077 != 0 {
+            return Err(io::Error::other(
+                "target filesystem does not preserve private directory ownership/mode",
+            ));
+        }
+        owned = Some(
+            OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW)
+                .open(&partial)?,
+        );
+        let file = owned.as_mut().unwrap();
+        check_file(&partial, file)?;
+        file.write_all(b"kerneldump storage probe\n")?;
+        file.sync_all()?;
+        publish_file(&partial, &final_path, file)?;
+        published = true;
+        check_file(&final_path, file)?;
+        directory.sync_all()?;
+        parent.sync_all()?;
+        Ok(())
+    })();
+    let cleanup = (|| -> io::Result<()> {
+        if let Some(file) = owned.as_ref() {
+            // Even on a filesystem with unusable mode bits, unlink only the
+            // inode this probe created, using its pinned directory.
+            let path = if published { &final_path } else { &partial };
+            if !same(&file.metadata()?, &fs::symlink_metadata(path)?) {
+                return Err(io::Error::other("probe inode replaced; refusing cleanup"));
+            }
+            fs::remove_file(path)?;
+        }
+        let named = child_directory(&parent, OsStr::new(&name))?;
+        if !same(&named.metadata()?, &directory.metadata()?) {
+            return Err(io::Error::other(
+                "probe directory replaced; refusing cleanup",
+            ));
+        }
+        let c = cstring(OsStr::new(&name))?;
+        if unsafe { libc::unlinkat(parent.as_raw_fd(), c.as_ptr(), libc::AT_REMOVEDIR) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        parent.sync_all()
+    })();
+    match (result, cleanup) {
+        (Ok(()), Ok(())) => Ok(()),
+        (Err(e), Ok(())) => Err(e),
+        (result, Err(e)) => Err(io::Error::other(format!(
+            "storage probe: {result:?}; cleanup: {e}; directory: {}",
+            parent_path.join(name).display()
+        ))),
+    }
+}
+
 pub fn check_available_space(path: &Path, required_bytes: u64) -> io::Result<u64> {
     let target = if path.exists() {
         path
     } else {
-        path.parent().filter(|p| p.exists()).unwrap_or(Path::new("."))
+        path.parent()
+            .filter(|p| p.exists())
+            .unwrap_or(Path::new("."))
     };
     let c_path = cstring(target.as_os_str())?;
     let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
@@ -183,14 +270,8 @@ pub fn check_available_space(path: &Path, required_bytes: u64) -> io::Result<u64
 }
 
 pub fn advise_dontneed(file: &File, offset: i64, len: i64) -> io::Result<()> {
-    let rc = unsafe {
-        libc::posix_fadvise(
-            file.as_raw_fd(),
-            offset,
-            len,
-            libc::POSIX_FADV_DONTNEED,
-        )
-    };
+    let rc =
+        unsafe { libc::posix_fadvise(file.as_raw_fd(), offset, len, libc::POSIX_FADV_DONTNEED) };
     if rc != 0 {
         return Err(io::Error::from_raw_os_error(rc));
     }
@@ -198,14 +279,8 @@ pub fn advise_dontneed(file: &File, offset: i64, len: i64) -> io::Result<()> {
 }
 
 pub fn advise_sequential(file: &File, offset: i64, len: i64) -> io::Result<()> {
-    let rc = unsafe {
-        libc::posix_fadvise(
-            file.as_raw_fd(),
-            offset,
-            len,
-            libc::POSIX_FADV_SEQUENTIAL,
-        )
-    };
+    let rc =
+        unsafe { libc::posix_fadvise(file.as_raw_fd(), offset, len, libc::POSIX_FADV_SEQUENTIAL) };
     if rc != 0 {
         return Err(io::Error::from_raw_os_error(rc));
     }
@@ -244,6 +319,17 @@ mod tests {
         f.write_all(bytes).unwrap();
         f.sync_all().unwrap();
         f
+    }
+    #[test]
+    fn storage_probe_cleans_up_and_rejects_missing_or_symlink_parent() {
+        let t = Temp::new();
+        probe_storage(&t.0).unwrap();
+        assert_eq!(fs::read_dir(&t.0).unwrap().count(), 0);
+        assert!(probe_storage(&t.0.join("missing")).is_err());
+        fs::create_dir(t.0.join("real")).unwrap();
+        symlink(t.0.join("real"), t.0.join("link")).unwrap();
+        assert!(probe_storage(&t.0.join("link")).is_err());
+        assert_eq!(fs::read_dir(t.0.join("real")).unwrap().count(), 0);
     }
     #[test]
     fn publication_never_overwrites_existing_destination() {

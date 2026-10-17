@@ -1,0 +1,134 @@
+[
+  {
+    "tool": "poddump",
+    "version": "before",
+    "binary_sha256": "a1b840251cedc1c769ecd4e46c57d87f6ea6f1b84b8089859a910981d6c732fd",
+    "argv": [
+      "/usr/local/bin/poddump",
+      "--pod",
+      "1f4123ca-cbac-4c40-8085-77efc8ca5629",
+      "--output",
+      "/var/tmp/collector_portable_release_20261017_smoke/evidence/poddump_before",
+      "--request-id",
+      "poddump_before"
+    ],
+    "exit_code": 0,
+    "end_to_end_wall_s": 0.320338203,
+    "wall_s": 0.28,
+    "user_s": 0.01,
+    "system_s": 0.27,
+    "max_rss_kib": 94532,
+    "major_faults": 0,
+    "minor_faults": 31535,
+    "voluntary_cs": 66,
+    "involuntary_cs": 4,
+    "manifest_elapsed_s": 0.280568709,
+    "status": "complete",
+    "payload_or_core_bytes": 101797888,
+    "target_identities": [
+      [
+        77281,
+        1235229
+      ],
+      [
+        77316,
+        1235239
+      ]
+    ],
+    "mib_per_s": 303.06104717082405
+  },
+  {
+    "tool": "poddump",
+    "version": "after",
+    "binary_sha256": "a4687d43e62f6fe8274456217cb15939151aa5d73e5c0cc619f8cf29ab40f368",
+    "argv": [
+      "/var/tmp/collector_portable_release_20261017_smoke/bin/poddump",
+      "--pod",
+      "1f4123ca-cbac-4c40-8085-77efc8ca5629",
+      "--output",
+      "/var/tmp/collector_portable_release_20261017_smoke/evidence/poddump_after",
+      "--request-id",
+      "poddump_after"
+    ],
+    "exit_code": 0,
+    "end_to_end_wall_s": 0.26667439,
+    "wall_s": 0.23,
+    "user_s": 0.01,
+    "system_s": 0.22,
+    "max_rss_kib": 92400,
+    "major_faults": 0,
+    "minor_faults": 25352,
+    "voluntary_cs": 216,
+    "involuntary_cs": 7,
+    "manifest_elapsed_s": 0.231972538,
+    "status": "complete",
+    "payload_or_core_bytes": 101797888,
+    "target_identities": [
+      [
+        77281,
+        1235229
+      ],
+      [
+        77316,
+        1235239
+      ]
+    ],
+    "mib_per_s": 364.04707347413455
+  },
+  {
+    "tool": "kerneldump",
+    "version": "before",
+    "binary_sha256": "58b4d570be7cd42d0cb6c1e2af45be82c70cdd881047ac6fe15e6ba819ab9773",
+    "argv": [
+      "/home/han/kerneldump",
+      "capture",
+      "--output",
+      "/var/tmp/collector_portable_release_20261017_smoke/evidence/kerneldump_before",
+      "--request-id",
+      "kerneldump_before"
+    ],
+    "exit_code": 0,
+    "end_to_end_wall_s": 2.690283635,
+    "wall_s": 2.67,
+    "user_s": 0.94,
+    "system_s": 2.45,
+    "max_rss_kib": 11520,
+    "major_faults": 0,
+    "minor_faults": 217402,
+    "voluntary_cs": 13479,
+    "involuntary_cs": 230,
+    "manifest_elapsed_s": 2.579152268,
+    "status": "complete_for_policy",
+    "payload_or_core_bytes": 739835904,
+    "target_identities": null,
+    "mib_per_s": 262.2632390208923
+  },
+  {
+    "tool": "kerneldump",
+    "version": "after",
+    "binary_sha256": "04de7dfa0e67340844d32ed4f8e3d649fdf8c20c4a4cbf170b1128404b044378",
+    "argv": [
+      "/var/tmp/collector_portable_release_20261017_smoke/bin/kerneldump",
+      "capture",
+      "--output",
+      "/var/tmp/collector_portable_release_20261017_smoke/evidence/kerneldump_after",
+      "--request-id",
+      "kerneldump_after"
+    ],
+    "exit_code": 0,
+    "end_to_end_wall_s": 2.53211696,
+    "wall_s": 2.5,
+    "user_s": 0.88,
+    "system_s": 2.26,
+    "max_rss_kib": 11520,
+    "major_faults": 0,
+    "minor_faults": 228402,
+    "voluntary_cs": 14691,
+    "involuntary_cs": 326,
+    "manifest_elapsed_s": 2.418713536,
+    "status": "complete_for_policy",
+    "payload_or_core_bytes": 715538432,
+    "target_identities": null,
+    "mib_per_s": 269.49411728595663
+  }
+]

@@ -1,0 +1,24 @@
+{
+  "readme_rows": [
+    {
+      "scope": "full-ram",
+      "payload_bytes": 9662648320,
+      "elapsed_s": 38.2701389
+    },
+    {
+      "scope": "kernel-focused",
+      "payload_bytes": 839311360,
+      "elapsed_s": 2.018971632
+    }
+  ],
+  "sources": [
+    {
+      "path": "D:\\BoB\\Project\\KKudroK\\experiments\\kernel_pfn_taxonomy_20261016\\outputs\\full_ram_capture\\manifest.json",
+      "sha256": "525b1ab5d2a2687c9a095212972e8518983199c8cff1fa7144dbd06bd18b746f"
+    },
+    {
+      "path": "D:\\BoB\\Project\\KKudroK\\experiments\\kernel_pfn_taxonomy_20261016\\outputs\\focused_capture_v4\\manifest.json",
+      "sha256": "64d3f016d3474ddd335e94b1b330358c82b96bb51dda90f17b4e9ba0e5e4dfb7"
+    }
+  ]
+}

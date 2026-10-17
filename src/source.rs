@@ -153,9 +153,7 @@ pub fn classify_with_neighbors(flags: &[u64], index: usize, scope: Scope) -> &'s
     // truncation and breaks Volatility validation (layer.is_valid).
     // Retain immediate boundary neighbors adjacent to any SLAB or PGTABLE page
     // unless the page is explicitly UNSAFE.
-    let beside_kernel = index
-        .checked_sub(1)
-        .is_some_and(|i| flags[i] & KEEP != 0)
+    let beside_kernel = index.checked_sub(1).is_some_and(|i| flags[i] & KEEP != 0)
         || flags.get(index + 1).is_some_and(|f| f & KEEP != 0);
     if status == "policy_excluded" && beside_kernel && flags[index] & UNSAFE == 0 {
         "selected"
@@ -315,8 +313,12 @@ impl Source {
             return Err("only little-endian x86-64 hosts with 4KiB pages are supported".into());
         }
         let started = now();
-        let core = File::open("/proc/kcore")?;
-        let flags = File::open("/proc/kpageflags")?;
+        let core = File::open("/proc/kcore").map_err(|e| {
+            format!("/proc/kcore: {e}; requires kernel support and permitted kernel-memory access")
+        })?;
+        let flags = File::open("/proc/kpageflags").map_err(|e| {
+            format!("/proc/kpageflags: {e}; requires page-monitor support and read access")
+        })?;
         let core_probe = ReadCounter::default();
         let all = segments_counted(&core, &core_probe)?;
         let mut symbols = serde_json::Map::new();
@@ -464,115 +466,52 @@ impl Memory for Source {
 
 pub fn check_readiness(target_dir: Option<&Path>) -> Result<Value> {
     let mut checks = Vec::new();
-    let mut overall = true;
-
-    // 1. Root / Privilege check
-    let uid = unsafe { libc::geteuid() };
-    let is_root = uid == 0;
-    checks.push(json!({
-        "name": "privilege",
-        "passed": is_root,
-        "detail": if is_root {
-            "Running with administrative privileges (EUID 0)".to_string()
-        } else {
-            format!("Non-root execution (EUID {uid}); root or CAP_SYS_ADMIN/CAP_SYS_RAWIO required")
+    let mut ram_bytes = None;
+    // Use the acquisition source itself: opening kcore alone cannot establish
+    // correct ELF/direct-map/symbol/iomem compatibility or usable capabilities.
+    match Source::open() {
+        Ok(source) => {
+            let total = source
+                .ram()
+                .iter()
+                .try_fold(0u64, |n, (a, b)| n.checked_add(b.checked_sub(*a)?));
+            ram_bytes = total;
+            let sample = (|| -> Result<()> {
+                let &(start, end) = source.ram().first().ok_or("no RAM ranges")?;
+                source.flags(start, PAGE)?;
+                let (_, offset) = source.chunk(start, end, PAGE)?;
+                if let Some(offset) = offset {
+                    source.read(offset, &mut [0u8; 16])?;
+                }
+                Ok(())
+            })();
+            checks.push(json!({"name":"acquisition_source","passed":sample.is_ok() && total.is_some(),
+                "detail":sample.err().map(|e|e.to_string()).unwrap_or_else(|| "Acquisition source, required symbols, direct map and sample PFN read validated".into())}));
         }
-    }));
-    if !is_root {
-        overall = false;
+        Err(e) => {
+            checks.push(json!({"name":"acquisition_source","passed":false,"detail":e.to_string()}))
+        }
     }
-
-    // 2. /proc/kcore check
-    let kcore_ok = File::open("/proc/kcore").is_ok();
-    checks.push(json!({
-        "name": "proc_kcore",
-        "passed": kcore_ok,
-        "detail": if kcore_ok {
-            "/proc/kcore interface is readable".to_string()
-        } else {
-            "Cannot access /proc/kcore; ensure root permissions and kernel CONFIG_PROC_KCORE=y".to_string()
+    if let Some(dir) = target_dir {
+        match crate::safe_output::probe_storage(dir) {
+            Ok(()) => checks.push(json!({"name":"storage_contract","passed":true,
+                "detail":"Private directory/file creation, write, file fsync, no-replace publication, directory/parent fsync and probe cleanup passed"})),
+            Err(e) => checks.push(json!({"name":"storage_contract","passed":false,"detail":e.to_string()})),
         }
-    }));
-    if !kcore_ok {
-        overall = false;
-    }
-
-    // 3. /proc/kpageflags check
-    let kpageflags_ok = File::open("/proc/kpageflags").is_ok();
-    checks.push(json!({
-        "name": "proc_kpageflags",
-        "passed": kpageflags_ok,
-        "detail": if kpageflags_ok {
-            "/proc/kpageflags interface is readable".to_string()
-        } else {
-            "Cannot access /proc/kpageflags; ensure CONFIG_PROC_PAGE_MONITOR=y".to_string()
-        }
-    }));
-    if !kpageflags_ok {
-        overall = false;
-    }
-
-    // 4. Kernel symbol unmasking (kptr_restrict)
-    let mut symbols_unmasked = false;
-    let mut sym_detail = String::new();
-    if let Ok(kallsyms) = fs::read_to_string("/proc/kallsyms") {
-        for line in kallsyms.lines().take(500) {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 3 && parts[0] != "0000000000000000" && parts[0] != "0" {
-                symbols_unmasked = true;
-                sym_detail = "Kernel symbols unmasked and visible".to_string();
-                break;
-            }
-        }
-        if !symbols_unmasked {
-            sym_detail = "Kernel symbols are masked (all zeros); /proc/sys/kernel/kptr_restrict must be <= 1 for root".to_string();
+        let required = (ram_bytes.unwrap_or(0) / 10).max(1024 * 1024 * 1024);
+        match crate::safe_output::check_available_space(dir,required) {
+            Ok(bytes) => checks.push(json!({"name":"storage_capacity","passed":true,"available_bytes":bytes,
+                "required_bytes":required,"detail":"Same 10%-of-System-RAM / 1-GiB minimum gate as capture; this does not reserve space"})),
+            Err(e) => checks.push(json!({"name":"storage_capacity","passed":false,"required_bytes":required,"detail":e.to_string()})),
         }
     } else {
-        sym_detail = "Cannot read /proc/kallsyms".to_string();
+        checks.push(json!({"name":"storage_contract","passed":false,
+            "detail":"Storage not checked: pass --target-dir with an existing output parent directory"}));
     }
-    checks.push(json!({
-        "name": "kptr_restrict",
-        "passed": symbols_unmasked,
-        "detail": sym_detail
-    }));
-    if !symbols_unmasked {
-        overall = false;
-    }
-
-    // 5. Target directory disk space (if specified)
-    if let Some(dir) = target_dir {
-        let parent = if dir.exists() {
-            dir
-        } else {
-            dir.parent().unwrap_or(Path::new("."))
-        };
-        match crate::safe_output::check_available_space(parent, 1024 * 1024 * 1024) {
-            Ok(avail) => {
-                checks.push(json!({
-                    "name": "storage_capacity",
-                    "passed": true,
-                    "detail": format!("Target filesystem has {} MiB available (>= 1024 MiB reserve)", avail / (1024 * 1024))
-                }));
-            }
-            Err(e) => {
-                checks.push(json!({
-                    "name": "storage_capacity",
-                    "passed": false,
-                    "detail": e.to_string()
-                }));
-                overall = false;
-            }
-        }
-    }
-
-    let release = fs::read_to_string("/proc/sys/kernel/osrelease")
-        .unwrap_or_else(|_| "unknown".into())
-        .trim()
-        .to_string();
-
-    Ok(json!({
-        "ready": overall,
-        "kernel_release": release,
-        "checks": checks
-    }))
+    Ok(
+        json!({"ready":checks.iter().all(|c|c["passed"]==true),"checks":checks,
+        "kernel_release":fs::read_to_string("/proc/sys/kernel/osrelease")?.trim(),
+        "effective_uid":unsafe{libc::geteuid()},"target_dir":target_dir,
+        "scope":"Readiness at check time only. Capture revalidates; concurrent writes and later policy changes can still fail. No kernel or security settings are changed."}),
+    )
 }

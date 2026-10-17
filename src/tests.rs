@@ -538,7 +538,10 @@ fn storage_capacity_check_handles_normal_and_excessive_requirements() {
     // 1 KiB must always succeed on valid tempfs/disk
     assert!(crate::safe_output::check_available_space(&t.out(), 1024).is_ok());
     // 100 Petabytes must fail closed
-    assert!(crate::safe_output::check_available_space(&t.out(), 100 * 1024 * 1024 * 1024 * 1024 * 1024).is_err());
+    assert!(
+        crate::safe_output::check_available_space(&t.out(), 100 * 1024 * 1024 * 1024 * 1024 * 1024)
+            .is_err()
+    );
 }
 
 #[test]
