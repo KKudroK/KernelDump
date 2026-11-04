@@ -1,5 +1,7 @@
 # KernelDump
 
+The 2026-11-04 fixes were validated with existing dumps and three new captures on an exact 7.0.0-38-generic kernel in a local VM. See [kernel validation and limits](docs/kernel_7_0_0_38_validation.md) and the [initial fix notes](docs/fixes_20261104.md). Earlier performance measurements below remain historical.
+
 [한국어](README.ko.md) · [Deployment](docs/deployment.md) · [Original comparison](docs/original_comparison.md) · [Release files](docs/release_v9.md)
 
 `kerneldump` collects selected live kernel memory through `/proc/kcore` and `/proc/kpageflags`. It writes a LiME image, an address/coverage ledger and a manifest without loading a kernel module or stopping processes.

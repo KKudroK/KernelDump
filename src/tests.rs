@@ -6,6 +6,15 @@ use std::{
     sync::atomic::AtomicU64,
 };
 static NEXT: AtomicU64 = AtomicU64::new(0);
+
+#[path = "tests/retention_regressions.rs"]
+mod retention_regressions;
+
+fn retention_result(complete: bool, pages: u64) -> Value {
+    json!({"complete":complete,"candidate_pages":pages,"read_candidate_pages":pages,
+        "unread_candidate_pages":0,"issue_count":if complete {0} else {1},
+        "issues":if complete {json!([])} else {json!([{"error":"synthetic reference change"}])}})
+}
 #[test]
 fn oversized_manifest_is_rejected_before_json_or_payload_read() {
     let t = Temp::new();
@@ -240,7 +249,7 @@ impl Memory for ResourceFake {
             .collect()
     }
     fn finish_resources(&self) -> Value {
-        json!({"complete":self.1})
+        retention_result(self.1, 3)
     }
 }
 #[test]
@@ -341,7 +350,7 @@ impl Memory for CodeFake {
         json!([{"physical":a,"after":after,"same_pfn":self.valid}])
     }
     fn finish_code_pages(&self) -> Value {
-        json!({"complete":self.valid})
+        retention_result(self.valid, 3)
     }
 }
 #[test]

@@ -457,6 +457,17 @@ pub fn acquire<S: Memory + 'static>(
             for mut part in packet {
                 let size = part.meta["bytes"].as_u64().ok_or("missing range length")?;
                 writing_address = part.meta["physical_start"].as_u64();
+                // Check the final record before writing its payload. Reserve
+                // the widest possible timestamps so no later metadata growth
+                // can leave bytes without a verifiable ledger record.
+                let t = now();
+                if part.meta["status"] == "selected" {
+                    part.meta["file_offset"] = json!(offset);
+                    part.meta["write_begin_ns"] = json!(u64::MAX);
+                    part.meta["write_end_ns"] = json!(u64::MAX);
+                }
+                crate::ledger::check_size(&part.meta)?;
+                ledger_ns += now() - t;
                 match part.meta["status"].as_str() {
                     Some("selected") => {
                         if part.body.len() as u64 != size || size == 0 {
@@ -489,8 +500,7 @@ pub fn acquire<S: Memory + 'static>(
                     _ => return Err("invalid coverage status".into()),
                 }
                 let t = now();
-                let mut line = serde_json::to_vec(&part.meta)?;
-                line.push(b'\n');
+                let line = crate::ledger::encode(&part.meta)?;
                 ledger.write_all(&line)?;
                 ledger_digest.update(&line);
                 ledger_ns += now() - t;

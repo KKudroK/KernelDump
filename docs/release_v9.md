@@ -1,6 +1,8 @@
 # v9 릴리즈 파일
 
-`release/kerneldump`가 현재 실행 파일이며, `release/manifest.json`과 `release/SHA256SUMS.txt`가 같은 파일을 검증한다. 실행 파일 SHA-256은 `b16a6ad7419f3e6bc2e7871a2362a9e849af1a3129b72458fb1a6018b4fa2fe0`다.
+아래 해시와 배포 묶음은 2026-11-04 재점검 이전 빌드의 이력이다. 수정 후 실행 파일과 해시는 로컬 release 폴더에서 확인하고, [수정 내용과 검증 범위](fixes_20261104.md)를 함께 참고한다.
+
+재점검 이전 실행 파일의 SHA-256은 b16a6ad7419f3e6bc2e7871a2362a9e849af1a3129b72458fb1a6018b4fa2fe0이다. 아래 배포 목록과 압축 파일 해시는 이 이전 빌드를 가리킨다.
 
 GitHub Release 업로드용 파일은 로컬 저장소의 `release_assets/`에 있다.
 

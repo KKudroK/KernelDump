@@ -234,7 +234,11 @@ impl Scan<'_, '_> {
         }
         let mut value = [0; 8];
         value[..n].copy_from_slice(&bytes);
-        checks.push(Check { address, bytes });
+        checks.push(Check {
+            address,
+            bytes,
+            mask: None,
+        });
         Ok(u64::from_le_bytes(value))
     }
     fn checked_field(
@@ -502,14 +506,21 @@ impl Scan<'_, '_> {
         if owner != mapping {
             return Err("page cache owner mismatch".into());
         }
-        let first = self.checked_field(page, "page", "index", &mut checks)?;
+        // XArray leaves are folio heads. folio.index survives the rename of
+        // page.index to page.__folio_index in newer kernels.
+        let first = self.checked_field(page, "folio", "index", &mut checks)?;
         let flags = self.checked_field(page, "page", "flags", &mut checks)?;
         let head = self.btf.enum_value("pageflags", "PG_head")?;
         if head >= 64 {
             return Err("invalid head flag".into());
         }
         let count = if flags & (1u64 << head) != 0 {
-            self.checked_field(page, "folio", "_folio_nr_pages", &mut checks)?
+            let name = if self.field("folio", "_nr_pages").is_ok() {
+                "_nr_pages"
+            } else {
+                "_folio_nr_pages"
+            };
+            self.checked_field(page, "folio", name, &mut checks)?
         } else {
             1
         };
@@ -542,6 +553,156 @@ impl Scan<'_, '_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn cache_reads_large_folio_with_old_and_new_btf_field_names() {
+        use super::super::provenance_tests::TestBtf;
+        use std::io::Write;
+        for newer in [false, true] {
+            const BASE: u64 = 0xffff888000000000;
+            let mut b = TestBtf::new();
+            let u8t = b.int("u8", 1);
+            let u32t = b.int("u32", 4);
+            let u64t = b.int("u64", 8);
+            let ptr = b.record(&[0, 2 << 24, 0]);
+            let array = b.record(&[0, 3 << 24, 0, ptr, u32t, 64]);
+            let xa = b.structure("xarray", 8, &[("xa_head", ptr, 0)]);
+            b.structure("address_space", 8, &[("i_pages", xa, 0)]);
+            b.structure("xa_node", 520, &[("shift", u8t, 0), ("slots", array, 8)]);
+            b.structure(
+                "page",
+                64,
+                &[
+                    ("flags", u64t, 0),
+                    ("mapping", ptr, 24),
+                    (if newer { "__folio_index" } else { "index" }, u64t, 32),
+                ],
+            );
+            let count_offset = if newer { 120 } else { 104 };
+            b.structure(
+                "folio",
+                128,
+                &[
+                    ("index", u64t, 32),
+                    (
+                        if newer {
+                            "_nr_pages"
+                        } else {
+                            "_folio_nr_pages"
+                        },
+                        u32t,
+                        count_offset,
+                    ),
+                ],
+            );
+            let en = b.name("pageflags");
+            let head = b.name("PG_head");
+            b.record(&[en, (6 << 24) | 1, 4, head, 3]);
+            let path = std::env::temp_dir().join(format!(
+                "kerneldump_cache_btf_{}_{}",
+                std::process::id(),
+                now()
+            ));
+            let mut core = std::fs::OpenOptions::new()
+                .create_new(true)
+                .read(true)
+                .write(true)
+                .open(&path)
+                .unwrap();
+            let mut data = vec![0u8; 16 * PAGE as usize];
+            let mapping = BASE + 0x1000;
+            let node = BASE + 0x1800;
+            let page = BASE + 0x2200;
+            let put = |data: &mut [u8], at: usize, value: u64, n: usize| {
+                data[at..at + n].copy_from_slice(&value.to_le_bytes()[..n])
+            };
+            put(&mut data, 0x1000, node + 2, 8);
+            put(&mut data, 0x1800 + 8 + 8 * 8, page, 8);
+            put(&mut data, 0x2200, 1 << 3, 8);
+            put(&mut data, 0x2200 + 24, mapping, 8);
+            put(&mut data, 0x2200 + 32, 8, 8);
+            put(&mut data, 0x2200 + count_offset as usize, 4, 4);
+            core.write_all(&data).unwrap();
+            let segs = [Segment {
+                offset: 0,
+                va: BASE,
+                pa: 0,
+                bytes: data.len() as u64,
+            }];
+            let ram = [(0, data.len() as u64)];
+            let mut plan = Resources::default();
+            let mut scan = Scan {
+                pod: None,
+                target_seen: BTreeSet::new(),
+                cache: CacheState::default(),
+                code_targets: vec![],
+                btf: b.finish(),
+                live: Live {
+                    core: &core,
+                    segs: &segs,
+                    ram: &ram,
+                    deadline: now() + 5_000_000_000,
+                    read_limit: MAX_READ_BYTES,
+                    read_bytes: Cell::new(0),
+                    calls: Cell::new(0),
+                    root: 0,
+                    levels: 4,
+                },
+                plan: &mut plan,
+                fields: RefCell::new(HashMap::new()),
+                vmemmap: BASE + 0x2000,
+                page_size: 64,
+                files: BTreeSet::new(),
+                tables: BTreeSet::new(),
+                tasks: 0,
+                fd_refs: 0,
+                sockets: 0,
+                skbs: 0,
+                policy_truncations: 0,
+                task_identity: json!({"pid":42}),
+                task_checks: vec![],
+            };
+            // Resolve the second page of a four-page folio through an XArray
+            // sibling, then ensure a changed file index invalidates evidence.
+            core.write_all_at(&(8u64 << 2 | 2).to_le_bytes(), 0x1800 + 8 + 9 * 8)
+                .unwrap();
+            scan.cache_page(
+                BASE + 0x300,
+                BASE + 0x400,
+                mapping,
+                9,
+                PAGE,
+                json!({"kind":"fd"}),
+                vec![],
+            )
+            .unwrap();
+            drop(scan);
+            let payload = plan
+                .evidence
+                .iter()
+                .find(|e| e.detail["role"] == "file_bytes")
+                .unwrap();
+            assert_eq!(payload.detail["physical_start"], 9 * PAGE);
+            assert_eq!(payload.detail["file_offset"], 9 * PAGE);
+            plan.witness(0, data.len() as u64, true, |va, buf| {
+                virtual_read(&core, &segs, va, buf)
+            });
+            assert_eq!(plan.finish()["complete"], true);
+            core.write_all_at(&12u64.to_le_bytes(), 0x2200 + 32)
+                .unwrap();
+            let changed = plan.witness(0, data.len() as u64, true, |va, buf| {
+                virtual_read(&core, &segs, va, buf)
+            });
+            assert!(
+                changed
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|r| r["same_fields"] == false)
+            );
+            assert_eq!(plan.finish()["complete"], false);
+            std::fs::remove_file(path).unwrap();
+        }
+    }
     #[test]
     fn hugetlb_cache_is_not_misread_as_a_normal_large_folio() {
         assert!(require_supported_cache_fs(0x958458f6).is_err());
