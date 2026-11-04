@@ -1,10 +1,10 @@
 # KernelDump
 
-[v1.2.1 릴리즈](https://github.com/KKudroK/KernelDump/releases/tag/v1.2.1)는 원장·연결 확인·검증기·Linux 7.0 관련 팀 수정 사항을 포함합니다. 정적 musl 빌드의 검사 75개와 같은 실행 파일의 AWS AL2023 6.18.56 Pod 지정 수집·검증을 통과했습니다. [배포 파일과 체크섬](docs/release_v9.md)을 참고합니다. 내부 버전은 0.1.1, 정책은 `kernel-focused-v9`입니다.
+[v1.2.2 릴리즈](https://github.com/KKudroK/KernelDump/releases/tag/v1.2.2)는 선택한 Pod에서 FD를 닫은 공유 memfd도 현재 메모리 매핑을 통해 수집하도록 보완했습니다. 새 정적 musl 빌드의 검사 82개, 의존 파일 체크섬·빌드 출처·정적 실행 파일 검사와 AWS AL2023 6.18.56 준비 검사를 통과했습니다. [배포 파일과 체크섬](docs/release_v1_2_2.md)을 참고합니다. 내부 버전은 0.1.1, 정책은 `kernel-focused-v9`입니다.
 
-2026-11-04 수정본을 기존 덤프와 동일한 7.0.0-38-generic 커널의 로컬 VM에서 새로 수집한 덤프 3개로 검증했다. [검증 결과와 한계](docs/kernel_7_0_0_38_validation.md), [최초 수정 내역](docs/fixes_20261104.md)을 참고한다. 아래 성능 실측은 이전 빌드의 이력이다.
+추가 경로의 팀 로컬 VM 검증과 한도는 [닫힌 FD memfd 검증](docs/scenario2_memfd_20261104.md)을 따릅니다. [기존 Linux 7.0 검증](docs/kernel_7_0_0_38_validation.md)과 아래 성능 수치는 당시 빌드의 기록입니다. v1.2.1의 AWS Pod 수집 결과와 새 바이너리의 준비 검사는 구분합니다.
 
-[English](README.md) · [배포 조건](docs/deployment.md) · [원본 대비 실측](docs/original_comparison.md) · [릴리즈 파일](docs/release_v9.md)
+[English](README.md) · [배포 조건](docs/deployment.md) · [원본 대비 실측](docs/original_comparison.md) · [릴리즈 파일](docs/release_v1_2_2.md)
 
 `kerneldump`는 `/proc/kcore`와 `/proc/kpageflags`로 실행 중인 커널 메모리를 선별 수집합니다. 커널 모듈 설치나 프로세스 정지 없이 LiME 이미지, 주소·수집 범위 원장과 manifest를 만듭니다.
 

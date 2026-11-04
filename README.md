@@ -1,10 +1,10 @@
 # KernelDump
 
-[Release v1.2.1](https://github.com/KKudroK/KernelDump/releases/tag/v1.2.1) includes the merged ledger, provenance, verifier and Linux 7.0 fixes. The static musl build passes 75 tests; the same binary also passed a Pod-scoped capture and verification on AWS AL2023 6.18.56. See [release files and checksums](docs/release_v9.md). Internal version: 0.1.1; policy: `kernel-focused-v9`.
+[Release v1.2.2](https://github.com/KKudroK/KernelDump/releases/tag/v1.2.2) adds bounded Pod-scoped retention of shared memfds after FD closure through current mappings. A fresh static musl build passes 82 tests, dependency checksums, embedded source identity, static ELF checks and readiness on AWS AL2023 6.18.56. See [release files and checksums](docs/release_v1_2_2.md). Internal version: 0.1.1; policy: `kernel-focused-v9`.
 
-The 2026-11-04 fixes were validated with existing dumps and three new captures on an exact 7.0.0-38-generic kernel in a local VM. See [kernel validation and limits](docs/kernel_7_0_0_38_validation.md) and the [initial fix notes](docs/fixes_20261104.md). Earlier performance measurements below remain historical.
+See the merged [closed-FD memfd validation](docs/scenario2_memfd_20261104.md) for the team's local-VM results and bounds. [Earlier Linux 7.0 validation](docs/kernel_7_0_0_38_validation.md) and performance measurements below describe their recorded builds. The v1.2.1 AWS Pod capture and the new binary's readiness check are separate validations.
 
-[한국어](README.ko.md) · [Deployment](docs/deployment.md) · [Original comparison](docs/original_comparison.md) · [Release files](docs/release_v9.md)
+[한국어](README.ko.md) · [Deployment](docs/deployment.md) · [Original comparison](docs/original_comparison.md) · [Release files](docs/release_v1_2_2.md)
 
 `kerneldump` collects selected live kernel memory through `/proc/kcore` and `/proc/kpageflags`. It writes a LiME image, an address/coverage ledger and a manifest without loading a kernel module or stopping processes.
 
