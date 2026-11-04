@@ -197,6 +197,7 @@ fn socket_witness_must_detect_changed_ownership() {
         let mut scan = Scan {
             pod: None,
             target_seen: BTreeSet::new(),
+            mm_owners: BTreeMap::new(),
             cache: cache::CacheState::default(),
             code_targets: vec![],
             btf: network_btf(),

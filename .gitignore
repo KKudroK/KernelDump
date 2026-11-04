@@ -24,6 +24,5 @@ __pycache__/
 /.idea/
 /.vscode/
 
-# Editor swap files
-*.swp
-*.swo
+# Local editor swap
+/.gitattributes.swp

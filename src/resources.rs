@@ -390,6 +390,7 @@ impl Resources {
                 task_checks: Vec::new(),
                 pod: pod.cloned(),
                 target_seen: BTreeSet::new(),
+                mm_owners: BTreeMap::new(),
                 cache: cache::CacheState::default(),
                 code_targets: code_targets.to_vec(),
             };
@@ -407,7 +408,7 @@ impl Resources {
             }
             scan.capture_cache();
             Ok(
-                json!({"file_cache":scan.cache.summary(),"tasks_examined":scan.tasks,"fd_references_examined":scan.fd_refs,
+                json!({"file_cache":scan.cache.summary(),"tasks_examined":scan.tasks,"address_spaces_indexed":scan.mm_owners.len(),"fd_references_examined":scan.fd_refs,
                 "unique_files":scan.files.len(),"sockets_examined":scan.sockets,"skbs_examined":scan.skbs,
                 "target_threads_observed":scan.target_seen.len(),
                 "policy_window_truncations":scan.policy_truncations,
@@ -424,7 +425,7 @@ impl Resources {
         result.summary = json!({"policy":"referenced_socket_queues_and_pod_cache_v4","pod_uid":pod.map(|p|&p.uid),"begin_ns":started,"end_ns":now(),"stats":stats,
             "candidate_pages":result.pages.len(),"references":result.evidence.len(),"issues_at_discovery":result.issue_count.get(),
             "limits":{"requested_metadata_bytes":MAX_READ_BYTES,"candidate_pages":MAX_CANDIDATES,"references":MAX_REFS,"queue_payload_bytes":QUEUE_BYTES},
-            "scope":"Selected Pod census threads including separate FD tables when --pod is supplied; otherwise process-leader FD references. Socket receive/write queues plus TCP retransmit/out-of-order trees. With Pod scope, bounded resident small shmem/unlinked-file cache and cache pages corresponding to discovered executable COW pages are considered after sockets. No general file-cache sweep or full socket history.",
+            "scope":"Selected Pod census threads including separate FD tables when --pod is supplied; otherwise process-leader FD references. Socket receive/write queues plus TCP retransmit/out-of-order trees. With Pod scope, bounded resident small shmem/unlinked-file cache through FDs or live shared memfd VMAs, and cache pages corresponding to discovered executable COW pages are considered after sockets. No general file-cache sweep or full socket history.",
             "window_policy":"64KiB per queue. Bytes beyond this per-queue limit are explicit policy truncations, not all-content coverage.",
             "btf_required":true});
         result
@@ -433,6 +434,7 @@ impl Resources {
 struct Scan<'a, 'p> {
     pod: Option<crate::pod_scope::PodScope>,
     target_seen: BTreeSet<u32>,
+    mm_owners: BTreeMap<u64, Vec<MmOwner>>,
     cache: cache::CacheState,
     code_targets: Vec<(u32, u64, u64, u64)>,
     btf: Btf,
@@ -450,6 +452,12 @@ struct Scan<'a, 'p> {
     policy_truncations: usize,
     task_identity: Value,
     task_checks: Vec<Check>,
+}
+struct MmOwner {
+    task: u64,
+    pid: u64,
+    start_time_ns: u64,
+    checks: Vec<Check>,
 }
 impl Scan<'_, '_> {
     fn field(&self, t: &'static str, n: &'static str) -> Result<Field> {
@@ -588,6 +596,9 @@ impl Scan<'_, '_> {
             self.tasks += 1;
             let task = at.checked_sub(tasks_off).ok_or("task address underflow")?;
             let pid = self.value(task, "task_struct", "pid")?;
+            if self.pod.is_some() {
+                self.index_mm_owner(task, pid)?;
+            }
             if let Some(scope) = &self.pod {
                 if scope.processes.contains_key(&(pid as u32)) {
                     if let Err(e) = self.threads(task) {
@@ -599,6 +610,25 @@ impl Scan<'_, '_> {
             }
             at = self.live.uint(at, 8)?;
         }
+        Ok(())
+    }
+    fn index_mm_owner(&mut self, task: u64, pid: u64) -> Result<()> {
+        let mm = self.value(task, "task_struct", "mm")?;
+        if mm == 0 {
+            return Ok(());
+        }
+        let start_time_ns = self.value(task, "task_struct", "start_time")?;
+        let checks = vec![
+            self.expect(task, "task_struct", "pid", pid)?,
+            self.expect(task, "task_struct", "start_time", start_time_ns)?,
+            self.expect(task, "task_struct", "mm", mm)?,
+        ];
+        self.mm_owners.entry(mm).or_default().push(MmOwner {
+            task,
+            pid,
+            start_time_ns,
+            checks,
+        });
         Ok(())
     }
     fn threads(&mut self, leader: u64) -> Result<()> {
@@ -653,6 +683,9 @@ impl Scan<'_, '_> {
         }
         if self.pod.is_some() {
             self.queue_code_cache(task, pid as u32);
+            if let Err(e) = self.queue_memfd_discovery(task, pid as u32) {
+                self.plan.issue("memfd_vma_seed", e);
+            }
         }
         if files != 0 && self.tables.insert(files) {
             if let Err(e) = self.fdtable(files, pid) {
