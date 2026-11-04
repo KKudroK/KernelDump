@@ -2,6 +2,7 @@ mod btf;
 mod build_info;
 mod capture;
 mod code_pages;
+mod ledger;
 mod pod_scope;
 mod resources;
 mod safe_output;

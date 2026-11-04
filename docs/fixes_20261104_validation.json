@@ -1,0 +1,87 @@
+{
+  "date": "2026-11-04",
+  "version": "0.1.1",
+  "policy": "kernel-focused-v9",
+  "new_regression_tests": 9,
+  "target": "x86_64-unknown-linux-musl",
+  "network_during_tests_and_build": "none",
+  "tests": {
+    "production-release.log": {
+      "sha256": "b372d037efbf41768d0a1caa2fe5acff8b93786c4e0bf57e53f52a784bc22ed4",
+      "tests_passed": 74,
+      "tests_failed": 0
+    },
+    "development-tests.log": {
+      "sha256": "20b648928b0e028669611c5d64362a9752a987e4074ef8820e8aaa12f19875f7",
+      "tests_passed": 74,
+      "tests_failed": 0
+    }
+  },
+  "rustfmt_check": "passed",
+  "vendor": {
+    "packages": 21,
+    "verified_files": 1070,
+    "preflight_cases": [
+      {
+        "case": "missing_manifests",
+        "exit_code": 1,
+        "expected_success": false
+      },
+      {
+        "case": "missing_file",
+        "exit_code": 1,
+        "expected_success": false
+      },
+      {
+        "case": "changed_file",
+        "exit_code": 1,
+        "expected_success": false
+      },
+      {
+        "case": "matching_files",
+        "exit_code": 0,
+        "expected_success": true
+      }
+    ]
+  },
+  "vendor_original_manifests_preserved": true,
+  "range_record_limit_including_newline": 8388608,
+  "release": {
+    "path": "release/kerneldump",
+    "sha256": "d76c57197e6da97414e49b16b38f06b632fe6e0424cdd5f0ee4938519d30fd58",
+    "bytes": 1352528,
+    "static_elf": true,
+    "features": [],
+    "source_sha256": {
+      ".cargo/config.toml": "77e9219c27274120197571fd165cbe4121963b5ad3bc0b20b383c86ef0ce6c2b",
+      "Cargo.lock": "bf6fed087d7c54b110fc533371779fbdb7b7d06c97e8f352beac15473bca091e",
+      "Cargo.toml": "c97770c71ab85d5e4334089a6fcabbc4bcc098504e14aa3faca46756c6030fa7",
+      "build.rs": "7b8d17fcb6cb7ec5da493c116117e7ccb746916f1b142cbc4b6056bf36231068",
+      "src/btf.rs": "d8ff74ceebfbfa105219f550c0ef2c3d5d8ce5f008ea6f126fbaffddc26ba24a",
+      "src/build_info.rs": "d1bb5eff27c4019e0be8fa5c001b6374ba785037151b483118554b21a44505d9",
+      "src/capture.rs": "cfe4a3a896262f170c43999e895183a7c587d8c5dfe9df062b9b85e87df0ee56",
+      "src/code_pages.rs": "6926a8ec7402c9afafbeaf28bce4e5bb3c91dee100488cef52daf7aba3d8747f",
+      "src/ledger.rs": "20145061fb28c02a4a05c68264c3e011eadd9a287c77e7372d822ea0d99696a8",
+      "src/main.rs": "5ceaf7913ec3788f2e4870d168a5dd7533873ec2574b31222c8a3154a37c870a",
+      "src/pod_scope.rs": "27e74709e744895bb208b48745dbfe74ba9ff38033d9ae11093da3128ac994bb",
+      "src/resources.rs": "9da9f046ee4e56f0e9ad36748b75160a0ae0b7ec4e4816e1c82674e17c3cfde2",
+      "src/resources/cache.rs": "2e59ed9fe07c1572fc583a83d2373ac212ae78e048b3ec7d801964ef2382eb17",
+      "src/resources/provenance_tests.rs": "28f236398a0748b266ab0f427956d5138d1d41b577e7a7e1b196863ca48cdce2",
+      "src/safe_output.rs": "893805063ea96e44ac2239893a64323a3f4ee492d205afffed730541e05d5e94",
+      "src/source.rs": "71e979102720e2299d5c749e3b171d1768f88b7a09601b4a143535411d2b71e1",
+      "src/tests.rs": "463ba34a2a6292e1e1e29b941ef4c65c34f68447e26682f38a9a47741bc0e3d2",
+      "src/tests/retention_regressions.rs": "0ba7afe050bd6201aecb89fa40d4242670d59ac074efba8abb6ad8e6183dd773",
+      "src/verify.rs": "dd1c457aa0a96fab4f5e9e5983f00fd8c4d101b6919879ff506d96242997f30f"
+    },
+    "vendor_tree_sha256": "d40e565e0d067e8f9f519f4d8bfac379fc75f8c94503de2b2e8e220fd4fef0d5"
+  },
+  "live_capture_performed": false,
+  "kernel_7_0_0_38_generic_live_qualified": false,
+  "limits": [
+    "Synthetic memory and BTF tests do not qualify a live kernel.",
+    "Reference checks are non-atomic, do not prove entire queue membership, and cannot exclude ABA.",
+    "Earlier VM captures and performance measurements belong to earlier binaries."
+  ],
+  "historical_result": true,
+  "superseded_by": "kernel_7_0_0_38_validation.json"
+}

@@ -1,8 +1,23 @@
 """Offline production build and final-binary receipt; only needed on build hosts."""
 import argparse, hashlib, json, os, pathlib, struct, subprocess
 
-p=argparse.ArgumentParser();p.add_argument('--output',type=pathlib.Path);a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--output',type=pathlib.Path)
+p.add_argument('--check-vendor',action='store_true',help='verify all vendored files without building')
+a=p.parse_args()
 root=pathlib.Path(__file__).resolve().parents[1]
+failures=[]
+manifests=sorted(root.joinpath('vendor').glob('*/.cargo-checksum.json'))
+if not manifests:raise SystemExit('Vendored dependency checksum manifests are missing.')
+for manifest in manifests:
+ for relative,expected in json.loads(manifest.read_text())['files'].items():
+  path=manifest.parent/relative
+  if not path.is_file():failures.append(str(path.relative_to(root))+': missing')
+  elif hashlib.sha256(path.read_bytes()).hexdigest()!=expected:
+   failures.append(str(path.relative_to(root))+': checksum mismatch')
+if failures:raise SystemExit('Vendored dependency integrity failed:\n'+'\n'.join(failures))
+if a.check_vendor:
+ print('All vendored file checksums match.')
+ raise SystemExit(0)
 name=root.joinpath('Cargo.toml').read_text().split('name = "',1)[1].split('"',1)[0]
 target='x86_64-unknown-linux-musl'
 for action in ['test','build']:

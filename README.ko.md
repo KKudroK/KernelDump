@@ -1,5 +1,7 @@
 # KernelDump
 
+2026-11-04 수정본을 기존 덤프와 동일한 7.0.0-38-generic 커널의 로컬 VM에서 새로 수집한 덤프 3개로 검증했다. [검증 결과와 한계](docs/kernel_7_0_0_38_validation.md), [최초 수정 내역](docs/fixes_20261104.md)을 참고한다. 아래 성능 실측은 이전 빌드의 이력이다.
+
 [English](README.md) · [배포 조건](docs/deployment.md) · [원본 대비 실측](docs/original_comparison.md) · [릴리즈 파일](docs/release_v9.md)
 
 `kerneldump`는 `/proc/kcore`와 `/proc/kpageflags`로 실행 중인 커널 메모리를 선별 수집합니다. 커널 모듈 설치나 프로세스 정지 없이 LiME 이미지, 주소·수집 범위 원장과 manifest를 만듭니다.

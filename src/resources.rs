@@ -14,6 +14,9 @@ use std::{
 };
 
 mod cache;
+#[cfg(test)]
+#[path = "resources/provenance_tests.rs"]
+mod provenance_tests;
 
 const PFN_MASK: u64 = 0x000f_ffff_ffff_f000;
 const MAX_READ_BYTES: u64 = 64 * 1024 * 1024;
@@ -54,6 +57,7 @@ mod tests {
             checks: vec![Check {
                 address: 0xffff800000001000,
                 bytes: vec![1, 2, 3, 4],
+                mask: None,
             }],
         });
         r
@@ -196,6 +200,25 @@ impl Live<'_> {
 struct Check {
     address: u64,
     bytes: Vec<u8>,
+    // For an open_fds word only the target FD bit is part of this reference.
+    mask: Option<u64>,
+}
+impl Check {
+    fn matches(&self, current: &[u8]) -> bool {
+        if current.len() != self.bytes.len() {
+            return false;
+        }
+        match self.mask {
+            None => current == self.bytes,
+            Some(mask) => match (
+                <[u8; 8]>::try_from(current),
+                <[u8; 8]>::try_from(self.bytes.as_slice()),
+            ) {
+                (Ok(a), Ok(b)) => u64::from_le_bytes(a) & mask == u64::from_le_bytes(b) & mask,
+                _ => false,
+            },
+        }
+    }
 }
 #[derive(Clone)]
 struct Evidence {
@@ -272,7 +295,7 @@ impl Resources {
                         let mut bytes = vec![0; c.bytes.len()];
                         self.validation_bytes
                             .set(self.validation_bytes.get() + bytes.len() as u64);
-                        if read(c.address, &mut bytes).is_err() || bytes != c.bytes {
+                        if read(c.address, &mut bytes).is_err() || !c.matches(&bytes) {
                             valid = false;
                         }
                     }
@@ -457,6 +480,7 @@ impl Scan<'_, '_> {
         Ok(Check {
             address,
             bytes: self.live.read(address, f.size)?,
+            mask: None,
         })
     }
     fn expect(&self, a: u64, t: &'static str, n: &'static str, value: u64) -> Result<Check> {
@@ -687,6 +711,48 @@ impl Scan<'_, '_> {
         }
         Ok(())
     }
+    fn fd_checks(&self, file: u64, origin: &Value) -> Result<Vec<Check>> {
+        let number = |key: &str| origin[key].as_u64().ok_or("missing socket FD origin");
+        let files = number("files")?;
+        let table = number("table")?;
+        let array = number("array")?;
+        let fd = number("fd")?;
+        let max = self.value(table, "fdtable", "max_fds")?;
+        if fd >= max || max > 262144 {
+            return Err("socket FD bounds changed".into());
+        }
+        let bitmap = self.value(table, "fdtable", "open_fds")?;
+        let address = array
+            .checked_add(fd.checked_mul(8).ok_or("FD offset overflow")?)
+            .ok_or("FD slot overflow")?;
+        let slot = Check {
+            address,
+            bytes: self.live.read(address, 8)?,
+            mask: None,
+        };
+        if slot.bytes != file.to_le_bytes() {
+            return Err("socket FD changed".into());
+        }
+        let address = bitmap
+            .checked_add((fd / 64) * 8)
+            .ok_or("FD bitmap overflow")?;
+        let open = Check {
+            address,
+            bytes: self.live.read(address, 8)?,
+            mask: Some(1 << (fd % 64)),
+        };
+        if u64::from_le_bytes(open.bytes.as_slice().try_into()?) & open.mask.unwrap() == 0 {
+            return Err("socket FD closed".into());
+        }
+        Ok(vec![
+            self.expect(files, "files_struct", "fdt", table)?,
+            self.expect(table, "fdtable", "fd", array)?,
+            self.expect(table, "fdtable", "max_fds", max)?,
+            self.expect(table, "fdtable", "open_fds", bitmap)?,
+            slot,
+            open,
+        ])
+    }
     fn socket(&mut self, file: u64, pid: u64, origin: Value) -> Result<()> {
         if self.sockets >= 4096 {
             return Err("socket limit".into());
@@ -738,65 +804,80 @@ impl Scan<'_, '_> {
         if !nonempty {
             return Ok(());
         }
-        let detail = json!({"pid":pid,"process":self.task_identity,"file":file,"socket":socket,"sock":sk,"family":family,"protocol":proto,"origin":origin});
-        self.metadata(file, "file", "network", detail.clone())?;
-        self.metadata(socket, "socket", "network", detail.clone())?;
-        self.metadata(sk, "sock", "network", detail.clone())?;
-        if udp {
-            self.metadata(sk, "udp_sock", "network", detail.clone())?;
-        }
-        for (typ, name) in queues {
-            let queue = sk + self.off(typ, name)?;
-            let mut at = self.value(queue, "sk_buff_head", "next")?;
-            let mut seen = BTreeSet::new();
-            let mut left = QUEUE_BYTES;
-            while at != 0 && at != queue {
-                if !seen.insert(at) || seen.len() > 256 {
-                    return Err("skb queue cycle/node limit".into());
-                }
-                self.skb(at, &detail, name, &mut left, 0)?;
-                at = self.value(at, "sk_buff", "next")?;
-                if left == 0 {
-                    if at != queue {
-                        self.policy_truncations += 1;
-                    }
-                    break;
-                }
+        let mut checks = self.fd_checks(file, &origin)?;
+        checks.extend([
+            self.expect(file, "file", "private_data", socket)?,
+            self.expect(socket, "socket", "file", file)?,
+            self.expect(socket, "socket", "sk", sk)?,
+            self.expect(sk, "sock", "sk_socket", socket)?,
+        ]);
+        // Every network evidence record, including metadata and fragments,
+        // inherits the FD-to-socket chain. Restore task context on every error.
+        let task_checks = self.task_checks.clone();
+        self.task_checks.extend(checks);
+        let result = (|| -> Result<()> {
+            let detail = json!({"pid":pid,"process":self.task_identity,"file":file,"socket":socket,"sock":sk,"family":family,"protocol":proto,"origin":origin});
+            self.metadata(file, "file", "network", detail.clone())?;
+            self.metadata(socket, "socket", "network", detail.clone())?;
+            self.metadata(sk, "sock", "network", detail.clone())?;
+            if udp {
+                self.metadata(sk, "udp_sock", "network", detail.clone())?;
             }
-        }
-        if tcp {
-            self.metadata(sk, "tcp_sock", "network", detail.clone())?;
-            for (typ, name) in [
-                ("sock", "tcp_rtx_queue"),
-                ("tcp_sock", "out_of_order_queue"),
-            ] {
-                let root = sk + self.off(typ, name)?;
-                let mut todo = vec![self.value(root, "rb_root", "rb_node")?];
+            for (typ, name) in queues {
+                let queue = sk + self.off(typ, name)?;
+                let mut at = self.value(queue, "sk_buff_head", "next")?;
                 let mut seen = BTreeSet::new();
                 let mut left = QUEUE_BYTES;
-                while let Some(node) = todo.pop() {
-                    if node == 0 {
-                        continue;
+                while at != 0 && at != queue {
+                    if !seen.insert(at) || seen.len() > 256 {
+                        return Err("skb queue cycle/node limit".into());
                     }
-                    if !seen.insert(node) || seen.len() > 256 {
-                        return Err("TCP skb tree cycle/node limit".into());
-                    }
-                    let skb = node
-                        .checked_sub(self.off("sk_buff", "rbnode")?)
-                        .ok_or("skb rbnode underflow")?;
-                    self.skb(skb, &detail, name, &mut left, 0)?;
-                    todo.push(self.value(node, "rb_node", "rb_right")?);
-                    todo.push(self.value(node, "rb_node", "rb_left")?);
+                    self.skb(at, &detail, name, &mut left, 0)?;
+                    at = self.value(at, "sk_buff", "next")?;
                     if left == 0 {
-                        if todo.iter().any(|&n| n != 0) {
+                        if at != queue {
                             self.policy_truncations += 1;
                         }
                         break;
                     }
                 }
             }
-        }
-        Ok(())
+            if tcp {
+                self.metadata(sk, "tcp_sock", "network", detail.clone())?;
+                for (typ, name) in [
+                    ("sock", "tcp_rtx_queue"),
+                    ("tcp_sock", "out_of_order_queue"),
+                ] {
+                    let root = sk + self.off(typ, name)?;
+                    let mut todo = vec![self.value(root, "rb_root", "rb_node")?];
+                    let mut seen = BTreeSet::new();
+                    let mut left = QUEUE_BYTES;
+                    while let Some(node) = todo.pop() {
+                        if node == 0 {
+                            continue;
+                        }
+                        if !seen.insert(node) || seen.len() > 256 {
+                            return Err("TCP skb tree cycle/node limit".into());
+                        }
+                        let skb = node
+                            .checked_sub(self.off("sk_buff", "rbnode")?)
+                            .ok_or("skb rbnode underflow")?;
+                        self.skb(skb, &detail, name, &mut left, 0)?;
+                        todo.push(self.value(node, "rb_node", "rb_right")?);
+                        todo.push(self.value(node, "rb_node", "rb_left")?);
+                        if left == 0 {
+                            if todo.iter().any(|&n| n != 0) {
+                                self.policy_truncations += 1;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+            Ok(())
+        })();
+        self.task_checks = task_checks;
+        result
     }
     fn skb(
         &mut self,
@@ -913,6 +994,7 @@ impl Scan<'_, '_> {
             c.push(Check {
                 address: at,
                 bytes: raw,
+                mask: None,
             });
             self.add(pa, take, "network", d, c)?;
             *left -= take;

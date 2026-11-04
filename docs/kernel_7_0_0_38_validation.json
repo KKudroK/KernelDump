@@ -1,0 +1,401 @@
+{
+  "date": "2026-11-04",
+  "binary_sha256": "5a3c8be806bb36e47151fb6d753aa0a25e53e0eeae881b444a34d2ec72abe1f2",
+  "kernel": {
+    "release": "7.0.0-38-generic",
+    "gnu_build_id": "338e542e384c46228f7a378babc0f9bb2b6a5997",
+    "btf_sha256": "2b91134c0f8fdf86be01ddf92bd7bb12393b0137aedd190556d0f26bddddd12b"
+  },
+  "environment": "Local QEMU TCG, 1GiB RAM, 2 vCPUs, no network; minimal initramfs, actual kernel and actual proc interfaces.",
+  "pod_fixture": "Exact Pod UID cgroup paths inside the VM; no Kubernetes cluster or EKS service was created.",
+  "production_tests": {
+    "passed": 75,
+    "failed": 0
+  },
+  "development_option_tests": {
+    "passed": 75,
+    "failed": 0
+  },
+  "verified_captures": [
+    {
+      "case": "kernel-before",
+      "verifier_sha256": "5a3c8be806bb36e47151fb6d753aa0a25e53e0eeae881b444a34d2ec72abe1f2",
+      "result": {
+        "coverage_ranges": 43559,
+        "lime_sha256": "bcc69f471915ab396c845539d2eb8a27e6af2d80e0e973f820f188978f0bf5b9",
+        "payload_bytes": 3871485952,
+        "status": "complete_for_policy",
+        "verified": true
+      }
+    },
+    {
+      "case": "kernel-after",
+      "verifier_sha256": "5a3c8be806bb36e47151fb6d753aa0a25e53e0eeae881b444a34d2ec72abe1f2",
+      "result": {
+        "coverage_ranges": 42929,
+        "lime_sha256": "a1280138e0f2a16b8a910b10fbeae080fcf9f942e26e17593a6c628a2704f85a",
+        "payload_bytes": 3844067328,
+        "status": "complete_for_policy",
+        "verified": true
+      }
+    },
+    {
+      "case": "stable-pod",
+      "verifier_sha256": "5a3c8be806bb36e47151fb6d753aa0a25e53e0eeae881b444a34d2ec72abe1f2",
+      "result": {
+        "coverage_ranges": 2555,
+        "lime_sha256": "b71acd7011226d547eacb0687430fb2a6e2805512125728e165c5bb9696c2a92",
+        "payload_bytes": 171724800,
+        "status": "complete_for_policy",
+        "verified": true
+      }
+    },
+    {
+      "case": "stable-node",
+      "verifier_sha256": "5a3c8be806bb36e47151fb6d753aa0a25e53e0eeae881b444a34d2ec72abe1f2",
+      "result": {
+        "coverage_ranges": 3570,
+        "lime_sha256": "4d9c644c990c2ee9e9128e9d2d81ab3bc44fa74697946f71d3cdb125caa4d40e",
+        "payload_bytes": 146472960,
+        "status": "complete_for_policy",
+        "verified": true
+      }
+    },
+    {
+      "case": "dense-node",
+      "verifier_sha256": "5a3c8be806bb36e47151fb6d753aa0a25e53e0eeae881b444a34d2ec72abe1f2",
+      "result": {
+        "coverage_ranges": 5564,
+        "lime_sha256": "c970108d5346d439f9bd6f99ac5721c2321a75530e356af383c93a4c54080ab6",
+        "payload_bytes": 163803136,
+        "status": "complete_for_policy",
+        "verified": true
+      }
+    }
+  ],
+  "new_captures": [
+    {
+      "case": "stable-pod",
+      "status": "complete_for_policy",
+      "errors": [],
+      "file_bytes": 171754592,
+      "lime_sha256": "b71acd7011226d547eacb0687430fb2a6e2805512125728e165c5bb9696c2a92",
+      "max_range_record_bytes": 6361,
+      "code_pages_bytes_match": 1,
+      "code_reference_count": 1,
+      "network_payload_bytes_match": 16384,
+      "file_cache_bytes_match": 8192,
+      "raw_network_chains": [
+        {
+          "pid": 98,
+          "fd": 4,
+          "file": 18446617586957781248,
+          "socket": 18446617586944199104,
+          "sock": 18446617586956869504,
+          "raw_dump_chain_matches": true
+        }
+      ],
+      "all_recorded_code_witnesses_valid": true,
+      "all_recorded_resource_witnesses_valid": true,
+      "code_retention": {
+        "candidate_pages": 1,
+        "complete": true,
+        "consistency": "same PFN around payload read plus process start and executable mappings after capture; not atomic, no ABA guarantee",
+        "final_validation_metadata_bytes": 1202,
+        "final_validation_ns": 1859637,
+        "issue_count": 0,
+        "issues": [],
+        "pagemap_validation_requested_bytes": 16,
+        "pod_identity_validation": {
+          "accounted_bytes": 1118,
+          "elapsed_ns": 981585,
+          "max_bytes": 8388608,
+          "max_ns": 250000000,
+          "scope": "per code/network identity validator; active proc reads are cooperative"
+        },
+        "read_candidate_pages": 1,
+        "unread_candidate_pages": 0
+      },
+      "resource_retention": {
+        "candidate_pages": 21,
+        "complete": true,
+        "consistency": "Selected pointer/length fields checked around reads. Live, non-atomic and subject to ABA or changes in payload bytes.",
+        "issue_count": 0,
+        "issues": [],
+        "pod_identity_validation": {
+          "accounted_bytes": 16211,
+          "elapsed_ns": 14921819,
+          "max_bytes": 8388608,
+          "max_ns": 250000000,
+          "scope": "per code/network identity validator; active proc reads are cooperative"
+        },
+        "pod_scope_validation": {
+          "after": {
+            "base_kernel_filter_unchanged": true,
+            "begin_ns": 11739273403,
+            "boot_id": "7212e157-ec8a-4fcb-8aea-116072c0c060",
+            "disappeared_during_census": 0,
+            "end_ns": 11745408557,
+            "limits": {
+              "metadata_request_bound_bytes": 33554432,
+              "target_threads": 4096,
+              "visible_processes": 65536
+            },
+            "metadata_request_bound_bytes": 1553,
+            "pod_uid": "11111111-1111-4111-8111-111111111111",
+            "processes": [
+              {
+                "cgroup": "/kubepods/pod11111111-1111-4111-8111-111111111111",
+                "pid": 98,
+                "start_ticks": 724,
+                "tgid": 98
+              }
+            ],
+            "processes_examined": 70,
+            "selection": "exact cgroup Pod UID segment; current host process identities, not historical ownership",
+            "threads": [
+              {
+                "cgroup": "/kubepods/pod11111111-1111-4111-8111-111111111111",
+                "pid": 98,
+                "start_ticks": 724,
+                "tgid": 98
+              }
+            ]
+          },
+          "before": {
+            "base_kernel_filter_unchanged": true,
+            "begin_ns": 9035026395,
+            "boot_id": "7212e157-ec8a-4fcb-8aea-116072c0c060",
+            "disappeared_during_census": 0,
+            "end_ns": 9046391672,
+            "limits": {
+              "metadata_request_bound_bytes": 33554432,
+              "target_threads": 4096,
+              "visible_processes": 65536
+            },
+            "metadata_request_bound_bytes": 1553,
+            "pod_uid": "11111111-1111-4111-8111-111111111111",
+            "processes": [
+              {
+                "cgroup": "/kubepods/pod11111111-1111-4111-8111-111111111111",
+                "pid": 98,
+                "start_ticks": 724,
+                "tgid": 98
+              }
+            ],
+            "processes_examined": 70,
+            "selection": "exact cgroup Pod UID segment; current host process identities, not historical ownership",
+            "threads": [
+              {
+                "cgroup": "/kubepods/pod11111111-1111-4111-8111-111111111111",
+                "pid": 98,
+                "start_ticks": 724,
+                "tgid": 98
+              }
+            ]
+          },
+          "complete": true,
+          "consistency": "Two bounded censuses, not an atomic snapshot; transient membership and ABA remain possible"
+        },
+        "read_candidate_pages": 21,
+        "unread_candidate_pages": 0,
+        "validation_ns": 20520912,
+        "validation_requested_bytes": 5092
+      }
+    },
+    {
+      "case": "stable-node",
+      "status": "complete_for_policy",
+      "errors": [],
+      "file_bytes": 146518144,
+      "lime_sha256": "4d9c644c990c2ee9e9128e9d2d81ab3bc44fa74697946f71d3cdb125caa4d40e",
+      "max_range_record_bytes": 6116,
+      "code_pages_bytes_match": 1,
+      "code_reference_count": 1,
+      "network_payload_bytes_match": 16384,
+      "file_cache_bytes_match": 0,
+      "raw_network_chains": [
+        {
+          "pid": 98,
+          "fd": 4,
+          "file": 18446617586957781248,
+          "socket": 18446617586944199104,
+          "sock": 18446617586956869504,
+          "raw_dump_chain_matches": true
+        }
+      ],
+      "all_recorded_code_witnesses_valid": true,
+      "all_recorded_resource_witnesses_valid": true,
+      "code_retention": {
+        "candidate_pages": 1,
+        "complete": true,
+        "consistency": "same PFN around payload read plus process start and executable mappings after capture; not atomic, no ABA guarantee",
+        "final_validation_metadata_bytes": 1202,
+        "final_validation_ns": 686086,
+        "issue_count": 0,
+        "issues": [],
+        "pagemap_validation_requested_bytes": 16,
+        "pod_identity_validation": null,
+        "read_candidate_pages": 1,
+        "unread_candidate_pages": 0
+      },
+      "resource_retention": {
+        "candidate_pages": 11,
+        "complete": true,
+        "consistency": "Selected pointer/length fields checked around reads. Live, non-atomic and subject to ABA or changes in payload bytes.",
+        "issue_count": 0,
+        "issues": [],
+        "pod_identity_validation": null,
+        "read_candidate_pages": 11,
+        "unread_candidate_pages": 0,
+        "validation_ns": 1612823,
+        "validation_requested_bytes": 1624
+      }
+    },
+    {
+      "case": "dense-node",
+      "status": "complete_for_policy",
+      "errors": [],
+      "file_bytes": 163880992,
+      "lime_sha256": "c970108d5346d439f9bd6f99ac5721c2321a75530e356af383c93a4c54080ab6",
+      "max_range_record_bytes": 1639003,
+      "code_pages_bytes_match": 33,
+      "code_reference_count": 4097,
+      "network_payload_bytes_match": 32768,
+      "file_cache_bytes_match": 0,
+      "raw_network_chains": [
+        {
+          "pid": 98,
+          "fd": 4,
+          "file": 18446617586957781248,
+          "socket": 18446617586944199104,
+          "sock": 18446617586956869504,
+          "raw_dump_chain_matches": true
+        },
+        {
+          "pid": 107,
+          "fd": 4,
+          "file": 18446617586961058432,
+          "socket": 18446617586944196608,
+          "sock": 18446617586956872960,
+          "raw_dump_chain_matches": true
+        }
+      ],
+      "all_recorded_code_witnesses_valid": true,
+      "all_recorded_resource_witnesses_valid": true,
+      "code_retention": {
+        "candidate_pages": 33,
+        "complete": true,
+        "consistency": "same PFN around payload read plus process start and executable mappings after capture; not atomic, no ABA guarantee",
+        "final_validation_metadata_bytes": 162098,
+        "final_validation_ns": 22657664,
+        "issue_count": 0,
+        "issues": [],
+        "pagemap_validation_requested_bytes": 65552,
+        "pod_identity_validation": null,
+        "read_candidate_pages": 33,
+        "unread_candidate_pages": 0
+      },
+      "resource_retention": {
+        "candidate_pages": 20,
+        "complete": true,
+        "consistency": "Selected pointer/length fields checked around reads. Live, non-atomic and subject to ABA or changes in payload bytes.",
+        "issue_count": 0,
+        "issues": [],
+        "pod_identity_validation": null,
+        "read_candidate_pages": 20,
+        "unread_candidate_pages": 0,
+        "validation_ns": 3114231,
+        "validation_requested_bytes": 3248
+      }
+    }
+  ],
+  "negative_cases": [
+    {
+      "case": "unchanged_live_capture",
+      "accepted": true,
+      "exit_code": 0,
+      "stdout": "{\"coverage_ranges\":2555,\"lime_sha256\":\"b71acd7011226d547eacb0687430fb2a6e2805512125728e165c5bb9696c2a92\",\"payload_bytes\":171724800,\"status\":\"complete_for_policy\",\"verified\":true}",
+      "stderr": ""
+    },
+    {
+      "case": "code_page_retention_false_under_complete",
+      "accepted": false,
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "kerneldump: false complete status: retention is missing, invalid or incomplete"
+    },
+    {
+      "case": "resource_retention_false_under_complete",
+      "accepted": false,
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "kerneldump: false complete status: retention is missing, invalid or incomplete"
+    },
+    {
+      "case": "contradictory_read_counts",
+      "accepted": false,
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "kerneldump: false complete status: retention counters or issues contradict completion"
+    },
+    {
+      "case": "pod_identity_incomplete",
+      "accepted": false,
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "kerneldump: false complete status: Pod identity validation incomplete"
+    },
+    {
+      "case": "missing_v9_retention",
+      "accepted": false,
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "kerneldump: false complete status: retention is missing, invalid or incomplete"
+    },
+    {
+      "case": "changed_witness_with_recomputed_hash",
+      "accepted": false,
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "kerneldump: false complete status: invalid or changed retention witness"
+    },
+    {
+      "case": "promoted_actual_partial_capture",
+      "accepted": false,
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "kerneldump: false complete status: retention is missing, invalid or incomplete"
+    }
+  ],
+  "live_closed_fd": {
+    "before_network_valid": true,
+    "after_network_invalid": true,
+    "finish_complete": false,
+    "pod_identity_still_valid": true,
+    "test_only_harness": true
+  },
+  "newly_fixed_compatibility": {
+    "file_index": "Use BTF folio.index, valid across the page.index rename.",
+    "large_folio_size": "Resolve BTF folio._nr_pages or the older folio._folio_nr_pages; never guess offsets."
+  },
+  "first_run": {
+    "stable_pod": "partial: BTF member unavailable: index",
+    "dense_pod": "partial: same layout error plus the existing 250ms Pod identity validation limit under software emulation"
+  },
+  "limitations": [
+    "Non-atomic captures; these fixtures do not qualify all workloads, kernel configurations, protocols or EKS environments.",
+    "No performance claim from software CPU emulation.",
+    "Dense Pod first-run validation reached the existing 250ms identity budget and correctly remained partial."
+  ],
+  "evidence_directory": "C:\\Users\\ohnah\\Desktop\\공격_시나리오\\validate-kerneldump-7.0.0-38-20261104",
+  "release_manifest": "../release/manifest.json",
+  "logs_sha256": {
+    "kernel-fix-build.log": "cd08aff115aca6f204f15ddc8417bc58ea4ef18edb3c936fa414a8cc477fa651",
+    "kernel-fix-development-tests.log": "4aa5b1a40989f79a96827ba2e88557675d31a062361eb1c400da8326e821ed83",
+    "console-final.log": "5942e74db220600e6de870f530592b866dcc5646918b2f5b914642fc3ecd2734",
+    "final-clean-verification.json": "be2f2664c043d5dd901b1a1562d6dda8fd708849c358dbec7480a0be30d508c8",
+    "negative-verification.json": "bab615addc2c4e840042de62709d95a2921a17cbdfe88c6d0f5ae84b9ac143bc",
+    "live-validation.json": "b618fc66e04e4175791958fa77c7da2a5ae27d281622e4d5b0c595719e89c6ba"
+  }
+}
