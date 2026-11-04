@@ -149,5 +149,12 @@
       "dump_size_mb": null,
       "status": "Verified architectural compatibility"
     }
-  ]
+  ],
+  "historical_record": true,
+  "current_resource_retention_validation": "docs/resource_retention_results.json",
+  "current_policy": "kernel-focused-v9",
+  "current_release_sha256": "b16a6ad7419f3e6bc2e7871a2362a9e849af1a3129b72458fb1a6018b4fa2fe0",
+  "current_unit_tests_passed": 65,
+  "original_comparison_validation": "docs/original_comparison_results.json",
+  "release_assets_guide": "docs/release_v9.md"
 }

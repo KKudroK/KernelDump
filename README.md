@@ -1,6 +1,6 @@
 # KernelDump
 
-[한국어](README.ko.md) · [Deployment](docs/deployment.md) · [Measurements](docs/benchmark_summary.md)
+[한국어](README.ko.md) · [Deployment](docs/deployment.md) · [Original comparison](docs/original_comparison.md) · [Release files](docs/release_v9.md)
 
 `kerneldump` collects selected live kernel memory through `/proc/kcore` and `/proc/kpageflags`. It writes a LiME image, an address/coverage ledger and a manifest without loading a kernel module or stopping processes.
 
@@ -19,13 +19,12 @@ sudo ./kerneldump capture --output /evidence/new_collection
 
 Kernel support for kcore/page monitoring, permission to read the required interfaces and unmasked required symbols are necessary. Missing kcore remains unsupported. No security settings are changed. [Requirements and failure behavior](docs/deployment.md).
 
-Actual v0.1.1 output on Ubuntu 24.04.5. JSON is formatted below; the manifest path and image hash are omitted.
+Example output from the current v9 release, showing selected fields. Use the comparison table below for timing.
 
 ```json
 {
   "status": "complete_for_policy",
-  "payload_bytes": 715538432,
-  "elapsed_s": 2.418713536,
+  "payload_bytes": 656162816,
   "unavailable_bytes": 0,
   "unprocessed_bytes": 0,
   "errors": []
@@ -38,14 +37,58 @@ Verification of the same collection:
 {
   "verified": true,
   "status": "complete_for_policy",
-  "coverage_ranges": 14337,
-  "payload_bytes": 715538432
+  "coverage_ranges": 12300,
+  "payload_bytes": 656162816
 }
 ```
 
-[Capture stdout](docs/examples/capture.stdout) · [Verification stdout](docs/examples/verify.stdout).
+[Capture stdout](docs/examples/capture_v9.stdout) · [Verification stdout](docs/examples/verify_v9.stdout).
 
-## Tested environments
+## Optional Pod scope
+
+```sh
+sudo ./kerneldump capture --pod <FULL_POD_UID> --output /evidence/new_collection
+```
+
+Select a Pod with `--pod`, accepting a full UID rather than a name or prefix. It limits **additional** executable-page, socket and selected-cache traversal to current Pod members; the node-wide kernel metadata filter is unchanged. Omitting it retains bounded node-wide additions. Physical pages may contain unrelated bytes.
+
+Exact cgroup membership, PID, start time and host PID/cgroup namespace views are checked. Unknown targets and unsuitable namespace views fail without node-wide fallback. Identity changes cause partial capture. This discovers current membership, not historical ownership after a process leaves its Pod cgroup. See [validation and costs](docs/resource_retention.md).
+
+## Executable code, queued bytes and selected cache
+
+Policy `kernel-focused-v9` adds present ANON pages from private executable mappings, including file COW and fileless/JIT code, and FD-referenced socket queues. Current write permission is not required; retention is not an attack verdict. Socket receive/write queues, UDP reader queues and TCP retransmit/out-of-order trees retain at most 64KiB per queue, following linear bytes, page fragments and bounded frag_list links.
+
+**Pod scope adds narrowly selected resident cache.** Open shmem/memfd and unlinked regular files up to 64KiB are considered, plus the file-cache page corresponding to each discovered executable COW page. No general file-cache sweep, arbitrary large-file prefix or file-content read to fault pages in. Comparison cache is current file content, not a trusted original.
+
+Code, network and selected cache share 4,096 deduplicated candidate pages (at most 16MiB additional payload) and a cooperative one-second discovery deadline. Metadata candidates count against that cap; JSON metadata, process RSS and original-policy payload are outside it. Cache runs after code/network discovery and uses remaining candidate slots only: at most 256 pages including provenance metadata, 128 jobs, 100ms within the remaining shared deadline and 4MiB requested reads. Existing object/read/reference limits remain. No collection-mode switches are added.
+
+Network layouts use running-kernel BTF. A selected Pod includes census threads with separate FD tables; unscoped collection follows process-leader FDs. Only known COW addresses are looked up in the Maple Tree, and selected file offsets in XArray. Other kernels remain unqualified for these new paths. Missing required fields, unread candidates or changed checked references cause partial capture. Per-queue windows are separately recorded. Large executable regions can still exhaust the evidence budget, including important code pages. See [scope, decision and measured costs](docs/resource_retention.md).
+
+## Original versus current capture cost
+
+The original **v4** had no additional executable-anonymous, socket-queue or file-cache traversal. It was compared with current **v9** on the same VM, persistent fixture and output storage. Values are medians of three captures per configuration; image size is the actual uncompressed LiME file including headers.
+
+| Metric | Original v4 | Current v9, no Pod | Current v9, selected Pod |
+|---|---:|---:|---:|
+| Capture wall time | 10.11 s | 9.88 s | 9.72 s |
+| Final LiME file | 617.64 MiB | 615.01 MiB | 621.64 MiB |
+| Including ledger and manifest | 622.97 MiB | 620.28 MiB | 626.58 MiB |
+| CPU time | 9.06 s | 9.90 s | 9.25 s |
+| Peak collector RSS | 11.00 MiB | 11.25 MiB | 11.38 MiB |
+| Payload added to original filter | 0.00 KiB | 8.00 KiB | 28.00 KiB |
+| Capture status | Complete 3/3 | Partial 3/3 | Complete 3/3 |
+
+With a selected Pod, wall time was **10.11s → 9.72s (-0.39s)** and the final LiME file was **617.64MiB → 621.64MiB (+4.01MiB)**. Timing ranges overlap; this does not establish a speed improvement.
+
+Whole-image differences include changing live kernel state. Exact payload added to the original filter was **28KiB with a Pod** and **8KiB without one**. All three unscoped v9 captures were partial because some network references changed across reads. All nine images passed integrity verification; integrity is distinct from reference consistency.
+
+The VM reported `DiskPressure` at postflight. Running Pods and restart counts were unchanged; service latency and the condition's timing effect were not measured.
+
+[Method, limits and per-run values](docs/original_comparison.md).
+
+## Earlier release validation
+
+The following matrix records the earlier v4 policy and does not qualify the new BTF-dependent resource traversal.
 
 The same x86-64 release binary was used in every row.
 
@@ -109,10 +152,10 @@ Exit **0** confirms complete capture for the recorded policy and successful pers
 ```sh
 ./kerneldump --version
 ./kerneldump --build-info
-# Build host only: Rust 1.90.0 + x86_64-unknown-linux-musl target
+# Current release built with Rust 1.93.0 + x86_64-unknown-linux-musl target
 python3 scripts/build_release.py
 ```
 
-Version **0.1.1**. Outputs: `release/kerneldump` and an optional hash receipt. Build information records source hashes and the actual running executable hash. [Release checks](docs/release_validation.md) · [Earlier documentation](docs/history_readme_20261017_en.md).
+Version **0.1.1**. Outputs: `release/kerneldump`, `release/manifest.json` and `release/SHA256SUMS.txt`. Build information records source hashes and the actual running executable hash. [Release checks](docs/release_validation.md) · [Earlier documentation](docs/history_readme_20261017_en.md).
 
 MIT license; vendored dependencies retain their respective licenses.

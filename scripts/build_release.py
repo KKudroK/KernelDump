@@ -26,4 +26,5 @@ for path,expected in info['source_sha256'].items():assert hashlib.sha256((root/p
 out=(a.output or root/'release').resolve();out.mkdir(parents=True,exist_ok=True)
 (out/name).write_bytes(data);(out/name).chmod(0o755)
 (out/'manifest.json').write_text(json.dumps({'binary':name,'sha256':sha,'bytes':len(data),'build_info':info},indent=2)+'\n')
+(out/'SHA256SUMS.txt').write_text(sha+'  '+name+'\n'+hashlib.sha256((out/'manifest.json').read_bytes()).hexdigest()+'  manifest.json\n',encoding='ascii',newline='\n')
 print(name,sha)

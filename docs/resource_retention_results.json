@@ -1,0 +1,2258 @@
+{
+  "policy": "kernel-focused-v9",
+  "binary_sha256": "b16a6ad7419f3e6bc2e7871a2362a9e849af1a3129b72458fb1a6018b4fa2fe0",
+  "measured_binary_sha256": "12e43f1cebbf85e705cbe1ee5b7e19af717a9993de14ab47fc2d7821ae8fe81f",
+  "baseline_binary_sha256": "55c8c9cd1a68c12cb2be6c9860a042b24b85319687bcf9ac018596d41b26b537",
+  "source_files": 16,
+  "unit_tests_passed": 65,
+  "release_smoke": {
+    "verified": true,
+    "file_bytes": 8192,
+    "kernel_links_valid": true,
+    "not_mapped": true,
+    "policy_text_correct": true,
+    "binary_sha256": "b16a6ad7419f3e6bc2e7871a2362a9e849af1a3129b72458fb1a6018b4fa2fe0",
+    "status": "complete_for_policy"
+  },
+  "post_measurement_change": {
+    "measured_sha256": "12e43f1cebbf85e705cbe1ee5b7e19af717a9993de14ab47fc2d7821ae8fe81f",
+    "file": "src/capture.rs",
+    "old": "except retained kernel neighbors and bounded executable anonymous, referenced queue candidates.",
+    "new": "except retained kernel neighbors and bounded executable anonymous, referenced queue and Pod file-cache candidates.",
+    "behavior_change": false,
+    "additional_change": "rustfmt wrapped one require_supported_cache_fs call across lines; exact reversal matched the measured source hash"
+  },
+  "environment": {
+    "kernel": "6.8.0-147-generic",
+    "distribution": "Ubuntu 24.04.5",
+    "vm_vcpus": 4,
+    "vm_ram_mib": 9216,
+    "output": "/mnt/data ext4",
+    "no_aws": true
+  },
+  "method": {
+    "normal_order": [
+      "v8",
+      "v9",
+      "v9",
+      "v8",
+      "v8",
+      "v9"
+    ],
+    "normal_pairs": 3,
+    "stress_pairs": 1,
+    "primary_binary_only": true,
+    "no_transfers_or_builds_during_primary_timing": true,
+    "extra_bytes": "Exact same-capture flags counter relative to the original kernel filter, not the difference of whole live dumps.",
+    "excluded": "All earlier check/pair/clean/stress runs are preliminary. First pair_0_v8 overlapped host copying and directory enumeration; excluded whole pair set. Later clean/stress builds preceded final layout checks."
+  },
+  "normal": [
+    {
+      "name": "final_0_v8",
+      "version": "v8",
+      "wall_s": 7.83,
+      "cpu_s": 8.129999999999999,
+      "rss_kib": 11648,
+      "payload_bytes": 662548480,
+      "extra_bytes": 4096,
+      "ledger_bytes": 6654164,
+      "status": "complete_for_policy",
+      "binary_sha256": "55c8c9cd1a68c12cb2be6c9860a042b24b85319687bcf9ac018596d41b26b537",
+      "resource_discovery_ns": 9303135,
+      "cache": {},
+      "reference_validation_ns": 1094542,
+      "reference_validation_bytes": 536,
+      "verification": {
+        "file_pages": [
+          {
+            "name": "fd_only_memfd",
+            "matches": [
+              null,
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 3
+          },
+          {
+            "name": "unlinked_file",
+            "matches": [
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 2
+          },
+          {
+            "name": "ordinary_file",
+            "matches": [
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 2
+          },
+          {
+            "name": "large_memfd",
+            "matches": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 32
+          },
+          {
+            "name": "cow_original",
+            "matches": [
+              null,
+              null,
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 4
+          }
+        ],
+        "cache_references": [],
+        "network_bytes": 16384,
+        "network_matches": true,
+        "modified_code_matches": true,
+        "invalid_references": 0
+      },
+      "collector_issues": []
+    },
+    {
+      "name": "final_1_v9",
+      "version": "v9",
+      "wall_s": 8.49,
+      "cpu_s": 8.09,
+      "rss_kib": 11648,
+      "payload_bytes": 680460288,
+      "extra_bytes": 28672,
+      "ledger_bytes": 6482122,
+      "status": "complete_for_policy",
+      "binary_sha256": "12e43f1cebbf85e705cbe1ee5b7e19af717a9993de14ab47fc2d7821ae8fe81f",
+      "resource_discovery_ns": 11423788,
+      "cache": {
+        "candidate_pages_including_metadata": 23,
+        "duplicate_mapping_indices": 0,
+        "elapsed_ns": 550374,
+        "empty_files": 0,
+        "files_over_64kib_excluded": 1,
+        "limits": {
+          "additional_discovery_ns": 100000000,
+          "additional_read_bytes": 4194304,
+          "candidate_pages_including_metadata": 256,
+          "jobs": 128,
+          "small_file_bytes": 65536
+        },
+        "nonresident_or_value_entries": 0,
+        "ordinary_files_excluded": 2,
+        "queued_jobs": 6,
+        "read_calls": 161,
+        "requested_bytes": 1168,
+        "resident_pages_found": 6,
+        "unprocessed_or_unqueued_jobs": 0
+      },
+      "reference_validation_ns": 4123267,
+      "reference_validation_bytes": 10178,
+      "verification": {
+        "file_pages": [
+          {
+            "name": "fd_only_memfd",
+            "matches": [
+              true,
+              true,
+              true
+            ],
+            "matching_pages": 3,
+            "missing_pages": 0
+          },
+          {
+            "name": "unlinked_file",
+            "matches": [
+              true,
+              true
+            ],
+            "matching_pages": 2,
+            "missing_pages": 0
+          },
+          {
+            "name": "ordinary_file",
+            "matches": [
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 2
+          },
+          {
+            "name": "large_memfd",
+            "matches": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 32
+          },
+          {
+            "name": "cow_original",
+            "matches": [
+              null,
+              null,
+              true,
+              null
+            ],
+            "matching_pages": 1,
+            "missing_pages": 3
+          }
+        ],
+        "cache_references": [
+          {
+            "name": "fd_only_memfd",
+            "offset": 0,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "fd_only_memfd",
+            "offset": 4096,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "fd_only_memfd",
+            "offset": 8192,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "unlinked_file",
+            "offset": 0,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "unlinked_file",
+            "offset": 4096,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "cow_original",
+            "offset": 8192,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          }
+        ],
+        "network_bytes": 16384,
+        "network_matches": true,
+        "modified_code_matches": true,
+        "invalid_references": 0
+      },
+      "collector_issues": []
+    },
+    {
+      "name": "final_2_v9",
+      "version": "v9",
+      "wall_s": 8.33,
+      "cpu_s": 8.52,
+      "rss_kib": 11648,
+      "payload_bytes": 690671616,
+      "extra_bytes": 28672,
+      "ledger_bytes": 6467632,
+      "status": "complete_for_policy",
+      "binary_sha256": "12e43f1cebbf85e705cbe1ee5b7e19af717a9993de14ab47fc2d7821ae8fe81f",
+      "resource_discovery_ns": 10500558,
+      "cache": {
+        "candidate_pages_including_metadata": 23,
+        "duplicate_mapping_indices": 0,
+        "elapsed_ns": 452152,
+        "empty_files": 0,
+        "files_over_64kib_excluded": 1,
+        "limits": {
+          "additional_discovery_ns": 100000000,
+          "additional_read_bytes": 4194304,
+          "candidate_pages_including_metadata": 256,
+          "jobs": 128,
+          "small_file_bytes": 65536
+        },
+        "nonresident_or_value_entries": 0,
+        "ordinary_files_excluded": 2,
+        "queued_jobs": 6,
+        "read_calls": 161,
+        "requested_bytes": 1168,
+        "resident_pages_found": 6,
+        "unprocessed_or_unqueued_jobs": 0
+      },
+      "reference_validation_ns": 4761992,
+      "reference_validation_bytes": 10178,
+      "verification": {
+        "file_pages": [
+          {
+            "name": "fd_only_memfd",
+            "matches": [
+              true,
+              true,
+              true
+            ],
+            "matching_pages": 3,
+            "missing_pages": 0
+          },
+          {
+            "name": "unlinked_file",
+            "matches": [
+              true,
+              true
+            ],
+            "matching_pages": 2,
+            "missing_pages": 0
+          },
+          {
+            "name": "ordinary_file",
+            "matches": [
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 2
+          },
+          {
+            "name": "large_memfd",
+            "matches": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 32
+          },
+          {
+            "name": "cow_original",
+            "matches": [
+              null,
+              null,
+              true,
+              null
+            ],
+            "matching_pages": 1,
+            "missing_pages": 3
+          }
+        ],
+        "cache_references": [
+          {
+            "name": "fd_only_memfd",
+            "offset": 0,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "fd_only_memfd",
+            "offset": 4096,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "fd_only_memfd",
+            "offset": 8192,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "unlinked_file",
+            "offset": 0,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "unlinked_file",
+            "offset": 4096,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "cow_original",
+            "offset": 8192,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          }
+        ],
+        "network_bytes": 16384,
+        "network_matches": true,
+        "modified_code_matches": true,
+        "invalid_references": 0
+      },
+      "collector_issues": []
+    },
+    {
+      "name": "final_3_v8",
+      "version": "v8",
+      "wall_s": 8.22,
+      "cpu_s": 8.6,
+      "rss_kib": 11648,
+      "payload_bytes": 683053056,
+      "extra_bytes": 4096,
+      "ledger_bytes": 6621881,
+      "status": "complete_for_policy",
+      "binary_sha256": "55c8c9cd1a68c12cb2be6c9860a042b24b85319687bcf9ac018596d41b26b537",
+      "resource_discovery_ns": 9303907,
+      "cache": {},
+      "reference_validation_ns": 1074444,
+      "reference_validation_bytes": 536,
+      "verification": {
+        "file_pages": [
+          {
+            "name": "fd_only_memfd",
+            "matches": [
+              null,
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 3
+          },
+          {
+            "name": "unlinked_file",
+            "matches": [
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 2
+          },
+          {
+            "name": "ordinary_file",
+            "matches": [
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 2
+          },
+          {
+            "name": "large_memfd",
+            "matches": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 32
+          },
+          {
+            "name": "cow_original",
+            "matches": [
+              null,
+              null,
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 4
+          }
+        ],
+        "cache_references": [],
+        "network_bytes": 16384,
+        "network_matches": true,
+        "modified_code_matches": true,
+        "invalid_references": 0
+      },
+      "collector_issues": []
+    },
+    {
+      "name": "final_4_v8",
+      "version": "v8",
+      "wall_s": 9.3,
+      "cpu_s": 7.57,
+      "rss_kib": 11648,
+      "payload_bytes": 683220992,
+      "extra_bytes": 4096,
+      "ledger_bytes": 7181577,
+      "status": "complete_for_policy",
+      "binary_sha256": "55c8c9cd1a68c12cb2be6c9860a042b24b85319687bcf9ac018596d41b26b537",
+      "resource_discovery_ns": 9808027,
+      "cache": {},
+      "reference_validation_ns": 1049145,
+      "reference_validation_bytes": 536,
+      "verification": {
+        "file_pages": [
+          {
+            "name": "fd_only_memfd",
+            "matches": [
+              null,
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 3
+          },
+          {
+            "name": "unlinked_file",
+            "matches": [
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 2
+          },
+          {
+            "name": "ordinary_file",
+            "matches": [
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 2
+          },
+          {
+            "name": "large_memfd",
+            "matches": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 32
+          },
+          {
+            "name": "cow_original",
+            "matches": [
+              null,
+              null,
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 4
+          }
+        ],
+        "cache_references": [],
+        "network_bytes": 16384,
+        "network_matches": true,
+        "modified_code_matches": true,
+        "invalid_references": 0
+      },
+      "collector_issues": []
+    },
+    {
+      "name": "final_5_v9",
+      "version": "v9",
+      "wall_s": 8.62,
+      "cpu_s": 8.19,
+      "rss_kib": 11648,
+      "payload_bytes": 682020864,
+      "extra_bytes": 28672,
+      "ledger_bytes": 7208564,
+      "status": "complete_for_policy",
+      "binary_sha256": "12e43f1cebbf85e705cbe1ee5b7e19af717a9993de14ab47fc2d7821ae8fe81f",
+      "resource_discovery_ns": 9683076,
+      "cache": {
+        "candidate_pages_including_metadata": 23,
+        "duplicate_mapping_indices": 0,
+        "elapsed_ns": 426186,
+        "empty_files": 0,
+        "files_over_64kib_excluded": 1,
+        "limits": {
+          "additional_discovery_ns": 100000000,
+          "additional_read_bytes": 4194304,
+          "candidate_pages_including_metadata": 256,
+          "jobs": 128,
+          "small_file_bytes": 65536
+        },
+        "nonresident_or_value_entries": 0,
+        "ordinary_files_excluded": 2,
+        "queued_jobs": 6,
+        "read_calls": 161,
+        "requested_bytes": 1168,
+        "resident_pages_found": 6,
+        "unprocessed_or_unqueued_jobs": 0
+      },
+      "reference_validation_ns": 4201159,
+      "reference_validation_bytes": 10178,
+      "verification": {
+        "file_pages": [
+          {
+            "name": "fd_only_memfd",
+            "matches": [
+              true,
+              true,
+              true
+            ],
+            "matching_pages": 3,
+            "missing_pages": 0
+          },
+          {
+            "name": "unlinked_file",
+            "matches": [
+              true,
+              true
+            ],
+            "matching_pages": 2,
+            "missing_pages": 0
+          },
+          {
+            "name": "ordinary_file",
+            "matches": [
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 2
+          },
+          {
+            "name": "large_memfd",
+            "matches": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 32
+          },
+          {
+            "name": "cow_original",
+            "matches": [
+              null,
+              null,
+              true,
+              null
+            ],
+            "matching_pages": 1,
+            "missing_pages": 3
+          }
+        ],
+        "cache_references": [
+          {
+            "name": "fd_only_memfd",
+            "offset": 0,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "fd_only_memfd",
+            "offset": 4096,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "fd_only_memfd",
+            "offset": 8192,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "unlinked_file",
+            "offset": 0,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "unlinked_file",
+            "offset": 4096,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "cow_original",
+            "offset": 8192,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          }
+        ],
+        "network_bytes": 16384,
+        "network_matches": true,
+        "modified_code_matches": true,
+        "invalid_references": 0
+      },
+      "collector_issues": []
+    }
+  ],
+  "stress": [
+    {
+      "name": "stress_final_v8",
+      "version": "v8",
+      "wall_s": 10.24,
+      "cpu_s": 9.940000000000001,
+      "rss_kib": 11648,
+      "payload_bytes": 767930368,
+      "extra_bytes": 8192,
+      "ledger_bytes": 9529001,
+      "status": "complete_for_policy",
+      "binary_sha256": "55c8c9cd1a68c12cb2be6c9860a042b24b85319687bcf9ac018596d41b26b537",
+      "resource_discovery_ns": 10762957,
+      "cache": {},
+      "reference_validation_ns": 1158433,
+      "reference_validation_bytes": 536,
+      "verification": {
+        "file_pages": [
+          {
+            "name": "fd_only_memfd",
+            "matches": [
+              null,
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 3
+          },
+          {
+            "name": "unlinked_file",
+            "matches": [
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 2
+          },
+          {
+            "name": "ordinary_file",
+            "matches": [
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 2
+          },
+          {
+            "name": "large_memfd",
+            "matches": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 32
+          },
+          {
+            "name": "cow_original",
+            "matches": [
+              null,
+              null,
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 4
+          }
+        ],
+        "cache_references": [],
+        "network_bytes": 16384,
+        "network_matches": true,
+        "modified_code_matches": true,
+        "invalid_references": 0
+      },
+      "collector_issues": []
+    },
+    {
+      "name": "stress_final_v9",
+      "version": "v9",
+      "wall_s": 9.28,
+      "cpu_s": 9.35,
+      "rss_kib": 12744,
+      "payload_bytes": 751185920,
+      "extra_bytes": 634880,
+      "ledger_bytes": 8192493,
+      "status": "partial",
+      "binary_sha256": "12e43f1cebbf85e705cbe1ee5b7e19af717a9993de14ab47fc2d7821ae8fe81f",
+      "resource_discovery_ns": 19015331,
+      "cache": {
+        "candidate_pages_including_metadata": 256,
+        "duplicate_mapping_indices": 0,
+        "elapsed_ns": 6503107,
+        "empty_files": 0,
+        "files_over_64kib_excluded": 1,
+        "limits": {
+          "additional_discovery_ns": 100000000,
+          "additional_read_bytes": 4194304,
+          "candidate_pages_including_metadata": 256,
+          "jobs": 128,
+          "small_file_bytes": 65536
+        },
+        "nonresident_or_value_entries": 14,
+        "ordinary_files_excluded": 3,
+        "queued_jobs": 128,
+        "read_calls": 2585,
+        "requested_bytes": 19263,
+        "resident_pages_found": 153,
+        "unprocessed_or_unqueued_jobs": 151
+      },
+      "reference_validation_ns": 29093002,
+      "reference_validation_bytes": 91348,
+      "verification": {
+        "file_pages": [
+          {
+            "name": "fd_only_memfd",
+            "matches": [
+              true,
+              true,
+              true
+            ],
+            "matching_pages": 3,
+            "missing_pages": 0
+          },
+          {
+            "name": "unlinked_file",
+            "matches": [
+              true,
+              true
+            ],
+            "matching_pages": 2,
+            "missing_pages": 0
+          },
+          {
+            "name": "ordinary_file",
+            "matches": [
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 2
+          },
+          {
+            "name": "large_memfd",
+            "matches": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "matching_pages": 0,
+            "missing_pages": 32
+          },
+          {
+            "name": "cow_original",
+            "matches": [
+              null,
+              null,
+              true,
+              null
+            ],
+            "matching_pages": 1,
+            "missing_pages": 3
+          }
+        ],
+        "cache_references": [
+          {
+            "name": "stress",
+            "offset": 12288,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 16384,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 45056,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 49152,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 28672,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 32768,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "fd_only_memfd",
+            "offset": 0,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "fd_only_memfd",
+            "offset": 4096,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "fd_only_memfd",
+            "offset": 8192,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "unlinked_file",
+            "offset": 0,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "unlinked_file",
+            "offset": 4096,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "cow_original",
+            "offset": 8192,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 28672,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 32768,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 36864,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 40960,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 36864,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 40960,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 0,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 61440,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 4096,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 8192,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 53248,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 57344,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 12288,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 16384,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 12288,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 16384,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 36864,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 40960,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 61440,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 0,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 0,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 61440,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 0,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 12288,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 16384,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 61440,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 0,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 4096,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 8192,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 36864,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 40960,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 28672,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 32768,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 36864,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 40960,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 20480,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 24576,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 53248,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 57344,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 45056,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 49152,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 61440,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 0,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 45056,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 49152,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 61440,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 0,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 20480,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 24576,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 12288,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 16384,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 4096,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 8192,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 4096,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 8192,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 36864,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 40960,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 53248,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 57344,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 53248,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 57344,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 61440,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 0,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 20480,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 24576,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "sparse_cow",
+            "offset": 5476352,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 28672,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 32768,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 4096,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 8192,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 53248,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 57344,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 28672,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 32768,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 20480,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 24576,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 28672,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 32768,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 20480,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 24576,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 61440,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 0,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 61440,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 12288,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 16384,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 45056,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 49152,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 36864,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 40960,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 12288,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 16384,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 20480,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 24576,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 28672,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 32768,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 45056,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 49152,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 53248,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 57344,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 45056,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 49152,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 4096,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 8192,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 4096,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 8192,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 12288,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 16384,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 28672,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 32768,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 20480,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 24576,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 45056,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 49152,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 4096,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 8192,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 45056,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 49152,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 36864,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 40960,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 61440,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 0,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 53248,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 57344,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 36864,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 40960,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 12288,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 16384,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 45056,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 49152,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 4096,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 8192,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 53248,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 57344,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 28672,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 32768,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 53248,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 57344,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 20480,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 24576,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 20480,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          },
+          {
+            "name": "stress",
+            "offset": 24576,
+            "bytes": 4096,
+            "kernel_links_valid": true,
+            "content_matches": true
+          }
+        ],
+        "network_bytes": 16384,
+        "network_matches": true,
+        "modified_code_matches": true,
+        "invalid_references": 0
+      },
+      "collector_issues": [
+        {
+          "error": "Pod cache candidate-page limit",
+          "stage": "pod_file_cache"
+        },
+        {
+          "error": "151",
+          "stage": "pod_cache_job_limit"
+        }
+      ]
+    }
+  ],
+  "limits": {
+    "shared_pages": 4096,
+    "shared_extra_payload_bytes": 16777216,
+    "shared_discovery_ns": 1000000000,
+    "cache_pages_including_metadata": 256,
+    "cache_jobs": 128,
+    "small_file_bytes": 65536,
+    "cache_remaining_deadline_ns": 100000000,
+    "cache_requested_bytes": 4194304
+  },
+  "postflight": {
+    "previous_running_pods": 11,
+    "changes": [],
+    "nodes": [
+      {
+        "name": "kkudrok-node",
+        "conditions": [
+          {
+            "lastHeartbeatTime": "2026-10-20T05:27:15Z",
+            "lastTransitionTime": "2026-10-20T05:27:15Z",
+            "message": "Cilium is running on this node",
+            "reason": "CiliumIsUp",
+            "status": "False",
+            "type": "NetworkUnavailable"
+          },
+          {
+            "lastHeartbeatTime": "2026-11-03T22:58:52Z",
+            "lastTransitionTime": "2026-10-10T14:15:35Z",
+            "message": "kubelet has sufficient memory available",
+            "reason": "KubeletHasSufficientMemory",
+            "status": "False",
+            "type": "MemoryPressure"
+          },
+          {
+            "lastHeartbeatTime": "2026-11-03T22:58:52Z",
+            "lastTransitionTime": "2026-11-03T14:47:47Z",
+            "message": "kubelet has no disk pressure",
+            "reason": "KubeletHasNoDiskPressure",
+            "status": "False",
+            "type": "DiskPressure"
+          },
+          {
+            "lastHeartbeatTime": "2026-11-03T22:58:52Z",
+            "lastTransitionTime": "2026-10-10T14:15:35Z",
+            "message": "kubelet has sufficient PID available",
+            "reason": "KubeletHasSufficientPID",
+            "status": "False",
+            "type": "PIDPressure"
+          },
+          {
+            "lastHeartbeatTime": "2026-11-03T22:58:52Z",
+            "lastTransitionTime": "2026-10-10T14:16:38Z",
+            "message": "kubelet is posting ready status",
+            "reason": "KubeletReady",
+            "status": "True",
+            "type": "Ready"
+          }
+        ]
+      }
+    ]
+  },
+  "archive_receipts": [
+    {
+      "name": "final_0_v8",
+      "sha256": "3b8805ea6a7cb4f61d2b0e3d1df7591c05eee1f97957e499e1faed5b8401285e",
+      "bytes": 81568009
+    },
+    {
+      "name": "final_5_v9",
+      "sha256": "43bef9aaa9e15ba3a9e765867dd8d224cd11ccb07a6dbe181ef40c14f8859359",
+      "bytes": 84362322
+    },
+    {
+      "name": "stress_final_v9",
+      "sha256": "a81454fa0abc2d0281580544ef04b59a3c440a9c5ac525bc711361a204aef27b",
+      "bytes": 96364467
+    },
+    {
+      "name": "records",
+      "sha256": "0dd311930a670b208571f442dd2d1f48d1e206a6f99c3396aeb75d53e5d541ed",
+      "bytes": 208144953
+    }
+  ]
+}

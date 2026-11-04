@@ -163,6 +163,25 @@ pub fn classify_with_neighbors(flags: &[u64], index: usize, scope: Scope) -> &'s
 }
 
 pub trait Memory: Send {
+    fn resource_pages(&self, _start: u64, _end: u64) -> Vec<u64> {
+        Vec::new()
+    }
+    fn resource_witness(&self, _start: u64, _end: u64, _after: bool) -> Value {
+        json!([])
+    }
+    fn finish_resources(&self) -> Value {
+        json!({"complete":true,"applicable":false})
+    }
+    fn prepare(&mut self, _scope: Scope) {}
+    fn code_pages(&self, _start: u64, _end: u64) -> Vec<u64> {
+        Vec::new()
+    }
+    fn code_witness(&self, _start: u64, _end: u64, _after: bool) -> Value {
+        json!([])
+    }
+    fn finish_code_pages(&self) -> Value {
+        json!({"complete":true,"applicable":false})
+    }
     fn info(&self) -> Value;
     fn io_stats(&self) -> Value {
         json!({"available":false})
@@ -292,6 +311,11 @@ pub fn ram_ranges(text: &str) -> Result<Vec<(u64, u64)>> {
 }
 
 pub struct Source {
+    pod: Option<crate::pod_scope::PodScope>,
+    code_pages: crate::code_pages::CodePages,
+    resources: crate::resources::Resources,
+    all_segments: Vec<Segment>,
+    extra_selected: std::collections::BTreeSet<u64>,
     core: File,
     flags: File,
     segments: Vec<Segment>,
@@ -302,6 +326,35 @@ pub struct Source {
     flags_io: ReadCounter,
 }
 impl Source {
+    pub fn select_pod(&mut self, uid: &str) -> Result<()> {
+        let btf = crate::btf::Btf::parse(crate::btf::read_running()?)?;
+        // /proc IDs and cgroup paths must be from the host view, not container-relative.
+        for (symbol, typ, ns) in [
+            ("init_pid_ns", "pid_namespace", "pid"),
+            ("init_cgroup_ns", "cgroup_namespace", "cgroup"),
+        ] {
+            let address = self.info["symbols"][symbol]
+                .as_u64()
+                .filter(|&v| v != 0)
+                .ok_or("host namespace symbol unavailable")?;
+            let field = btf.field(typ, "ns.inum")?;
+            let mut value = [0u8; 4];
+            crate::resources::virtual_read(
+                &self.core,
+                &self.all_segments,
+                address + field.offset,
+                &mut value,
+            )?;
+            let expected = format!("{ns}:[{}]", u32::from_le_bytes(value));
+            if fs::read_link(format!("/proc/self/ns/{ns}"))?.to_string_lossy() != expected {
+                return Err("--pod requires host PID and cgroup namespace views".into());
+            }
+        }
+        let scope = crate::pod_scope::PodScope::discover(uid, now() + 1_000_000_000)?;
+        self.info["pod_scope"] = scope.report.clone();
+        self.pod = Some(scope);
+        Ok(())
+    }
     pub fn add_context(&mut self, request_id: String, clock: Value) {
         self.info["request_id"] = json!(request_id);
         self.info["clock_correlation_start"] = clock;
@@ -329,8 +382,16 @@ impl Source {
                     "page_offset_base",
                     "linux_banner",
                     "init_task",
+                    "init_pid_ns",
+                    "init_cgroup_ns",
                     "_stext",
                     "arch_task_struct_size",
+                    "vmemmap_base",
+                    "init_top_pgt",
+                    "init_level4_pgt",
+                    "swapper_pg_dir",
+                    "__pgtable_l5_enabled",
+                    "pgtable_l5_enabled",
                 ]
                 .contains(&fields[2])
             {
@@ -397,6 +458,11 @@ impl Source {
             "physical_segments":segments.iter().map(|s|json!({"offset":s.offset,"vaddr":s.va,"paddr":s.pa,"filesz":s.bytes})).collect::<Vec<_>>(),
             "meminfo_before":fs::read_to_string("/proc/meminfo")?,"source_init_begin_ns":started,"source_init_end_ns":now()});
         Ok(Self {
+            pod: None,
+            code_pages: crate::code_pages::CodePages::default(),
+            resources: crate::resources::Resources::default(),
+            all_segments: all,
+            extra_selected: std::collections::BTreeSet::new(),
             core,
             flags,
             segments,
@@ -409,13 +475,84 @@ impl Source {
     }
 }
 impl Memory for Source {
+    fn prepare(&mut self, _scope: Scope) {
+        let start = now();
+        let deadline = start + 1_000_000_000;
+        self.code_pages =
+            crate::code_pages::CodePages::scan(&self.flags, &self.ram, deadline, self.pod.as_ref());
+        self.info["code_page_retention"] = self.code_pages.summary();
+        self.resources = crate::resources::Resources::discover(
+            &self.core,
+            &self.all_segments,
+            &self.ram,
+            &self.info["symbols"],
+            crate::btf::read_running(),
+            deadline,
+            self.pod.as_ref(),
+            &self.code_pages.file_targets(),
+        );
+        let groups = [
+            self.code_pages.addresses(0, u64::MAX),
+            self.resources.category_pages("network"),
+        ];
+        let cache = self.resources.category_pages("file_cache");
+        self.extra_selected = allocate_with_cache(&groups, &cache, 4096);
+        let candidates: std::collections::BTreeSet<_> = groups
+            .iter()
+            .flatten()
+            .chain(cache.iter())
+            .copied()
+            .collect();
+        self.info["resource_retention"] = self.resources.summary();
+        self.info["shared_retention_budget"] = json!({"max_candidate_pages":4096,"max_additional_payload_bytes":4096*PAGE,
+            "allocation":"round-robin code/network first, then Pod file cache in remaining slots; deduplicate physical pages",
+            "candidate_pages":candidates.len(),"selected_candidate_pages":self.extra_selected.len(),
+            "unselected_candidate_pages":candidates.len()-self.extra_selected.len(),"discovery_begin_ns":start,"discovery_end_ns":now(),
+            "discovery_limit_ns":1_000_000_000,"scope":"BTF resource and proc code discovery share one deadline; active kernel calls are cooperative"});
+    }
+    fn code_pages(&self, start: u64, end: u64) -> Vec<u64> {
+        self.code_pages
+            .addresses(start, end)
+            .into_iter()
+            .filter(|p| self.extra_selected.contains(p))
+            .collect()
+    }
+    fn code_witness(&self, start: u64, end: u64, after: bool) -> Value {
+        self.code_pages.witness(start, end, after)
+    }
+    fn finish_code_pages(&self) -> Value {
+        self.code_pages.finish()
+    }
+    fn resource_pages(&self, start: u64, end: u64) -> Vec<u64> {
+        self.resources
+            .addresses(start, end)
+            .into_iter()
+            .filter(|p| self.extra_selected.contains(p))
+            .collect()
+    }
+    fn resource_witness(&self, start: u64, end: u64, after: bool) -> Value {
+        self.resources.witness(start, end, after, |va, data| {
+            crate::resources::virtual_read(&self.core, &self.all_segments, va, data)
+        })
+    }
+    fn finish_resources(&self) -> Value {
+        let mut result = self.resources.finish();
+        if let Some(scope) = &self.pod {
+            let validation = scope.finish();
+            if validation["complete"] != true {
+                result["complete"] = json!(false);
+            }
+            result["pod_scope_validation"] = validation;
+        }
+        result
+    }
     fn info(&self) -> Value {
         let mut info = self.info.clone();
         info["io_at_probe"] = self.io_stats();
         info
     }
     fn io_stats(&self) -> Value {
-        json!({"available":true,"semantics":"Successful pread return bytes, including partial reads before error; not filesystem or physical disk traffic. Metadata files other than kcore/kpageflags are excluded.",
+        json!({"available":true,"semantics":"Successful acquisition-source pread return bytes, including partial reads before error; not filesystem or physical disk traffic. Code and resource discovery/validation have separate accounting in code_page_retention and resource_retention; BTF/proc metadata are excluded here.",
             "kcore_probe":self.core_probe.json(),"kcore_payload":self.core_payload.json(),"kpageflags":self.flags_io.json(),
             "kcore_total_returned_bytes":self.core_probe.bytes.get()+self.core_payload.bytes.get()})
     }
@@ -464,9 +601,64 @@ impl Memory for Source {
     }
 }
 
+pub(crate) fn allocate_with_cache(
+    groups: &[Vec<u64>],
+    cache: &[u64],
+    limit: usize,
+) -> std::collections::BTreeSet<u64> {
+    let mut selected = allocate_extra(groups, limit);
+    for &pa in cache {
+        if selected.len() == limit {
+            break;
+        }
+        selected.insert(pa);
+    }
+    selected
+}
+pub(crate) fn allocate_extra(groups: &[Vec<u64>], limit: usize) -> std::collections::BTreeSet<u64> {
+    let mut selected = std::collections::BTreeSet::new();
+    let mut positions = vec![0usize; groups.len()];
+    while selected.len() < limit {
+        let mut progressed = false;
+        for (i, group) in groups.iter().enumerate() {
+            while positions[i] < group.len() {
+                let pa = group[positions[i]];
+                positions[i] += 1;
+                progressed = true;
+                if selected.insert(pa) {
+                    break;
+                }
+            }
+            if selected.len() == limit {
+                break;
+            }
+        }
+        if !progressed {
+            break;
+        }
+    }
+    selected
+}
+
 pub fn check_readiness(target_dir: Option<&Path>) -> Result<Value> {
     let mut checks = Vec::new();
     let mut ram_bytes = None;
+    let layout_check = (|| -> Result<()> {
+        let btf = crate::btf::Btf::parse(crate::btf::read_running()?)?;
+        for (t, f) in [
+            ("task_struct", "start_time"),
+            ("files_struct", "fdt"),
+            ("file", "private_data"),
+            ("fdtable", "open_fds"),
+            ("skb_shared_info", "frags"),
+            ("sock", "tcp_rtx_queue"),
+        ] {
+            btf.field(t, f)?;
+        }
+        Ok(())
+    })();
+    checks.push(json!({"name":"resource_layout","passed":layout_check.is_ok(),
+        "detail":layout_check.err().map(|e|e.to_string()).unwrap_or_else(|| "Running-kernel BTF and required resource layout paths readable".into())}));
     // Use the acquisition source itself: opening kcore alone cannot establish
     // correct ELF/direct-map/symbol/iomem compatibility or usable capabilities.
     match Source::open() {

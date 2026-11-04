@@ -1,5 +1,7 @@
 # Release validation — 2026-10-17
 
+This is the historical v4 deployment record. Current v9 resource retention, limits and measured costs are documented in [resource retention](resource_retention.md); the old compatibility matrix does not qualify the new BTF paths.
+
 The supported Linux x86-64 deployment is qualified within [documented kernel/access/storage requirements](deployment.md). No universal Linux/cloud/LSM/network-filesystem claim is made.
 
 - Production static musl builds: PodDump 62 unit tests; KernelDump 40. No dynamic interpreter/shared-library dependency; development features absent. The distribution build helper reproduced the same executable hashes.

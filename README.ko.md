@@ -1,6 +1,6 @@
 # KernelDump
 
-[English](README.md) · [배포 조건](docs/deployment.md) · [측정 상세](docs/benchmark_summary.md)
+[English](README.md) · [배포 조건](docs/deployment.md) · [원본 대비 실측](docs/original_comparison.md) · [릴리즈 파일](docs/release_v9.md)
 
 `kerneldump`는 `/proc/kcore`와 `/proc/kpageflags`로 실행 중인 커널 메모리를 선별 수집합니다. 커널 모듈 설치나 프로세스 정지 없이 LiME 이미지, 주소·수집 범위 원장과 manifest를 만듭니다.
 
@@ -19,13 +19,12 @@ sudo ./kerneldump capture --output /evidence/new_collection
 
 kcore/page monitor를 제공하는 커널과 필수 인터페이스·가려지지 않은 심볼에 대한 읽기 권한이 필요합니다. kcore가 없는 환경은 지원하지 않으며 보안 설정을 자동 변경하지 않습니다. [필수 조건과 실패 처리](docs/deployment.md).
 
-Ubuntu 24.04.5에서 실행한 v0.1.1의 실제 출력입니다. JSON을 읽기 좋게 정렬하고 manifest 경로와 이미지 해시만 생략했습니다.
+현재 v9 배포본의 수집 출력 예시입니다. 핵심 항목만 표시했습니다. 수집 시간 비교는 아래 표를 따릅니다.
 
 ```json
 {
   "status": "complete_for_policy",
-  "payload_bytes": 715538432,
-  "elapsed_s": 2.418713536,
+  "payload_bytes": 656162816,
   "unavailable_bytes": 0,
   "unprocessed_bytes": 0,
   "errors": []
@@ -38,14 +37,63 @@ Ubuntu 24.04.5에서 실행한 v0.1.1의 실제 출력입니다. JSON을 읽기 
 {
   "verified": true,
   "status": "complete_for_policy",
-  "coverage_ranges": 14337,
-  "payload_bytes": 715538432
+  "coverage_ranges": 12300,
+  "payload_bytes": 656162816
 }
 ```
 
-[수집 stdout](docs/examples/capture.stdout) · [검증 stdout](docs/examples/verify.stdout).
+[수집 stdout](docs/examples/capture_v9.stdout) · [검증 stdout](docs/examples/verify_v9.stdout).
 
-## 검증한 환경
+## Pod 지정
+
+```sh
+sudo ./kerneldump capture --pod <전체_Pod_UID> --output /evidence/new_collection
+```
+
+분석 Pod를 지정하려면 `--pod`에 이름 대신 전체 Pod UID를 넣습니다. 생략하면 노드 전체에서 제한된 추가 수집을 수행합니다. 지정하면 코드·소켓·선택한 캐시의 **추가 탐색만** 해당 Pod로 좁힙니다. 기존 커널 관리 정보의 수집 범위는 유지합니다. 따라서 전체 덤프가 그 Pod의 자료만 담는 것은 아닙니다.
+
+현재 cgroup 경로, PID와 프로세스 시작 시간을 함께 확인합니다. Pod를 찾지 못하거나 호스트의 PID·cgroup 관점이 아니면 수집을 거부하며, 노드 전체 수집으로 바꾸지 않습니다. 수집 중 소속이나 실행 식별 정보가 바뀌면 불완전 수집으로 남깁니다. 이미 Pod cgroup을 떠난 프로세스의 과거 소속까지 찾지는 않습니다.
+
+## 실행 코드·통신·파일 캐시
+
+`kernel-focused-v9`은 별도 옵션 없이 다음 내용을 추가 보존합니다.
+
+- **실행 코드**: private 실행 영역의 익명 페이지. 파일 코드를 수정한 사본과 파일 없이 만든 실행 코드가 포함됩니다. 현재 쓰기 권한은 필요하지 않습니다. 정상 JIT도 포함되므로 수집 자체는 공격 판정이 아닙니다.
+- **통신 대기 내용**: 열린 파일에서 찾은 소켓의 수신·송신 큐, TCP 재전송·순서 외 수신 트리, UDP의 별도 읽기 대기 목록(`reader_queue`). 큐마다 최대 64KiB를 고르고, 여러 페이지의 조각과 `frag_list`도 따라갑니다. 과거의 전체 통신은 아닙니다.
+
+**Pod를 지정하면 일부 파일 캐시도 보완합니다.** 열린 작은 memfd·tmpfs 파일과 삭제 후 열린 일반 파일은 크기 64KiB 이하일 때 메모리에 남은 내용을 고릅니다. 수정 실행 코드에 대응하는 파일의 같은 위치도 찾습니다. 일반 파일 전체나 큰 파일의 임의 앞부분은 추가하지 않으며 디스크를 읽어 빠진 내용을 올리지 않습니다. 비교 캐시는 신뢰할 수 있는 최초 원본이 아닙니다.
+
+코드·네트워크·캐시는 중복을 제거한 후보 합계 **4,096페이지·추가 본문 최대 16MiB**, 탐색 1초를 공유합니다. 관리 구조체 페이지도 이 후보 한도를 씁니다. JSON 기록·수집기 메모리·기존 덤프 전체의 16MiB 제한은 아닙니다. 캐시는 코드·네트워크 뒤에 남은 예산만 쓰며, 관리 정보 포함 최대 256페이지·1MiB, 최대 128작업, 남은 공통 시간 중 최대 100ms·읽기 요청 4MiB로 제한합니다. 내부 한도와 누락을 기록합니다. 수집 종류를 고르는 모드는 추가하지 않습니다.
+
+네트워크의 구조체 크기와 필드 위치는 실행 커널의 `/sys/kernel/btf/vmlinux`에서 읽습니다. 별도 ISF는 수집기에 필요하지 않습니다. Pod를 지정하면 그 Pod의 스레드별 FD 표도 확인합니다. 지정하지 않으면 대표 task의 FD 경로를 사용합니다. 전역 소켓 표는 훑지 않습니다. 선택한 코드 주소만 Maple Tree에서 조회하고, 필요한 파일 위치만 XArray에서 찾습니다. 이 경로는 Ubuntu 6.8 VM에서 검증했으며 다른 커널 전체의 호환성을 뜻하지 않습니다.
+
+읽기 전후 확인한 참조가 달라지거나 전체 한도로 후보를 놓치면 `partial`입니다. 큐별 64KiB 제한은 수집 정책의 범위로 따로 기록합니다. 큰 실행 영역이 있으면 중요한 코드 페이지도 빠질 수 있습니다. 같은 값의 전후 관측이나 `complete_for_policy`가 모든 증거·동일 시점을 보장하지는 않습니다. 자세한 판단과 실측은 [수집 범위와 비용](docs/resource_retention.md)을 따릅니다.
+
+## 원본 대비 수집 시간과 덤프 크기
+
+익명 실행 페이지·네트워크·캐시의 추가 탐색이 없던 **v4**와 현재 **v9**를 같은 VM·같은 시험 자료·같은 저장소에서 비교했습니다. 구성별 3회 중앙값이며, 덤프 크기는 압축 전 LiME 파일 전체입니다.
+
+| 항목 | 원본 v4 | 현재 v9 · Pod 미지정 | 현재 v9 · Pod 지정 |
+|---|---:|---:|---:|
+| 수집 시간 | 10.11 s | 9.88 s | 9.72 s |
+| 최종 LiME 파일 | 617.64 MiB | 615.01 MiB | 621.64 MiB |
+| 원장·manifest 포함 | 622.97 MiB | 620.28 MiB | 626.58 MiB |
+| CPU 시간 합 | 9.06 s | 9.90 s | 9.25 s |
+| 최대 수집기 메모리 | 11.00 MiB | 11.25 MiB | 11.38 MiB |
+| 기존 필터에 더한 본문 | 0.00 KiB | 8.00 KiB | 28.00 KiB |
+| 수집 상태 | 완료 3/3 | partial 3/3 | 완료 3/3 |
+
+Pod 지정 기준으로 **수집 시간은 10.11초 → 9.72초(-0.39초), 최종 덤프는 617.64MiB → 621.64MiB(+4.01MiB)**였습니다. 시간 범위는 원본 9.14~10.43초, Pod 지정 9.46~9.85초로 겹치므로 빨라졌다고 단정하지 않습니다.
+
+전체 덤프 증가분을 모두 새 기능의 비용으로 해석하면 안 됩니다. 실행 중인 커널 상태가 달라지는 영향도 섞여 있습니다. 같은 수집에서 기존 필터에 실제로 더한 본문은 Pod 지정 시 **28KiB**, 미지정 시 **8KiB**였습니다. Pod 미지정 3회는 노드의 일부 통신 참조가 읽기 전후에 달라져 `partial`로 기록됐습니다. 9회 모두 저장 파일의 무결성 검증은 통과했으며, 무결성 통과와 참조의 일관성은 별개입니다.
+
+종료 전 VM 노드에는 디스크 공간 경고(`DiskPressure`)가 있었습니다. 실행 중인 Pod와 재시작 횟수는 유지됐지만 서비스 지연은 측정하지 않았습니다.
+
+[조건·한계·실행별 수치](docs/original_comparison.md).
+
+## 과거 릴리즈 검증 환경
+
+아래 검증은 추가 수집 이전 v4의 기록입니다. 새 BTF·자원 탐색의 호환성 검증으로 확대하지 않습니다.
 
 아래 환경에 동일한 x86-64 릴리즈 바이너리를 사용했습니다.
 
@@ -109,10 +157,10 @@ Volatility **2.28.0**, Debian 12 / Linux **6.1.0-53**, 일치하는 DWARF 심볼
 ```sh
 ./kerneldump --version
 ./kerneldump --build-info
-# 빌드 호스트에만 Rust 1.90.0 + x86_64-unknown-linux-musl 타깃 필요
+# 현재 배포본 빌드: Rust 1.93.0 + x86_64-unknown-linux-musl 타깃
 python3 scripts/build_release.py
 ```
 
-버전 **0.1.1**. `release/kerneldump`와 선택적인 해시 증적을 만듭니다. 빌드 정보에는 소스 해시와 실제 실행 파일의 해시가 기록됩니다. [릴리즈 검증](docs/release_validation.md) · [이전 문서](docs/history_readme_20261017_ko.md).
+버전 **0.1.1**. `release/kerneldump`, `release/manifest.json`, `release/SHA256SUMS.txt`를 만듭니다. 빌드 정보에는 소스 해시와 실제 실행 파일의 해시가 기록됩니다. [릴리즈 검증](docs/release_validation.md) · [이전 문서](docs/history_readme_20261017_ko.md).
 
 MIT 라이선스이며, vendored 의존성은 각 라이선스를 유지합니다.

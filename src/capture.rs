@@ -40,12 +40,14 @@ struct ReadStats {
     queue_wait_ns: u64,
     payload_bytes: u64,
     source_io: Value,
+    code_retention: Value,
+    resource_retention: Value,
     error: Option<Value>,
 }
 impl ReadStats {
     fn json(&self) -> Value {
         json!({"begin_ns":self.begin,"end_ns":self.end,"chunks":self.chunks,"ranges":self.ranges,"flags_read_ns":self.flags_ns,"pfn_select_ns":self.select_ns,
-    "address_resolve_ns":self.address_ns,"buffer_allocate_zero_ns":self.allocate_ns,"kcore_read_ns":self.read_ns,"payload_hash_ns":self.hash_ns,"flags_hash_ns":self.flags_hash_ns,"queue_wait_ns":self.queue_wait_ns,"payload_bytes":self.payload_bytes,"source_io":self.source_io})
+    "address_resolve_ns":self.address_ns,"buffer_allocate_zero_ns":self.allocate_ns,"kcore_read_ns":self.read_ns,"payload_hash_ns":self.hash_ns,"flags_hash_ns":self.flags_hash_ns,"queue_wait_ns":self.queue_wait_ns,"payload_bytes":self.payload_bytes,"source_io":self.source_io,"code_page_retention":self.code_retention,"resource_retention":self.resource_retention})
     }
 }
 fn cancelled(local: &AtomicBool) -> bool {
@@ -157,8 +159,21 @@ fn produce<S: Memory>(
                     }
                     let prefix = ((at - context_begin) / PAGE) as usize;
                     let flags = &context_flags[prefix..prefix + ((stop - at) / PAGE) as usize];
+                    let code_pages = source.code_pages(at, stop);
+                    let resource_pages = source.resource_pages(at, stop);
                     let select = |i: usize, policy| {
-                        classify_with_neighbors(&context_flags, i + prefix, policy)
+                        let status = classify_with_neighbors(&context_flags, i + prefix, policy);
+                        let pa = at + i as u64 * PAGE;
+                        if status == "policy_excluded"
+                            && ((code_pages.binary_search(&pa).is_ok()
+                                && flags[i] & (1 << 12) != 0)
+                                || (resource_pages.binary_search(&pa).is_ok()
+                                    && flags[i] & (UNSAFE | (1 << 10)) == 0))
+                        {
+                            "selected"
+                        } else {
+                            status
+                        }
                     };
                     let mut i = 0;
                     while i < flags.len() && !cancelled(&local) {
@@ -221,6 +236,43 @@ fn produce<S: Memory>(
                         }
                         let mut body = Vec::new();
                         if status == "selected" {
+                            if resource_pages
+                                .iter()
+                                .any(|&pa| address <= pa && pa < address + size as u64)
+                            {
+                                meta["resource_pages_before"] =
+                                    source.resource_witness(address, address + size as u64, false);
+                            }
+                            meta["additional_retained_bytes"] = json!(
+                                (i..j)
+                                    .filter(|&k| classify_with_neighbors(
+                                        &context_flags,
+                                        k + prefix,
+                                        scope
+                                    ) == "policy_excluded")
+                                    .count() as u64
+                                    * PAGE
+                            );
+                            if code_pages
+                                .iter()
+                                .any(|&pa| address <= pa && pa < address + size as u64)
+                            {
+                                meta["code_pages_before"] =
+                                    source.code_witness(address, address + size as u64, false);
+                                meta["additional_code_bytes"] = json!(
+                                    (i..j)
+                                        .filter(|&k| classify_with_neighbors(
+                                            &context_flags,
+                                            k + prefix,
+                                            scope
+                                        ) == "policy_excluded"
+                                            && code_pages
+                                                .binary_search(&(at + k as u64 * PAGE))
+                                                .is_ok())
+                                        .count() as u64
+                                        * PAGE
+                                );
+                            }
                             let t = now();
                             body = vec![0; size];
                             stats.allocate_ns += now() - t;
@@ -231,6 +283,14 @@ fn produce<S: Memory>(
                             meta["read_end_ns"] = json!(end);
                             stats.read_ns += end - t;
                             read_result?;
+                            if meta.get("code_pages_before").is_some() {
+                                meta["code_pages_after"] =
+                                    source.code_witness(address, address + size as u64, true);
+                            }
+                            if meta.get("resource_pages_before").is_some() {
+                                meta["resource_pages_after"] =
+                                    source.resource_witness(address, address + size as u64, true);
+                            }
                             let t = now();
                             meta["sha256"] = json!(sha(&body));
                             stats.hash_ns += now() - t;
@@ -263,6 +323,18 @@ fn produce<S: Memory>(
     }
     stats.end = now();
     stats.source_io = source.io_stats();
+    stats.code_retention = source.finish_code_pages();
+    stats.resource_retention = source.finish_resources();
+    if stats.code_retention["complete"] == false && stats.error.is_none() {
+        stats.error = Some(
+            json!({"stage":"code_page_retention","error":"Code-page scan or reference validation incomplete; see read_stages.code_page_retention"}),
+        );
+    }
+    if stats.resource_retention["complete"] == false && stats.error.is_none() {
+        stats.error = Some(
+            json!({"stage":"resource_retention","error":"Resource discovery, budget allocation or reference validation incomplete; see read_stages.resource_retention"}),
+        );
+    }
     stats
 }
 
@@ -274,7 +346,7 @@ fn new_file(path: &Path) -> std::io::Result<File> {
         .open(path)
 }
 pub fn acquire<S: Memory + 'static>(
-    source: S,
+    mut source: S,
     output: &Path,
     scope: Scope,
     chunk: usize,
@@ -300,7 +372,6 @@ pub fn acquire<S: Memory + 'static>(
         .iter()
         .try_fold(0u64, |sum, (a, b)| sum.checked_add(b.checked_sub(*a)?))
         .ok_or("RAM size overflow")?;
-    let info = source.info();
     let parent = output
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
@@ -311,11 +382,13 @@ pub fn acquire<S: Memory + 'static>(
     let pinned_output = output_guard.path();
     let output = pinned_output.as_path();
     let started = now();
+    source.prepare(scope);
+    let info = source.info();
     let mut m = json!({"schema":2,"tool":"kerneldump","implementation":"rust","version":env!("CARGO_PKG_VERSION"),"scope":scope.name(),"atomic":false,"strict_kernel_only":false,
         "build_provenance":crate::build_info::current(),
         "status":"in_progress","source":info,"ram_ranges":ram,"expected_ram_bytes":expected,"start_ns":started,
         "wall_start_unix_ns":SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos(),"timebase":"CLOCK_MONOTONIC ns","chunk_bytes":chunk,"queue_depth":depth,
-        "payload_buffer_bound_bytes":(depth+2)*chunk,"filter":{"policy":"kernel-focused-v4","unsafe_mask":UNSAFE,"retain_mask":KEEP,"exclude_mask":EXCLUDE,"slab_neighbor_pages_retained":1,"exclusion_basis":"LRU, BUDDY, MMAP, ANON, SWAPCACHE, SWAPBACKED, KSM, THP and ZERO_PAGE are excluded unless SLAB/PGTABLE is set. Unsafe flags always exclude.","retained":"SLAB, PGTABLE and unclassified pages are retained. Immediate boundary neighbors of SLAB/PGTABLE pages are retained to prevent multi-page kernel structure (e.g. task_struct = 10,496 bytes) truncation, unless UNSAFE."},"errors":[],
+        "payload_buffer_bound_bytes":(depth+2)*chunk,"filter":{"policy":"kernel-focused-v9","unsafe_mask":UNSAFE,"retain_mask":KEEP,"exclude_mask":EXCLUDE,"slab_neighbor_pages_retained":1,"exclusion_basis":"LRU, BUDDY, MMAP, ANON, SWAPCACHE, SWAPBACKED, KSM, THP and ZERO_PAGE are excluded except retained kernel neighbors and bounded executable anonymous, referenced queue and Pod file-cache candidates. Unsafe flags always exclude.","retained":"SLAB, PGTABLE, unclassified pages and immediate SLAB/PGTABLE neighbors; additionally present anonymous pages of private executable mappings, including file COW and fileless/JIT code discovered through proc. Also bounded socket queue bytes through running-kernel BTF; Pod-only bounded resident small shmem/unlinked files and cache pages corresponding to executable COW pages, after code/network discovery. Optional Pod scope applies only to these additions, not the base kernel filter. See source.pod_scope and source.shared_retention_budget, source.resource_retention and ledger references."},"errors":[],
         "limitations":["Non-atomic live acquisition: flags, addresses and payload are observed at different times.","Kernel-focused filtering can omit kernel-relevant information and retain user/residual bytes.",
         "kcore can return internally zero-filled bytes; read success is not proof of physical-byte availability.","Unsafe/unmapped PFNs are explicit omissions and prevent complete status.",
         "Cancellation is cooperative; a kernel I/O syscall can block beyond the request.","Payload budget excludes metadata, allocator overhead and OS page cache.","Matching symbols and successful plugins do not prove complete forensic coverage.",

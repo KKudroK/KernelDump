@@ -1,0 +1,446 @@
+{
+  "baseline": "kernel-focused-v4 before executable anonymous/socket/cache additions",
+  "current": "kernel-focused-v9",
+  "current_sha256": "b16a6ad7419f3e6bc2e7871a2362a9e849af1a3129b72458fb1a6018b4fa2fe0",
+  "baseline_sha256": "61b6f7cc5930b4ff0001b12ddda34e3c9f5e9372e18d20765e335caa0f8bdded",
+  "method": {
+    "runs_per_configuration": 3,
+    "order": [
+      "original",
+      "unscoped",
+      "pod",
+      "pod",
+      "original",
+      "unscoped",
+      "unscoped",
+      "pod",
+      "original"
+    ],
+    "kernel": "6.8.0-147-generic",
+    "vm_ram_mib": 9216,
+    "vcpus": 4,
+    "filesystem": "/mnt/data ext4",
+    "compiler": "Rust 1.93.0; x86_64-unknown-linux-musl; no development features",
+    "fixture": "one persistent Pod; executable file COW, FD-only memfd, unlinked file, ordinary and large negative files, unread TCP bytes",
+    "timing": "GNU time capture command, including persistence; verify/hashing excluded; no builds or evidence transfers during timing",
+    "image": "actual uncompressed LiME file size, including headers",
+    "collection": "LiME + ranges.jsonl + manifest.json only",
+    "baseline_source": {
+      "files": {
+        ".cargo/config.toml": true,
+        "Cargo.lock": true,
+        "Cargo.toml": false,
+        "build.rs": true,
+        "src/build_info.rs": true,
+        "src/capture.rs": true,
+        "src/main.rs": true,
+        "src/safe_output.rs": true,
+        "src/source.rs": true,
+        "src/tests.rs": true,
+        "src/verify.rs": false
+      },
+      "scope": "capture/main/source/safe_output match original HEAD; Cargo feature declaration and standalone verifier differ; both executables are Rust 1.93.0 static musl without enabled features"
+    },
+    "node_health": {
+      "postflight_node_conditions": {
+        "NetworkUnavailable": "False",
+        "MemoryPressure": "False",
+        "DiskPressure": "True",
+        "PIDPressure": "False",
+        "Ready": "True"
+      },
+      "running_pods_unchanged": 11,
+      "service_latency_measured": false,
+      "note": "DiskPressure was observed at postflight; its onset and timing effect were not measured."
+    }
+  },
+  "summary": {
+    "original": {
+      "wall_s": {
+        "median": 10.11,
+        "range": [
+          9.14,
+          10.43
+        ]
+      },
+      "cpu_s": {
+        "median": 9.06,
+        "range": [
+          8.62,
+          10.969999999999999
+        ]
+      },
+      "rss_kib": {
+        "median": 11264,
+        "range": [
+          11264,
+          11392
+        ]
+      },
+      "image_bytes": {
+        "median": 647639392,
+        "range": [
+          640057632,
+          674278272
+        ]
+      },
+      "collection_bytes": {
+        "median": 653230069,
+        "range": [
+          645193304,
+          680542897
+        ]
+      },
+      "extra_bytes": {
+        "median": 0,
+        "range": [
+          0,
+          0
+        ]
+      }
+    },
+    "unscoped": {
+      "wall_s": {
+        "median": 9.88,
+        "range": [
+          9.56,
+          9.9
+        ]
+      },
+      "cpu_s": {
+        "median": 9.9,
+        "range": [
+          8.2,
+          10.299999999999999
+        ]
+      },
+      "rss_kib": {
+        "median": 11520,
+        "range": [
+          11520,
+          11520
+        ]
+      },
+      "image_bytes": {
+        "median": 644884736,
+        "range": [
+          639331264,
+          650142112
+        ]
+      },
+      "collection_bytes": {
+        "median": 650412625,
+        "range": [
+          644465128,
+          655577741
+        ]
+      },
+      "extra_bytes": {
+        "median": 8192,
+        "range": [
+          8192,
+          8192
+        ]
+      }
+    },
+    "pod": {
+      "wall_s": {
+        "median": 9.72,
+        "range": [
+          9.46,
+          9.85
+        ]
+      },
+      "cpu_s": {
+        "median": 9.25,
+        "range": [
+          8.77,
+          9.79
+        ]
+      },
+      "rss_kib": {
+        "median": 11648,
+        "range": [
+          11648,
+          11776
+        ]
+      },
+      "image_bytes": {
+        "median": 651840672,
+        "range": [
+          642845088,
+          656232672
+        ]
+      },
+      "collection_bytes": {
+        "median": 657019051,
+        "range": [
+          648036759,
+          661829240
+        ]
+      },
+      "extra_bytes": {
+        "median": 28672,
+        "range": [
+          28672,
+          28672
+        ]
+      }
+    }
+  },
+  "runs": [
+    {
+      "run": "00_original",
+      "mode": "original",
+      "policy": "kernel-focused-v4",
+      "binary_sha256": "61b6f7cc5930b4ff0001b12ddda34e3c9f5e9372e18d20765e335caa0f8bdded",
+      "wall_s": 10.11,
+      "cpu_s": 10.969999999999999,
+      "rss_kib": 11264,
+      "image_bytes": 674278272,
+      "payload_bytes": 674168832,
+      "collection_bytes": 680542897,
+      "extra_bytes": 0,
+      "status": "complete_for_policy",
+      "image_sha256": "16702696749a29c3040e51d3390e8b6cdc784c941622cc26777b72106f2e1ff7",
+      "issues": {}
+    },
+    {
+      "run": "01_unscoped",
+      "mode": "unscoped",
+      "policy": "kernel-focused-v9",
+      "binary_sha256": "b16a6ad7419f3e6bc2e7871a2362a9e849af1a3129b72458fb1a6018b4fa2fe0",
+      "wall_s": 9.56,
+      "cpu_s": 10.299999999999999,
+      "rss_kib": 11520,
+      "image_bytes": 639331264,
+      "payload_bytes": 639275008,
+      "collection_bytes": 644465128,
+      "extra_bytes": 8192,
+      "status": "partial",
+      "image_sha256": "01c12d0943ac97f9f52645fcd79507ded121890f79d943c6350a73de13f9c295",
+      "issues": {
+        "code_page_retention": [],
+        "resource_retention": [
+          {
+            "error": "network evidence 7",
+            "stage": "reference_changed"
+          },
+          {
+            "error": "network evidence 7",
+            "stage": "reference_changed"
+          }
+        ]
+      }
+    },
+    {
+      "run": "02_pod",
+      "mode": "pod",
+      "policy": "kernel-focused-v9",
+      "binary_sha256": "b16a6ad7419f3e6bc2e7871a2362a9e849af1a3129b72458fb1a6018b4fa2fe0",
+      "wall_s": 9.85,
+      "cpu_s": 9.79,
+      "rss_kib": 11776,
+      "image_bytes": 651840672,
+      "payload_bytes": 651784192,
+      "collection_bytes": 657019051,
+      "extra_bytes": 28672,
+      "status": "complete_for_policy",
+      "image_sha256": "c2c11b8523c0a083612bdc3696ad7fd68fa4264881078d0400547eb671b10499",
+      "issues": {
+        "code_page_retention": [],
+        "resource_retention": []
+      }
+    },
+    {
+      "run": "03_pod",
+      "mode": "pod",
+      "policy": "kernel-focused-v9",
+      "binary_sha256": "b16a6ad7419f3e6bc2e7871a2362a9e849af1a3129b72458fb1a6018b4fa2fe0",
+      "wall_s": 9.46,
+      "cpu_s": 8.77,
+      "rss_kib": 11648,
+      "image_bytes": 642845088,
+      "payload_bytes": 642789376,
+      "collection_bytes": 648036759,
+      "extra_bytes": 28672,
+      "status": "complete_for_policy",
+      "image_sha256": "dfa58fbad4dc0bffdaf0640a4f5f962939dd4fd7d8b2fecb42ffd2fc329421c8",
+      "issues": {
+        "code_page_retention": [],
+        "resource_retention": []
+      }
+    },
+    {
+      "run": "04_original",
+      "mode": "original",
+      "policy": "kernel-focused-v4",
+      "binary_sha256": "61b6f7cc5930b4ff0001b12ddda34e3c9f5e9372e18d20765e335caa0f8bdded",
+      "wall_s": 9.14,
+      "cpu_s": 8.62,
+      "rss_kib": 11392,
+      "image_bytes": 640057632,
+      "payload_bytes": 640000000,
+      "collection_bytes": 645193304,
+      "extra_bytes": 0,
+      "status": "complete_for_policy",
+      "image_sha256": "228e38450b0ddb3d9f0509f5e5ef8b61e6fef5fb87e25189ce802aaa91fc82ed",
+      "issues": {}
+    },
+    {
+      "run": "05_unscoped",
+      "mode": "unscoped",
+      "policy": "kernel-focused-v9",
+      "binary_sha256": "b16a6ad7419f3e6bc2e7871a2362a9e849af1a3129b72458fb1a6018b4fa2fe0",
+      "wall_s": 9.9,
+      "cpu_s": 8.2,
+      "rss_kib": 11520,
+      "image_bytes": 650142112,
+      "payload_bytes": 650076160,
+      "collection_bytes": 655577741,
+      "extra_bytes": 8192,
+      "status": "partial",
+      "image_sha256": "b0b1cdf0f1098e8803686101e8695218ba12a77a5e8aca35dd39c9b73a74ab39",
+      "issues": {
+        "code_page_retention": [],
+        "resource_retention": [
+          {
+            "error": "network evidence 9",
+            "stage": "reference_changed"
+          },
+          {
+            "error": "network evidence 9",
+            "stage": "reference_changed"
+          }
+        ]
+      }
+    },
+    {
+      "run": "06_unscoped",
+      "mode": "unscoped",
+      "policy": "kernel-focused-v9",
+      "binary_sha256": "b16a6ad7419f3e6bc2e7871a2362a9e849af1a3129b72458fb1a6018b4fa2fe0",
+      "wall_s": 9.88,
+      "cpu_s": 9.9,
+      "rss_kib": 11520,
+      "image_bytes": 644884736,
+      "payload_bytes": 644816896,
+      "collection_bytes": 650412625,
+      "extra_bytes": 8192,
+      "status": "partial",
+      "image_sha256": "442a2b933f52f05392fa8136a2cf2e76cc10dafc6b937cc1427e16210b40edc6",
+      "issues": {
+        "code_page_retention": [],
+        "resource_retention": [
+          {
+            "error": "network evidence 27",
+            "stage": "reference_changed"
+          },
+          {
+            "error": "network evidence 27",
+            "stage": "reference_changed"
+          },
+          {
+            "error": "network evidence 17",
+            "stage": "reference_changed"
+          },
+          {
+            "error": "network evidence 17",
+            "stage": "reference_changed"
+          }
+        ]
+      }
+    },
+    {
+      "run": "07_pod",
+      "mode": "pod",
+      "policy": "kernel-focused-v9",
+      "binary_sha256": "b16a6ad7419f3e6bc2e7871a2362a9e849af1a3129b72458fb1a6018b4fa2fe0",
+      "wall_s": 9.72,
+      "cpu_s": 9.25,
+      "rss_kib": 11648,
+      "image_bytes": 656232672,
+      "payload_bytes": 656162816,
+      "collection_bytes": 661829240,
+      "extra_bytes": 28672,
+      "status": "complete_for_policy",
+      "image_sha256": "c9e8546ec40822a2f172538ce4f344cc113441cacb60c6bf32e91f3ce274a60c",
+      "issues": {
+        "code_page_retention": [],
+        "resource_retention": []
+      }
+    },
+    {
+      "run": "08_original",
+      "mode": "original",
+      "policy": "kernel-focused-v4",
+      "binary_sha256": "61b6f7cc5930b4ff0001b12ddda34e3c9f5e9372e18d20765e335caa0f8bdded",
+      "wall_s": 10.43,
+      "cpu_s": 9.06,
+      "rss_kib": 11264,
+      "image_bytes": 647639392,
+      "payload_bytes": 647565312,
+      "collection_bytes": 653230069,
+      "extra_bytes": 0,
+      "status": "complete_for_policy",
+      "image_sha256": "8aef9615a11db32381fe9d5a2db686ed95f30dff4606714f7081a1112f5b481c",
+      "issues": {}
+    }
+  ],
+  "conclusion": "Differences of sequential live dumps include changing kernel state. Exact added payload relative to the original filter is separate. Ranges overlap; this does not establish a speed improvement.",
+  "verification": {
+    "all_nine_images": true,
+    "metadata_files": 81,
+    "postflight": {
+      "previous_running_pods": 11,
+      "changes": [],
+      "nodes": [
+        {
+          "name": "kkudrok-node",
+          "conditions": [
+            {
+              "lastHeartbeatTime": "2026-10-20T05:27:15Z",
+              "lastTransitionTime": "2026-10-20T05:27:15Z",
+              "message": "Cilium is running on this node",
+              "reason": "CiliumIsUp",
+              "status": "False",
+              "type": "NetworkUnavailable"
+            },
+            {
+              "lastHeartbeatTime": "2026-11-03T23:41:18Z",
+              "lastTransitionTime": "2026-10-10T14:15:35Z",
+              "message": "kubelet has sufficient memory available",
+              "reason": "KubeletHasSufficientMemory",
+              "status": "False",
+              "type": "MemoryPressure"
+            },
+            {
+              "lastHeartbeatTime": "2026-11-03T23:41:18Z",
+              "lastTransitionTime": "2026-11-03T23:41:18Z",
+              "message": "kubelet has disk pressure",
+              "reason": "KubeletHasDiskPressure",
+              "status": "True",
+              "type": "DiskPressure"
+            },
+            {
+              "lastHeartbeatTime": "2026-11-03T23:41:18Z",
+              "lastTransitionTime": "2026-10-10T14:15:35Z",
+              "message": "kubelet has sufficient PID available",
+              "reason": "KubeletHasSufficientPID",
+              "status": "False",
+              "type": "PIDPressure"
+            },
+            {
+              "lastHeartbeatTime": "2026-11-03T23:41:18Z",
+              "lastTransitionTime": "2026-10-10T14:16:38Z",
+              "message": "kubelet is posting ready status",
+              "reason": "KubeletReady",
+              "status": "True",
+              "type": "Ready"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

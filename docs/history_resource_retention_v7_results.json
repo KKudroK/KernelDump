@@ -1,0 +1,1407 @@
+{
+  "policy": "kernel-focused-v7",
+  "comparison": "v6 code+network+cache versus v7 code+network",
+  "kernel": "6.8.0-147-generic",
+  "ram_gib": 9,
+  "vcpus": 4,
+  "unit_tests": 53,
+  "groups": {
+    "before": {
+      "measured_wall_s": {
+        "median": 3.645667827,
+        "min": 3.472284741,
+        "max": 4.605435234
+      },
+      "cpu_s": {
+        "median": 3.25,
+        "min": 3.0700000000000003,
+        "max": 5.73
+      },
+      "rss_mib": {
+        "median": 20.91015625,
+        "min": 20.78515625,
+        "max": 21.03515625
+      },
+      "additional_payload_bytes": {
+        "median": 5312512,
+        "min": 5312512,
+        "max": 5312512
+      },
+      "ledger_mib": {
+        "median": 9.80001449584961,
+        "min": 9.66598892211914,
+        "max": 10.029946327209473
+      },
+      "scan_ms": {
+        "median": 128.531629,
+        "min": 127.613418,
+        "max": 135.263446
+      },
+      "resource_validation_ms": {
+        "median": 79.964341,
+        "min": 70.873299,
+        "max": 109.073775
+      },
+      "resource_discovery_requested_bytes": {
+        "median": 579943,
+        "min": 578789,
+        "max": 580105
+      },
+      "http_active_p95_ms": {
+        "median": 2.303211,
+        "min": 2.186269,
+        "max": 2.414836
+      },
+      "http_active_p99_ms": {
+        "median": 3.955074,
+        "min": 2.811291,
+        "max": 5.918207
+      },
+      "payload_sync_s": {
+        "median": 1.796376218,
+        "min": 0.865526963,
+        "max": 1.884321754
+      },
+      "http_errors": 0
+    },
+    "after": {
+      "measured_wall_s": {
+        "median": 3.740646233,
+        "min": 2.872388972,
+        "max": 3.771798417
+      },
+      "cpu_s": {
+        "median": 2.6100000000000003,
+        "min": 2.58,
+        "max": 2.64
+      },
+      "rss_mib": {
+        "median": 11.25,
+        "min": 11.15625,
+        "max": 11.375
+      },
+      "additional_payload_bytes": {
+        "median": 335872,
+        "min": 335872,
+        "max": 335872
+      },
+      "ledger_mib": {
+        "median": 4.7971343994140625,
+        "min": 4.724132537841797,
+        "max": 4.921734809875488
+      },
+      "scan_ms": {
+        "median": 46.168559,
+        "min": 44.297217,
+        "max": 46.37855
+      },
+      "resource_validation_ms": {
+        "median": 1.669548,
+        "min": 1.644492,
+        "max": 2.034285
+      },
+      "resource_discovery_requested_bytes": {
+        "median": 79982,
+        "min": 79982,
+        "max": 80296
+      },
+      "http_active_p95_ms": {
+        "median": 2.142742,
+        "min": 2.088205,
+        "max": 2.335449
+      },
+      "http_active_p99_ms": {
+        "median": 3.171991,
+        "min": 2.830826,
+        "max": 3.184362
+      },
+      "payload_sync_s": {
+        "median": 2.363453509,
+        "min": 1.507270322,
+        "max": 2.379279421
+      },
+      "http_errors": 0
+    }
+  },
+  "runs": [
+    {
+      "label": "budget_after_01",
+      "binary_sha256": "e3ea35872ca5649c8c815cb4a273a4cd61dfbd94affefc1eccbf5961fd1456c2",
+      "exit_code": 2,
+      "wall_s": 3.3,
+      "user_s": 0.97,
+      "system_s": 2.44,
+      "max_rss_kib": 12948,
+      "input_blocks": 0,
+      "output_blocks": 1393832,
+      "measured_wall_s": 3.303524055,
+      "manifest_status": "partial",
+      "manifest_elapsed_s": 3.188097199,
+      "payload_bytes": 705953792,
+      "ledger_bytes": 7575650,
+      "http_active_samples": 151,
+      "http_active_p50_ms": 1.428292,
+      "http_active_p95_ms": 2.273711,
+      "http_active_p99_ms": 3.423735,
+      "http_idle_p95_ms": 1.801042,
+      "http_errors": 0,
+      "proof": {
+        "coverage": {
+          "code": {
+            "pages": 32,
+            "collected": 0,
+            "matching": 0,
+            "stable": true
+          },
+          "fileless": {
+            "pages": 8192,
+            "collected": 3981,
+            "matching": 3981,
+            "stable": true
+          },
+          "memfd": {
+            "pages": 16,
+            "collected": 0,
+            "matching": 0,
+            "stable": true
+          },
+          "cache": {
+            "pages": 4,
+            "collected": 0,
+            "matching": 0,
+            "stable": true
+          }
+        },
+        "network_proof": {
+          "available_bytes": 65630,
+          "matching_bytes": 65630,
+          "missing_bytes": 61440,
+          "mismatching_bytes": 0,
+          "errors": [],
+          "unique_matching_stream_bytes": 65630
+        },
+        "udp_matching_4096_bytes": true,
+        "udp_referenced_bytes": 4096,
+        "reference_proof": [
+          {
+            "kind": "UDP",
+            "offset": 0,
+            "bytes": 4052,
+            "matching": null,
+            "hex_prefix": "5544505f504147455f30303030303030307c414141414141"
+          },
+          {
+            "kind": "UDP",
+            "offset": 4052,
+            "bytes": 44,
+            "matching": null,
+            "hex_prefix": "414141414141414141414141414141414141414141414141"
+          }
+        ],
+        "fixture_references_unchanged": true,
+        "fixture_reference_count": 50,
+        "queue_referenced_bytes": {
+          "18446616122533989504:sk_receive_queue": 4096,
+          "18446616122391342656:sk_receive_queue": 65536,
+          "18446616122391352128:sk_write_queue": 65536
+        },
+        "additional_payload_bytes": 16445440,
+        "candidate_category_pages": {
+          "network": 114
+        },
+        "analysis_complete": {
+          "code": false,
+          "network_preview": false
+        },
+        "analysis_errors": {
+          "code": 32,
+          "network_preview": 7
+        }
+      },
+      "cpu_s": 3.41,
+      "rss_mib": 12.64453125,
+      "additional_payload_bytes": 16445440,
+      "ledger_mib": 7.224702835083008,
+      "scan_ms": 58.523819,
+      "resource_validation_ms": 2.572366,
+      "payload_sync_s": 1.466516289,
+      "resource_discovery_requested_bytes": 77799,
+      "shared_budget": {
+        "allocation": "round-robin code/network, deduplicate physical pages, borrow unused shares",
+        "candidate_pages": 4210,
+        "discovery_begin_ns": 345410370638,
+        "discovery_end_ns": 345468894457,
+        "discovery_limit_ns": 1000000000,
+        "max_additional_payload_bytes": 16777216,
+        "max_candidate_pages": 4096,
+        "scope": "BTF resource and proc code discovery share one deadline; active kernel calls are cooperative",
+        "selected_candidate_pages": 4096,
+        "unselected_candidate_pages": 114
+      },
+      "source_policy": "kernel-focused-v7"
+    },
+    {
+      "label": "large_after_01",
+      "binary_sha256": "e3ea35872ca5649c8c815cb4a273a4cd61dfbd94affefc1eccbf5961fd1456c2",
+      "exit_code": 0,
+      "wall_s": 2.86,
+      "user_s": 0.76,
+      "system_s": 1.85,
+      "max_rss_kib": 11648,
+      "input_blocks": 0,
+      "output_blocks": 1231088,
+      "measured_wall_s": 2.872388972,
+      "manifest_status": "complete_for_policy",
+      "manifest_elapsed_s": 2.756701722,
+      "payload_bytes": 625283072,
+      "ledger_bytes": 4953612,
+      "http_active_samples": 132,
+      "http_active_p50_ms": 1.347284,
+      "http_active_p95_ms": 2.088205,
+      "http_active_p99_ms": 2.830826,
+      "http_idle_p95_ms": 1.829136,
+      "http_errors": 0,
+      "proof": {
+        "coverage": {
+          "code": {
+            "pages": 32,
+            "collected": 32,
+            "matching": 32,
+            "stable": true
+          },
+          "fileless": {
+            "pages": 16,
+            "collected": 16,
+            "matching": 16,
+            "stable": true
+          },
+          "memfd": {
+            "pages": 16,
+            "collected": 0,
+            "matching": 0,
+            "stable": true
+          },
+          "cache": {
+            "pages": 4,
+            "collected": 0,
+            "matching": 0,
+            "stable": true
+          }
+        },
+        "network_proof": {
+          "available_bytes": 65630,
+          "matching_bytes": 65630,
+          "missing_bytes": 61440,
+          "mismatching_bytes": 0,
+          "errors": [],
+          "unique_matching_stream_bytes": 65630
+        },
+        "udp_matching_4096_bytes": true,
+        "udp_referenced_bytes": 4096,
+        "reference_proof": [
+          {
+            "kind": "UDP",
+            "offset": 0,
+            "bytes": 4052,
+            "matching": null,
+            "hex_prefix": "5544505f504147455f30303030303030307c414141414141"
+          },
+          {
+            "kind": "UDP",
+            "offset": 4052,
+            "bytes": 44,
+            "matching": null,
+            "hex_prefix": "414141414141414141414141414141414141414141414141"
+          }
+        ],
+        "fixture_references_unchanged": true,
+        "fixture_reference_count": 51,
+        "queue_referenced_bytes": {
+          "18446616122537021952:sk_receive_queue": 4096,
+          "18446616125005114944:sk_write_queue": 65536,
+          "18446616125005110208:sk_receive_queue": 65536
+        },
+        "additional_payload_bytes": 335872,
+        "candidate_category_pages": {
+          "network": 63
+        },
+        "analysis_complete": {
+          "code": true,
+          "network_preview": false
+        },
+        "analysis_errors": {
+          "code": 0,
+          "network_preview": 7
+        }
+      },
+      "cpu_s": 2.6100000000000003,
+      "rss_mib": 11.375,
+      "additional_payload_bytes": 335872,
+      "ledger_mib": 4.724132537841797,
+      "scan_ms": 46.168559,
+      "resource_validation_ms": 1.644492,
+      "payload_sync_s": 1.507270322,
+      "resource_discovery_requested_bytes": 79982,
+      "shared_budget": {
+        "allocation": "round-robin code/network, deduplicate physical pages, borrow unused shares",
+        "candidate_pages": 112,
+        "discovery_begin_ns": 262968180944,
+        "discovery_end_ns": 263014349503,
+        "discovery_limit_ns": 1000000000,
+        "max_additional_payload_bytes": 16777216,
+        "max_candidate_pages": 4096,
+        "scope": "BTF resource and proc code discovery share one deadline; active kernel calls are cooperative",
+        "selected_candidate_pages": 112,
+        "unselected_candidate_pages": 0
+      },
+      "source_policy": "kernel-focused-v7"
+    },
+    {
+      "label": "large_after_02",
+      "binary_sha256": "e3ea35872ca5649c8c815cb4a273a4cd61dfbd94affefc1eccbf5961fd1456c2",
+      "exit_code": 0,
+      "wall_s": 3.76,
+      "user_s": 0.8,
+      "system_s": 1.84,
+      "max_rss_kib": 11520,
+      "input_blocks": 0,
+      "output_blocks": 1264240,
+      "measured_wall_s": 3.771798417,
+      "manifest_status": "complete_for_policy",
+      "manifest_elapsed_s": 3.655643786,
+      "payload_bytes": 642043904,
+      "ledger_bytes": 5160813,
+      "http_active_samples": 174,
+      "http_active_p50_ms": 1.368759,
+      "http_active_p95_ms": 2.142742,
+      "http_active_p99_ms": 3.171991,
+      "http_idle_p95_ms": 1.752815,
+      "http_errors": 0,
+      "proof": {
+        "coverage": {
+          "code": {
+            "pages": 32,
+            "collected": 32,
+            "matching": 32,
+            "stable": true
+          },
+          "fileless": {
+            "pages": 16,
+            "collected": 16,
+            "matching": 16,
+            "stable": true
+          },
+          "memfd": {
+            "pages": 16,
+            "collected": 0,
+            "matching": 0,
+            "stable": true
+          },
+          "cache": {
+            "pages": 4,
+            "collected": 0,
+            "matching": 0,
+            "stable": true
+          }
+        },
+        "network_proof": {
+          "available_bytes": 65630,
+          "matching_bytes": 65630,
+          "missing_bytes": 61440,
+          "mismatching_bytes": 0,
+          "errors": [],
+          "unique_matching_stream_bytes": 65630
+        },
+        "udp_matching_4096_bytes": true,
+        "udp_referenced_bytes": 4096,
+        "reference_proof": [
+          {
+            "kind": "UDP",
+            "offset": 0,
+            "bytes": 4052,
+            "matching": null,
+            "hex_prefix": "5544505f504147455f30303030303030307c414141414141"
+          },
+          {
+            "kind": "UDP",
+            "offset": 4052,
+            "bytes": 44,
+            "matching": null,
+            "hex_prefix": "414141414141414141414141414141414141414141414141"
+          }
+        ],
+        "fixture_references_unchanged": true,
+        "fixture_reference_count": 51,
+        "queue_referenced_bytes": {
+          "18446616122537021952:sk_receive_queue": 4096,
+          "18446616125005114944:sk_write_queue": 65536,
+          "18446616125005110208:sk_receive_queue": 65536
+        },
+        "additional_payload_bytes": 335872,
+        "candidate_category_pages": {
+          "network": 63
+        },
+        "analysis_complete": {
+          "code": true,
+          "network_preview": false
+        },
+        "analysis_errors": {
+          "code": 0,
+          "network_preview": 7
+        }
+      },
+      "cpu_s": 2.64,
+      "rss_mib": 11.25,
+      "additional_payload_bytes": 335872,
+      "ledger_mib": 4.921734809875488,
+      "scan_ms": 46.37855,
+      "resource_validation_ms": 1.669548,
+      "payload_sync_s": 2.379279421,
+      "resource_discovery_requested_bytes": 79982,
+      "shared_budget": {
+        "allocation": "round-robin code/network, deduplicate physical pages, borrow unused shares",
+        "candidate_pages": 112,
+        "discovery_begin_ns": 272872802679,
+        "discovery_end_ns": 272919181229,
+        "discovery_limit_ns": 1000000000,
+        "max_additional_payload_bytes": 16777216,
+        "max_candidate_pages": 4096,
+        "scope": "BTF resource and proc code discovery share one deadline; active kernel calls are cooperative",
+        "selected_candidate_pages": 112,
+        "unselected_candidate_pages": 0
+      },
+      "source_policy": "kernel-focused-v7"
+    },
+    {
+      "label": "large_after_03",
+      "binary_sha256": "e3ea35872ca5649c8c815cb4a273a4cd61dfbd94affefc1eccbf5961fd1456c2",
+      "exit_code": 2,
+      "wall_s": 3.73,
+      "user_s": 0.77,
+      "system_s": 1.81,
+      "max_rss_kib": 11424,
+      "input_blocks": 0,
+      "output_blocks": 1261176,
+      "measured_wall_s": 3.740646233,
+      "manifest_status": "partial",
+      "manifest_elapsed_s": 3.625481932,
+      "payload_bytes": 640610304,
+      "ledger_bytes": 5030160,
+      "http_active_samples": 171,
+      "http_active_p50_ms": 1.43888,
+      "http_active_p95_ms": 2.335449,
+      "http_active_p99_ms": 3.184362,
+      "http_idle_p95_ms": 1.93535,
+      "http_errors": 0,
+      "proof": {
+        "coverage": {
+          "code": {
+            "pages": 32,
+            "collected": 32,
+            "matching": 32,
+            "stable": true
+          },
+          "fileless": {
+            "pages": 16,
+            "collected": 16,
+            "matching": 16,
+            "stable": true
+          },
+          "memfd": {
+            "pages": 16,
+            "collected": 0,
+            "matching": 0,
+            "stable": true
+          },
+          "cache": {
+            "pages": 4,
+            "collected": 0,
+            "matching": 0,
+            "stable": true
+          }
+        },
+        "network_proof": {
+          "available_bytes": 65630,
+          "matching_bytes": 65630,
+          "missing_bytes": 61440,
+          "mismatching_bytes": 0,
+          "errors": [],
+          "unique_matching_stream_bytes": 65630
+        },
+        "udp_matching_4096_bytes": true,
+        "udp_referenced_bytes": 4096,
+        "reference_proof": [
+          {
+            "kind": "UDP",
+            "offset": 0,
+            "bytes": 4052,
+            "matching": null,
+            "hex_prefix": "5544505f504147455f30303030303030307c414141414141"
+          },
+          {
+            "kind": "UDP",
+            "offset": 4052,
+            "bytes": 44,
+            "matching": null,
+            "hex_prefix": "414141414141414141414141414141414141414141414141"
+          }
+        ],
+        "fixture_references_unchanged": true,
+        "fixture_reference_count": 51,
+        "queue_referenced_bytes": {
+          "18446616122537021952:sk_receive_queue": 4096,
+          "18446616125005114944:sk_write_queue": 65536,
+          "18446616125005110208:sk_receive_queue": 65536
+        },
+        "additional_payload_bytes": 335872,
+        "candidate_category_pages": {
+          "network": 77
+        },
+        "analysis_complete": {
+          "code": true,
+          "network_preview": false
+        },
+        "analysis_errors": {
+          "code": 0,
+          "network_preview": 7
+        }
+      },
+      "cpu_s": 2.58,
+      "rss_mib": 11.15625,
+      "additional_payload_bytes": 335872,
+      "ledger_mib": 4.7971343994140625,
+      "scan_ms": 44.297217,
+      "resource_validation_ms": 2.034285,
+      "payload_sync_s": 2.363453509,
+      "resource_discovery_requested_bytes": 80296,
+      "shared_budget": {
+        "allocation": "round-robin code/network, deduplicate physical pages, borrow unused shares",
+        "candidate_pages": 126,
+        "discovery_begin_ns": 306928210103,
+        "discovery_end_ns": 306972507320,
+        "discovery_limit_ns": 1000000000,
+        "max_additional_payload_bytes": 16777216,
+        "max_candidate_pages": 4096,
+        "scope": "BTF resource and proc code discovery share one deadline; active kernel calls are cooperative",
+        "selected_candidate_pages": 126,
+        "unselected_candidate_pages": 0
+      },
+      "source_policy": "kernel-focused-v7"
+    },
+    {
+      "label": "large_before_01",
+      "binary_sha256": "d3cd6ab5e415ffda7d2b8fe54b4fb29013cf12b59d185438d3c8f28b314338a5",
+      "exit_code": 2,
+      "wall_s": 4.6,
+      "user_s": 1.08,
+      "system_s": 4.65,
+      "max_rss_kib": 21412,
+      "input_blocks": 0,
+      "output_blocks": 1264808,
+      "measured_wall_s": 4.605435234,
+      "manifest_status": "partial",
+      "manifest_elapsed_s": 4.487268091,
+      "payload_bytes": 637329408,
+      "ledger_bytes": 10135524,
+      "http_active_samples": 211,
+      "http_active_p50_ms": 1.397611,
+      "http_active_p95_ms": 2.414836,
+      "http_active_p99_ms": 5.918207,
+      "http_idle_p95_ms": 1.971317,
+      "http_errors": 0,
+      "proof": {
+        "coverage": {
+          "code": {
+            "pages": 32,
+            "collected": 32,
+            "matching": 32,
+            "stable": true
+          },
+          "fileless": {
+            "pages": 16,
+            "collected": 16,
+            "matching": 16,
+            "stable": true
+          },
+          "memfd": {
+            "pages": 16,
+            "collected": 1,
+            "matching": 1,
+            "stable": true
+          },
+          "cache": {
+            "pages": 4,
+            "collected": 3,
+            "matching": 3,
+            "stable": true
+          }
+        },
+        "network_proof": {
+          "available_bytes": 65630,
+          "matching_bytes": 65630,
+          "missing_bytes": 61440,
+          "mismatching_bytes": 0,
+          "errors": [],
+          "unique_matching_stream_bytes": 65630
+        },
+        "udp_matching_4096_bytes": true,
+        "udp_referenced_bytes": 4096,
+        "reference_proof": [
+          {
+            "kind": "UDP",
+            "offset": 0,
+            "bytes": 4052,
+            "matching": null,
+            "hex_prefix": "5544505f504147455f30303030303030307c414141414141"
+          },
+          {
+            "kind": "UDP",
+            "offset": 4052,
+            "bytes": 44,
+            "matching": null,
+            "hex_prefix": "414141414141414141414141414141414141414141414141"
+          },
+          {
+            "kind": "CACHE",
+            "offset": 0,
+            "bytes": 4096,
+            "matching": true,
+            "hex_prefix": "43414348455f504147455f30303030303030307c41414141"
+          },
+          {
+            "kind": "CACHE",
+            "offset": 67104768,
+            "bytes": 4096,
+            "matching": true,
+            "hex_prefix": "43414348455f504147455f30303030336666667c44444444"
+          },
+          {
+            "kind": "CACHE",
+            "offset": 67108864,
+            "bytes": 4096,
+            "matching": true,
+            "hex_prefix": "43414348455f504147455f30303030343030307c45454545"
+          }
+        ],
+        "fixture_references_unchanged": true,
+        "fixture_reference_count": 94,
+        "queue_referenced_bytes": {
+          "18446616122537021952:sk_receive_queue": 4096,
+          "18446616125005114944:sk_write_queue": 65536,
+          "18446616125005110208:sk_receive_queue": 65536
+        },
+        "additional_payload_bytes": 5312512,
+        "candidate_category_pages": {
+          "file_cache": 2344,
+          "network": 70
+        },
+        "analysis_complete": {
+          "code": true,
+          "network_preview": false
+        },
+        "analysis_errors": {
+          "code": 0,
+          "network_preview": 7
+        }
+      },
+      "cpu_s": 5.73,
+      "rss_mib": 20.91015625,
+      "additional_payload_bytes": 5312512,
+      "ledger_mib": 9.66598892211914,
+      "scan_ms": 127.613418,
+      "resource_validation_ms": 109.073775,
+      "payload_sync_s": 0.865526963,
+      "resource_discovery_requested_bytes": 578789,
+      "shared_budget": {
+        "allocation": "round-robin code/network/file_cache, deduplicate physical pages, borrow unused shares",
+        "candidate_pages": 2460,
+        "discovery_begin_ns": 250218608636,
+        "discovery_end_ns": 250346222054,
+        "discovery_limit_ns": 1000000000,
+        "max_additional_payload_bytes": 16777216,
+        "max_candidate_pages": 4096,
+        "scope": "BTF resource and proc code discovery share one deadline; active kernel calls are cooperative",
+        "selected_candidate_pages": 2460,
+        "unselected_candidate_pages": 0
+      },
+      "source_policy": "kernel-focused-v6"
+    },
+    {
+      "label": "large_before_02",
+      "binary_sha256": "d3cd6ab5e415ffda7d2b8fe54b4fb29013cf12b59d185438d3c8f28b314338a5",
+      "exit_code": 2,
+      "wall_s": 3.46,
+      "user_s": 0.99,
+      "system_s": 2.08,
+      "max_rss_kib": 21540,
+      "input_blocks": 0,
+      "output_blocks": 1290864,
+      "measured_wall_s": 3.472284741,
+      "manifest_status": "partial",
+      "manifest_elapsed_s": 3.354411783,
+      "payload_bytes": 650534912,
+      "ledger_bytes": 10276060,
+      "http_active_samples": 159,
+      "http_active_p50_ms": 1.417403,
+      "http_active_p95_ms": 2.303211,
+      "http_active_p99_ms": 2.811291,
+      "http_idle_p95_ms": 2.05017,
+      "http_errors": 0,
+      "proof": {
+        "coverage": {
+          "code": {
+            "pages": 32,
+            "collected": 32,
+            "matching": 32,
+            "stable": true
+          },
+          "fileless": {
+            "pages": 16,
+            "collected": 16,
+            "matching": 16,
+            "stable": true
+          },
+          "memfd": {
+            "pages": 16,
+            "collected": 1,
+            "matching": 1,
+            "stable": true
+          },
+          "cache": {
+            "pages": 4,
+            "collected": 3,
+            "matching": 3,
+            "stable": true
+          }
+        },
+        "network_proof": {
+          "available_bytes": 65630,
+          "matching_bytes": 65630,
+          "missing_bytes": 61440,
+          "mismatching_bytes": 0,
+          "errors": [],
+          "unique_matching_stream_bytes": 65630
+        },
+        "udp_matching_4096_bytes": true,
+        "udp_referenced_bytes": 4096,
+        "reference_proof": [
+          {
+            "kind": "UDP",
+            "offset": 0,
+            "bytes": 4052,
+            "matching": null,
+            "hex_prefix": "5544505f504147455f30303030303030307c414141414141"
+          },
+          {
+            "kind": "UDP",
+            "offset": 4052,
+            "bytes": 44,
+            "matching": null,
+            "hex_prefix": "414141414141414141414141414141414141414141414141"
+          },
+          {
+            "kind": "CACHE",
+            "offset": 0,
+            "bytes": 4096,
+            "matching": true,
+            "hex_prefix": "43414348455f504147455f30303030303030307c41414141"
+          },
+          {
+            "kind": "CACHE",
+            "offset": 67104768,
+            "bytes": 4096,
+            "matching": true,
+            "hex_prefix": "43414348455f504147455f30303030336666667c44444444"
+          },
+          {
+            "kind": "CACHE",
+            "offset": 67108864,
+            "bytes": 4096,
+            "matching": true,
+            "hex_prefix": "43414348455f504147455f30303030343030307c45454545"
+          }
+        ],
+        "fixture_references_unchanged": true,
+        "fixture_reference_count": 94,
+        "queue_referenced_bytes": {
+          "18446616122537021952:sk_receive_queue": 4096,
+          "18446616125005114944:sk_write_queue": 65536,
+          "18446616125005110208:sk_receive_queue": 65536
+        },
+        "additional_payload_bytes": 5312512,
+        "candidate_category_pages": {
+          "file_cache": 2345,
+          "network": 75
+        },
+        "analysis_complete": {
+          "code": true,
+          "network_preview": false
+        },
+        "analysis_errors": {
+          "code": 0,
+          "network_preview": 7
+        }
+      },
+      "cpu_s": 3.0700000000000003,
+      "rss_mib": 21.03515625,
+      "additional_payload_bytes": 5312512,
+      "ledger_mib": 9.80001449584961,
+      "scan_ms": 128.531629,
+      "resource_validation_ms": 70.873299,
+      "payload_sync_s": 1.796376218,
+      "resource_discovery_requested_bytes": 580105,
+      "shared_budget": {
+        "allocation": "round-robin code/network/file_cache, deduplicate physical pages, borrow unused shares",
+        "candidate_pages": 2466,
+        "discovery_begin_ns": 284087478195,
+        "discovery_end_ns": 284216009824,
+        "discovery_limit_ns": 1000000000,
+        "max_additional_payload_bytes": 16777216,
+        "max_candidate_pages": 4096,
+        "scope": "BTF resource and proc code discovery share one deadline; active kernel calls are cooperative",
+        "selected_candidate_pages": 2466,
+        "unselected_candidate_pages": 0
+      },
+      "source_policy": "kernel-focused-v6"
+    },
+    {
+      "label": "large_before_03",
+      "binary_sha256": "d3cd6ab5e415ffda7d2b8fe54b4fb29013cf12b59d185438d3c8f28b314338a5",
+      "exit_code": 0,
+      "wall_s": 3.64,
+      "user_s": 1.03,
+      "system_s": 2.22,
+      "max_rss_kib": 21284,
+      "input_blocks": 0,
+      "output_blocks": 1309032,
+      "measured_wall_s": 3.645667827,
+      "manifest_status": "complete_for_policy",
+      "manifest_elapsed_s": 3.530551506,
+      "payload_bytes": 659582976,
+      "ledger_bytes": 10517161,
+      "http_active_samples": 167,
+      "http_active_p50_ms": 1.451847,
+      "http_active_p95_ms": 2.186269,
+      "http_active_p99_ms": 3.955074,
+      "http_idle_p95_ms": 1.779438,
+      "http_errors": 0,
+      "proof": {
+        "coverage": {
+          "code": {
+            "pages": 32,
+            "collected": 32,
+            "matching": 32,
+            "stable": true
+          },
+          "fileless": {
+            "pages": 16,
+            "collected": 16,
+            "matching": 16,
+            "stable": true
+          },
+          "memfd": {
+            "pages": 16,
+            "collected": 1,
+            "matching": 1,
+            "stable": true
+          },
+          "cache": {
+            "pages": 4,
+            "collected": 3,
+            "matching": 3,
+            "stable": true
+          }
+        },
+        "network_proof": {
+          "available_bytes": 65630,
+          "matching_bytes": 65630,
+          "missing_bytes": 61440,
+          "mismatching_bytes": 0,
+          "errors": [],
+          "unique_matching_stream_bytes": 65630
+        },
+        "udp_matching_4096_bytes": true,
+        "udp_referenced_bytes": 4096,
+        "reference_proof": [
+          {
+            "kind": "UDP",
+            "offset": 0,
+            "bytes": 4052,
+            "matching": null,
+            "hex_prefix": "5544505f504147455f30303030303030307c414141414141"
+          },
+          {
+            "kind": "UDP",
+            "offset": 4052,
+            "bytes": 44,
+            "matching": null,
+            "hex_prefix": "414141414141414141414141414141414141414141414141"
+          },
+          {
+            "kind": "CACHE",
+            "offset": 0,
+            "bytes": 4096,
+            "matching": true,
+            "hex_prefix": "43414348455f504147455f30303030303030307c41414141"
+          },
+          {
+            "kind": "CACHE",
+            "offset": 67104768,
+            "bytes": 4096,
+            "matching": true,
+            "hex_prefix": "43414348455f504147455f30303030336666667c44444444"
+          },
+          {
+            "kind": "CACHE",
+            "offset": 67108864,
+            "bytes": 4096,
+            "matching": true,
+            "hex_prefix": "43414348455f504147455f30303030343030307c45454545"
+          }
+        ],
+        "fixture_references_unchanged": true,
+        "fixture_reference_count": 94,
+        "queue_referenced_bytes": {
+          "18446616122537021952:sk_receive_queue": 4096,
+          "18446616125005114944:sk_write_queue": 65536,
+          "18446616125005110208:sk_receive_queue": 65536
+        },
+        "additional_payload_bytes": 5312512,
+        "candidate_category_pages": {
+          "file_cache": 2345,
+          "network": 63
+        },
+        "analysis_complete": {
+          "code": true,
+          "network_preview": false
+        },
+        "analysis_errors": {
+          "code": 0,
+          "network_preview": 7
+        }
+      },
+      "cpu_s": 3.25,
+      "rss_mib": 20.78515625,
+      "additional_payload_bytes": 5312512,
+      "ledger_mib": 10.029946327209473,
+      "scan_ms": 135.263446,
+      "resource_validation_ms": 79.964341,
+      "payload_sync_s": 1.884321754,
+      "resource_discovery_requested_bytes": 579943,
+      "shared_budget": {
+        "allocation": "round-robin code/network/file_cache, deduplicate physical pages, borrow unused shares",
+        "candidate_pages": 2454,
+        "discovery_begin_ns": 295722200509,
+        "discovery_end_ns": 295857463955,
+        "discovery_limit_ns": 1000000000,
+        "max_additional_payload_bytes": 16777216,
+        "max_candidate_pages": 4096,
+        "scope": "BTF resource and proc code discovery share one deadline; active kernel calls are cooperative",
+        "selected_candidate_pages": 2454,
+        "unselected_candidate_pages": 0
+      },
+      "source_policy": "kernel-focused-v6"
+    },
+    {
+      "label": "small_after_01",
+      "binary_sha256": "e3ea35872ca5649c8c815cb4a273a4cd61dfbd94affefc1eccbf5961fd1456c2",
+      "exit_code": 2,
+      "wall_s": 4.24,
+      "user_s": 0.82,
+      "system_s": 1.94,
+      "max_rss_kib": 11520,
+      "input_blocks": 0,
+      "output_blocks": 1257320,
+      "measured_wall_s": 4.243164382,
+      "manifest_status": "partial",
+      "manifest_elapsed_s": 4.121745659,
+      "payload_bytes": 638509056,
+      "ledger_bytes": 5154846,
+      "http_active_samples": 195,
+      "http_active_p50_ms": 1.410081,
+      "http_active_p95_ms": 2.31658,
+      "http_active_p99_ms": 4.825957,
+      "http_idle_p95_ms": 1.891029,
+      "http_errors": 0,
+      "proof": {
+        "coverage": {
+          "code": {
+            "pages": 32,
+            "collected": 32,
+            "matching": 32,
+            "stable": true
+          },
+          "fileless": {
+            "pages": 16,
+            "collected": 16,
+            "matching": 16,
+            "stable": true
+          },
+          "memfd": {
+            "pages": 16,
+            "collected": 0,
+            "matching": 0,
+            "stable": true
+          },
+          "cache": {
+            "pages": 4,
+            "collected": 0,
+            "matching": 0,
+            "stable": true
+          }
+        },
+        "network_proof": {
+          "available_bytes": 32768,
+          "matching_bytes": 32768,
+          "missing_bytes": 0,
+          "mismatching_bytes": 0,
+          "errors": [],
+          "unique_matching_stream_bytes": 32768
+        },
+        "udp_matching_4096_bytes": true,
+        "udp_referenced_bytes": 4096,
+        "reference_proof": [
+          {
+            "kind": "UDP",
+            "offset": 0,
+            "bytes": 4052,
+            "matching": null,
+            "hex_prefix": "5544505f504147455f30303030303030307c414141414141"
+          },
+          {
+            "kind": "UDP",
+            "offset": 4052,
+            "bytes": 44,
+            "matching": null,
+            "hex_prefix": "414141414141414141414141414141414141414141414141"
+          }
+        ],
+        "fixture_references_unchanged": true,
+        "fixture_reference_count": 18,
+        "queue_referenced_bytes": {
+          "18446616122388161536:sk_receive_queue": 4096,
+          "18446616122391330816:sk_receive_queue": 32768
+        },
+        "additional_payload_bytes": 233472,
+        "candidate_category_pages": {
+          "network": 92
+        },
+        "analysis_complete": {
+          "code": true,
+          "network_preview": true
+        },
+        "analysis_errors": {
+          "code": 0,
+          "network_preview": 0
+        }
+      },
+      "cpu_s": 2.76,
+      "rss_mib": 11.25,
+      "additional_payload_bytes": 233472,
+      "ledger_mib": 4.916044235229492,
+      "scan_ms": 47.196388,
+      "resource_validation_ms": 1.749798,
+      "payload_sync_s": 2.766042442,
+      "resource_discovery_requested_bytes": 80447,
+      "shared_budget": {
+        "allocation": "round-robin code/network, deduplicate physical pages, borrow unused shares",
+        "candidate_pages": 141,
+        "discovery_begin_ns": 332171711071,
+        "discovery_end_ns": 332218907459,
+        "discovery_limit_ns": 1000000000,
+        "max_additional_payload_bytes": 16777216,
+        "max_candidate_pages": 4096,
+        "scope": "BTF resource and proc code discovery share one deadline; active kernel calls are cooperative",
+        "selected_candidate_pages": 141,
+        "unselected_candidate_pages": 0
+      },
+      "source_policy": "kernel-focused-v7"
+    },
+    {
+      "label": "small_before_01",
+      "binary_sha256": "d3cd6ab5e415ffda7d2b8fe54b4fb29013cf12b59d185438d3c8f28b314338a5",
+      "exit_code": 0,
+      "wall_s": 5.14,
+      "user_s": 0.98,
+      "system_s": 2.12,
+      "max_rss_kib": 21156,
+      "input_blocks": 0,
+      "output_blocks": 1308344,
+      "measured_wall_s": 5.143310384,
+      "manifest_status": "complete_for_policy",
+      "manifest_elapsed_s": 5.03069343,
+      "payload_bytes": 659283968,
+      "ledger_bytes": 10467376,
+      "http_active_samples": 237,
+      "http_active_p50_ms": 1.423463,
+      "http_active_p95_ms": 2.122235,
+      "http_active_p99_ms": 2.407451,
+      "http_idle_p95_ms": 1.946951,
+      "http_errors": 0,
+      "proof": {
+        "coverage": {
+          "code": {
+            "pages": 32,
+            "collected": 32,
+            "matching": 32,
+            "stable": true
+          },
+          "fileless": {
+            "pages": 16,
+            "collected": 16,
+            "matching": 16,
+            "stable": true
+          },
+          "memfd": {
+            "pages": 16,
+            "collected": 1,
+            "matching": 1,
+            "stable": true
+          },
+          "cache": {
+            "pages": 4,
+            "collected": 3,
+            "matching": 3,
+            "stable": true
+          }
+        },
+        "network_proof": {
+          "available_bytes": 32768,
+          "matching_bytes": 32768,
+          "missing_bytes": 0,
+          "mismatching_bytes": 0,
+          "errors": [],
+          "unique_matching_stream_bytes": 32768
+        },
+        "udp_matching_4096_bytes": true,
+        "udp_referenced_bytes": 4096,
+        "reference_proof": [
+          {
+            "kind": "UDP",
+            "offset": 0,
+            "bytes": 4052,
+            "matching": null,
+            "hex_prefix": "5544505f504147455f30303030303030307c414141414141"
+          },
+          {
+            "kind": "UDP",
+            "offset": 4052,
+            "bytes": 44,
+            "matching": null,
+            "hex_prefix": "414141414141414141414141414141414141414141414141"
+          },
+          {
+            "kind": "CACHE",
+            "offset": 16773120,
+            "bytes": 4096,
+            "matching": true,
+            "hex_prefix": "43414348455f504147455f30303030306666667c4e4e4e4e"
+          },
+          {
+            "kind": "CACHE",
+            "offset": 16777216,
+            "bytes": 4096,
+            "matching": true,
+            "hex_prefix": "43414348455f504147455f30303030313030307c4f4f4f4f"
+          },
+          {
+            "kind": "CACHE",
+            "offset": 0,
+            "bytes": 4096,
+            "matching": true,
+            "hex_prefix": "43414348455f504147455f30303030303030307c41414141"
+          }
+        ],
+        "fixture_references_unchanged": true,
+        "fixture_reference_count": 61,
+        "queue_referenced_bytes": {
+          "18446616122388161536:sk_receive_queue": 4096,
+          "18446616122391330816:sk_receive_queue": 32768
+        },
+        "additional_payload_bytes": 5206016,
+        "candidate_category_pages": {
+          "file_cache": 2351,
+          "network": 31
+        },
+        "analysis_complete": {
+          "code": true,
+          "network_preview": true
+        },
+        "analysis_errors": {
+          "code": 0,
+          "network_preview": 0
+        }
+      },
+      "cpu_s": 3.1,
+      "rss_mib": 20.66015625,
+      "additional_payload_bytes": 5206016,
+      "ledger_mib": 9.982467651367188,
+      "scan_ms": 130.95088,
+      "resource_validation_ms": 73.142661,
+      "payload_sync_s": 3.440584113,
+      "resource_discovery_requested_bytes": 577402,
+      "shared_budget": {
+        "allocation": "round-robin code/network/file_cache, deduplicate physical pages, borrow unused shares",
+        "candidate_pages": 2426,
+        "discovery_begin_ns": 319360562293,
+        "discovery_end_ns": 319491513173,
+        "discovery_limit_ns": 1000000000,
+        "max_additional_payload_bytes": 16777216,
+        "max_candidate_pages": 4096,
+        "scope": "BTF resource and proc code discovery share one deadline; active kernel calls are cooperative",
+        "selected_candidate_pages": 2426,
+        "unselected_candidate_pages": 0
+      },
+      "source_policy": "kernel-focused-v6"
+    }
+  ],
+  "scope": "Three alternating pairs on the same live fixture. Small-payload smoke pair plus one bounded stress capture. No freeze or global cache drop. Full file residency at each capture was not measured.",
+  "limitations": [
+    "Single VM and short loopback probe, not service qualification",
+    "Cache auto-retention removed; existing metadata selection and analysis unchanged",
+    "Changed live network references remain partial",
+    "Budget overflow can still miss modified file code; this change does not repair code-page priority"
+  ],
+  "build": {
+    "binary": "kerneldump",
+    "sha256": "e3ea35872ca5649c8c815cb4a273a4cd61dfbd94affefc1eccbf5961fd1456c2",
+    "bytes": 1147192,
+    "build_info": {
+      "binary_hash_semantics": "runtime_executable_sha256 is read from /proc/self/exe at invocation; final binary hash is never embedded in itself",
+      "compiler": "rustc 1.93.0 (254b59607 2026-01-19)\nbinary: rustc\ncommit-hash: 254b59607d4417e9dffbc307138ae5c86280fe4c\ncommit-date: 2026-01-19\nhost: x86_64-unknown-linux-gnu\nrelease: 1.93.0\nLLVM version: 21.1.8",
+      "features": [],
+      "package": "kerneldump",
+      "profile": "release",
+      "runtime_executable_sha256": "e3ea35872ca5649c8c815cb4a273a4cd61dfbd94affefc1eccbf5961fd1456c2",
+      "schema": 2,
+      "source_sha256": {
+        ".cargo/config.toml": "77e9219c27274120197571fd165cbe4121963b5ad3bc0b20b383c86ef0ce6c2b",
+        "Cargo.lock": "bf6fed087d7c54b110fc533371779fbdb7b7d06c97e8f352beac15473bca091e",
+        "Cargo.toml": "c97770c71ab85d5e4334089a6fcabbc4bcc098504e14aa3faca46756c6030fa7",
+        "build.rs": "7b8d17fcb6cb7ec5da493c116117e7ccb746916f1b142cbc4b6056bf36231068",
+        "src/btf.rs": "d8ff74ceebfbfa105219f550c0ef2c3d5d8ce5f008ea6f126fbaffddc26ba24a",
+        "src/build_info.rs": "d1bb5eff27c4019e0be8fa5c001b6374ba785037151b483118554b21a44505d9",
+        "src/capture.rs": "16a2ea987323a232aa4432d24a5d83df197e06c90b202258b13e38d8506164ff",
+        "src/code_pages.rs": "40db853581747074a59af729fbd166fe07ab7e012e3fb4860c6b5a6ad339080b",
+        "src/main.rs": "20dec020e7d2d464b1e26346d4356f964ea39d65f8380a955c15c3c6b9ab308c",
+        "src/resources.rs": "a7f94bd22d3d4e82bc86791e4b9bbf2161fd25c403c415e6799ce11643f9790a",
+        "src/safe_output.rs": "893805063ea96e44ac2239893a64323a3f4ee492d205afffed730541e05d5e94",
+        "src/source.rs": "9b6c2d17c2ff9912636acc5e86c66d92fc14d54fdc31fe4b55324b67b7152077",
+        "src/tests.rs": "bca1e45d6e398e35cc2ab6efbcc27ce4733d89c204ac6fc3eaf604272ad07431",
+        "src/verify.rs": "af3204ff5ecad68155658dbea2c75b49b2ea0039fd38ee906b4f3db81bd7e4bb"
+      },
+      "target": "x86_64-unknown-linux-musl",
+      "vendor_tree_sha256": "d40e565e0d067e8f9f519f4d8bfac379fc75f8c94503de2b2e8e220fd4fef0d5",
+      "version": "0.1.1"
+    }
+  },
+  "experiment_id": "kernel_retention_tradeoff_20261103",
+  "comparison_order": [
+    "large_before_01",
+    "large_after_01",
+    "large_after_02",
+    "large_before_02",
+    "large_before_03",
+    "large_after_03"
+  ],
+  "decision": {
+    "keep": [
+      "bounded private executable ANON pages",
+      "bounded FD-referenced socket queues"
+    ],
+    "remove": [
+      "automatic FD/VMA resident file-cache windows"
+    ],
+    "new_user_options": 0,
+    "code_candidate_priority_changed": false,
+    "full_capture_speedup_demonstrated": false,
+    "loss_observed": [
+      "selected ordinary file cache 3/4 -> 0/4 pages",
+      "closed-FD memfd data 1/16 -> 0/16 pages"
+    ]
+  },
+  "payload_cleanup": [
+    {
+      "run": "budget_after_01",
+      "path": "/home/han/kernel_tradeoff_20261103/outputs/budget_after_01/memory.lime.partial",
+      "bytes": 706036416,
+      "sha256": "6d7467f499017635e2ef614fa153bc020e1ca1b4f1e219484c581334546ae264",
+      "verified": true,
+      "deleted": true
+    },
+    {
+      "run": "large_after_01",
+      "path": "/home/han/kernel_tradeoff_20261103/outputs/large_after_01/memory.lime",
+      "bytes": 625333856,
+      "sha256": "53935cb6eb1ba89d5fadd26e57dee939ce0251e224bdae3ecd127a58f196a88e",
+      "verified": true,
+      "deleted": true
+    },
+    {
+      "run": "large_after_02",
+      "path": "/home/han/kernel_tradeoff_20261103/outputs/large_after_02/memory.lime",
+      "bytes": 642102528,
+      "sha256": "9f0f5cc24c527f4e574ca9ee56ba0d2fdf3b531a326e4a70f29c47e97d3558ee",
+      "verified": true,
+      "deleted": true
+    },
+    {
+      "run": "large_after_03",
+      "path": "/home/han/kernel_tradeoff_20261103/outputs/large_after_03/memory.lime.partial",
+      "bytes": 640661536,
+      "sha256": "b587dbdcb8030e49b58028de401d594a37d02c7999e20cd3036d5ae3378cccd9",
+      "verified": true,
+      "deleted": true
+    },
+    {
+      "run": "large_before_01",
+      "path": "/home/han/kernel_tradeoff_20261103/outputs/large_before_01/memory.lime.partial",
+      "bytes": 637411744,
+      "sha256": "99d0e182ad66e436d9cd3d654304da25e8eba8741df7210d76f61909164393be",
+      "verified": true,
+      "deleted": true
+    },
+    {
+      "run": "large_before_02",
+      "path": "/home/han/kernel_tradeoff_20261103/outputs/large_before_02/memory.lime.partial",
+      "bytes": 650619808,
+      "sha256": "6fe8e52b8fd03826d389ab192016f3b0ac76dbd202370297d6c51f501fc8146a",
+      "verified": true,
+      "deleted": true
+    },
+    {
+      "run": "large_before_03",
+      "path": "/home/han/kernel_tradeoff_20261103/outputs/large_before_03/memory.lime",
+      "bytes": 659678304,
+      "sha256": "ff6bfe401cb136525acc37feb8e46235f9ad6abfbfd02a24adf834a265010249",
+      "verified": true,
+      "deleted": true
+    },
+    {
+      "run": "small_after_01",
+      "path": "/home/han/kernel_tradeoff_20261103/outputs/small_after_01/memory.lime.partial",
+      "bytes": 638562368,
+      "sha256": "9f6462e53ecff765571884342dc8975d9dafecb72504a91253435cdae9209ad2",
+      "verified": true,
+      "deleted": true
+    },
+    {
+      "run": "small_before_01",
+      "path": "/home/han/kernel_tradeoff_20261103/outputs/small_before_01/memory.lime",
+      "bytes": 659378016,
+      "sha256": "f06243dac50ec9317eebb579038d763d0ce01d0845fe557840dfb5c6d99699cb",
+      "verified": true,
+      "deleted": true
+    }
+  ],
+  "copied_evidence": {
+    "files": 148,
+    "bytes": 74995416,
+    "all_hashes_match": true,
+    "payloads_copied": 0
+  },
+  "same_capture_replay": {
+    "result": "outputs/replay_cost.json",
+    "meaning": "Counterfactual byte calculation on previous v6 capture ledgers, not the new VM timing experiment."
+  }
+}

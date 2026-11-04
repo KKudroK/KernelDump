@@ -1,5 +1,9 @@
+mod btf;
 mod build_info;
 mod capture;
+mod code_pages;
+mod pod_scope;
+mod resources;
 mod safe_output;
 mod source;
 #[cfg(test)]
@@ -52,7 +56,7 @@ fn run() -> Result<bool> {
         #[cfg(not(feature = "development-options"))]
         {
             println!(
-                "kerneldump {}\nUsage:\n  kerneldump check [--target-dir PATH] [--json]\n  kerneldump capture --output NEW_DIR [--request-id ID]\n  kerneldump probe\n  kerneldump verify OUTPUT_DIR\n\n--target-dir is an existing output parent; check performs a temporary write/fsync/publication probe and removes it.\n--version / --build-info report version / actual executable hash.\nStandalone Rust live physical LiME acquisition for Linux x86-64/4KiB.\nCaptures a conservative kernel-focused PFN selection with explicit exclusions.\nExcludes user/cache/free PFNs; retains SLAB, page tables and ambiguous PFNs.\nA narrow free-only SLAB boundary exception supports bounded analyzer reads.\nNot atomic, not entire RAM, and not a strict kernel-only guarantee.\nBuffering, parallel writing and durable publication are managed internally.\nCaller determines invocation time and incident policy. No security settings are changed.\nExit 0 confirms complete acquisition for the recorded policy and durable publication; preserve stderr on failure.",
+                "kerneldump {}\nUsage:\n  kerneldump check [--target-dir PATH] [--json]\n  kerneldump capture --output NEW_DIR [--pod FULL_POD_UID] [--request-id ID]\n  kerneldump probe\n  kerneldump verify OUTPUT_DIR\n\n--pod restricts additional executable/code and socket data to the current Pod; the kernel metadata filter stays node-wide. Omitting --pod keeps bounded node-wide additions.\n--target-dir is an existing output parent; check performs a temporary write/fsync/publication probe and removes it.\n--version / --build-info report version / actual executable hash.\nStandalone Rust live physical LiME acquisition for Linux x86-64/4KiB.\nCaptures a conservative kernel-focused PFN selection with explicit exclusions.\nExcludes user/cache/free PFNs; retains SLAB, page tables and ambiguous PFNs.\nRetains immediate SLAB/page-table neighbors and bounded executable anonymous pages, referenced socket queues.\nNot atomic, not entire RAM, and not a strict kernel-only guarantee.\nBuffering, parallel writing and durable publication are managed internally.\nCaller determines invocation time and incident policy. No security settings are changed.\nExit 0 confirms complete acquisition for the recorded policy and durable publication; preserve stderr on failure.",
                 env!("CARGO_PKG_VERSION")
             );
             return Ok(true);
@@ -60,7 +64,7 @@ fn run() -> Result<bool> {
         #[cfg(feature = "development-options")]
         {
             println!(
-                "kerneldump {}\n\nUsage:\n  kerneldump check [--target-dir PATH] [--json]\n  kerneldump probe\n  kerneldump capture --output NEW_DIR [--scope full-ram|kernel-focused]\n                      [--chunk-mib 1..16] [--queue-depth 1..16]\n                      [--request-id ID]\n  kerneldump verify OUTPUT_DIR\n\nStandalone Rust Linux x86-64/4KiB live physical LiME acquisition.\nDefaults: kernel-focused, chunk1MiB, queue2. Requires readable kcore/kpageflags and\nunmasked page_offset_base/linux_banner; no security settings are changed.\nNot atomic, not a kernel-only guarantee. No incident/trigger/round policy.\nExit0 confirms successful policy acquisition and durability;2 means incomplete.\nAn in-flight kernel I/O call can delay cooperative cancellation.",
+                "kerneldump {}\n\nUsage:\n  kerneldump check [--target-dir PATH] [--json]\n  kerneldump probe\n  kerneldump capture --output NEW_DIR [--scope full-ram|kernel-focused]\n                      [--chunk-mib 1..16] [--queue-depth 1..16]\n                      [--request-id ID]\n  kerneldump verify OUTPUT_DIR\n\nStandalone Rust Linux x86-64/4KiB live physical LiME acquisition.\nDefaults: kernel-focused, chunk1MiB, queue2. Requires readable kcore/kpageflags/BTF and\nunmasked page_offset_base/linux_banner; no security settings are changed.\nNot atomic, not a kernel-only guarantee. No incident/trigger/round policy.\nExit0 confirms successful policy acquisition and durability;2 means incomplete.\nAn in-flight kernel I/O call can delay cooperative cancellation.",
                 env!("CARGO_PKG_VERSION")
             );
             return Ok(true);
@@ -141,6 +145,7 @@ fn run() -> Result<bool> {
         }
         "capture" => {
             let mut output = None;
+            let mut pod = None;
             let mut scope = source::Scope::KernelFocused;
             let mut chunk = 1usize;
             let mut depth = 2usize;
@@ -150,6 +155,12 @@ fn run() -> Result<bool> {
                     return Err("option is missing its value".into());
                 }
                 match pair[0].as_str() {
+                    "--pod" => {
+                        if pod.is_some() {
+                            return Err("duplicate --pod".into());
+                        }
+                        pod = Some(pod_scope::uid(&pair[1])?);
+                    }
                     "--output" => {
                         if output.is_some() {
                             return Err("duplicate output".into());
@@ -186,6 +197,9 @@ fn run() -> Result<bool> {
             }
             let output = output.ok_or("--output is required")?;
             let mut memory = source::Source::open()?;
+            if let Some(uid) = pod {
+                memory.select_pod(&uid)?;
+            }
             memory.add_context(request_id, clock_pair());
             let m = capture::acquire(memory, &output, scope, chunk * 1024 * 1024, depth)?;
             println!(

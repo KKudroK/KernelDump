@@ -211,6 +211,190 @@ impl Memory for Fake {
         Ok(())
     }
 }
+
+struct CodeFake {
+    inner: Fake,
+    valid: bool,
+}
+struct ResourceFake(Fake, bool);
+impl Memory for ResourceFake {
+    fn info(&self) -> Value {
+        self.0.info()
+    }
+    fn ram(&self) -> &[(u64, u64)] {
+        self.0.ram()
+    }
+    fn chunk(&self, a: u64, b: u64, c: u64) -> crate::Result<(u64, Option<u64>)> {
+        self.0.chunk(a, b, c)
+    }
+    fn flags(&self, a: u64, b: u64) -> crate::Result<Vec<u64>> {
+        self.0.flags(a, b)
+    }
+    fn read(&self, a: u64, b: &mut [u8]) -> crate::Result<()> {
+        self.0.read(a, b)
+    }
+    fn resource_pages(&self, a: u64, b: u64) -> Vec<u64> {
+        (1..=3)
+            .map(|i| i * PAGE)
+            .filter(|p| a <= *p && *p < b)
+            .collect()
+    }
+    fn finish_resources(&self) -> Value {
+        json!({"complete":self.1})
+    }
+}
+#[test]
+fn resource_retention_never_selects_unsafe_or_free_pages() {
+    let t = Temp::new();
+    let mut f = Fake::new();
+    f.flags = vec![1 << 5; 16];
+    f.flags[1] = (1 << 5) | (1 << 19);
+    f.flags[2] = 1 << 10;
+    let m = capture::acquire(
+        ResourceFake(f, true),
+        &t.out(),
+        Scope::KernelFocused,
+        4096,
+        1,
+    )
+    .unwrap();
+    assert_eq!(m["payload_bytes"], PAGE);
+    assert_eq!(m["unavailable_bytes"], PAGE);
+    verify::verify(&t.out()).unwrap();
+}
+#[test]
+fn incomplete_resource_discovery_cannot_publish_complete_image() {
+    let t = Temp::new();
+    let m = capture::acquire(
+        ResourceFake(Fake::new(), false),
+        &t.out(),
+        Scope::KernelFocused,
+        4096,
+        1,
+    )
+    .unwrap();
+    assert_eq!(m["status"], "partial");
+    assert!(!t.out().join("memory.lime").exists());
+    verify::verify(&t.out()).unwrap();
+}
+#[test]
+fn shared_resource_budget_deduplicates_and_reuses_idle_shares() {
+    use crate::source::allocate_extra;
+    let groups = [vec![1, 2, 3, 4, 5], vec![1, 10, 11], vec![]];
+    assert_eq!(
+        allocate_extra(&groups, 4).into_iter().collect::<Vec<_>>(),
+        vec![1, 2, 10, 11]
+    );
+    assert_eq!(allocate_extra(&groups, 20).len(), 7);
+    assert!(allocate_extra(&groups, 0).is_empty());
+    let large = [
+        (0..10000).collect(),
+        (10000..20000).collect(),
+        (20000..30000).collect(),
+    ];
+    let selected = allocate_extra(&large, 4096);
+    assert_eq!(selected.len(), 4096);
+    for group in &large {
+        let count = group.iter().filter(|p| selected.contains(p)).count();
+        assert!((1365..=1366).contains(&count));
+    }
+}
+#[test]
+fn cache_never_displaces_code_or_network_at_shared_limit() {
+    use crate::source::{allocate_extra, allocate_with_cache};
+    let groups = [vec![10, 20, 30], vec![40, 50, 60]];
+    assert_eq!(
+        allocate_with_cache(&groups, &[1, 2, 3, 4], 4),
+        allocate_extra(&groups, 4)
+    );
+    assert_eq!(
+        allocate_with_cache(&groups, &[10, 20, 1, 2, 3], 8)
+            .into_iter()
+            .collect::<Vec<_>>(),
+        vec![1, 2, 10, 20, 30, 40, 50, 60]
+    );
+    assert!(allocate_with_cache(&groups, &[1], 0).is_empty());
+}
+impl Memory for CodeFake {
+    fn info(&self) -> Value {
+        self.inner.info()
+    }
+    fn ram(&self) -> &[(u64, u64)] {
+        self.inner.ram()
+    }
+    fn chunk(&self, a: u64, b: u64, c: u64) -> Result<(u64, Option<u64>)> {
+        self.inner.chunk(a, b, c)
+    }
+    fn flags(&self, a: u64, b: u64) -> Result<Vec<u64>> {
+        self.inner.flags(a, b)
+    }
+    fn read(&self, a: u64, b: &mut [u8]) -> Result<()> {
+        self.inner.read(a, b)
+    }
+    fn code_pages(&self, a: u64, b: u64) -> Vec<u64> {
+        [PAGE, 2 * PAGE, 3 * PAGE]
+            .into_iter()
+            .filter(|p| a <= *p && *p < b)
+            .collect()
+    }
+    fn code_witness(&self, a: u64, _b: u64, after: bool) -> Value {
+        json!([{"physical":a,"after":after,"same_pfn":self.valid}])
+    }
+    fn finish_code_pages(&self) -> Value {
+        json!({"complete":self.valid})
+    }
+}
+#[test]
+fn code_candidate_preserves_only_anon_and_never_overrides_unsafe() {
+    let t = Temp::new();
+    let mut f = Fake::new();
+    f.flags = vec![1 << 12; 16];
+    f.flags[1] = (1 << 12) | (1 << 19);
+    f.flags[2] = 1 << 10;
+    let m = capture::acquire(
+        CodeFake {
+            inner: f,
+            valid: true,
+        },
+        &t.out(),
+        Scope::KernelFocused,
+        4096,
+        1,
+    )
+    .unwrap();
+    assert_eq!(m["payload_bytes"], PAGE);
+    assert_eq!(m["unavailable_bytes"], PAGE);
+    let ledger = fs::read_to_string(t.out().join("ranges.jsonl")).unwrap();
+    let rows: Vec<Value> = ledger
+        .lines()
+        .map(|s| serde_json::from_str(s).unwrap())
+        .collect();
+    assert_eq!(rows[0]["additional_code_bytes"], PAGE);
+    assert_eq!(rows[1]["status"], "unsafe_pfn");
+    assert_eq!(rows[2]["status"], "policy_excluded");
+    verify::verify(&t.out()).unwrap();
+}
+#[test]
+fn changed_code_reference_cannot_publish_complete_image() {
+    let t = Temp::new();
+    let mut f = Fake::new();
+    f.flags = vec![1 << 12; 16];
+    let m = capture::acquire(
+        CodeFake {
+            inner: f,
+            valid: false,
+        },
+        &t.out(),
+        Scope::KernelFocused,
+        4096,
+        1,
+    )
+    .unwrap();
+    assert_eq!(m["status"], "partial");
+    assert!(!t.out().join("memory.lime").exists());
+    assert_eq!(m["errors"][0]["stage"], "code_page_retention");
+    verify::verify(&t.out()).unwrap();
+}
 fn capture(f: Fake, t: &Temp, scope: Scope) -> Value {
     capture::acquire(f, &t.out(), scope, 16384, 2).unwrap()
 }
