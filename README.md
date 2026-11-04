@@ -1,5 +1,7 @@
 # KernelDump
 
+[Release v1.2.1](https://github.com/KKudroK/KernelDump/releases/tag/v1.2.1) includes the merged ledger, provenance, verifier and Linux 7.0 fixes. The static musl build passes 75 tests; the same binary also passed a Pod-scoped capture and verification on AWS AL2023 6.18.56. See [release files and checksums](docs/release_v9.md). Internal version: 0.1.1; policy: `kernel-focused-v9`.
+
 The 2026-11-04 fixes were validated with existing dumps and three new captures on an exact 7.0.0-38-generic kernel in a local VM. See [kernel validation and limits](docs/kernel_7_0_0_38_validation.md) and the [initial fix notes](docs/fixes_20261104.md). Earlier performance measurements below remain historical.
 
 [한국어](README.ko.md) · [Deployment](docs/deployment.md) · [Original comparison](docs/original_comparison.md) · [Release files](docs/release_v9.md)

@@ -1,5 +1,7 @@
 # KernelDump
 
+[v1.2.1 릴리즈](https://github.com/KKudroK/KernelDump/releases/tag/v1.2.1)는 원장·연결 확인·검증기·Linux 7.0 관련 팀 수정 사항을 포함합니다. 정적 musl 빌드의 검사 75개와 같은 실행 파일의 AWS AL2023 6.18.56 Pod 지정 수집·검증을 통과했습니다. [배포 파일과 체크섬](docs/release_v9.md)을 참고합니다. 내부 버전은 0.1.1, 정책은 `kernel-focused-v9`입니다.
+
 2026-11-04 수정본을 기존 덤프와 동일한 7.0.0-38-generic 커널의 로컬 VM에서 새로 수집한 덤프 3개로 검증했다. [검증 결과와 한계](docs/kernel_7_0_0_38_validation.md), [최초 수정 내역](docs/fixes_20261104.md)을 참고한다. 아래 성능 실측은 이전 빌드의 이력이다.
 
 [English](README.md) · [배포 조건](docs/deployment.md) · [원본 대비 실측](docs/original_comparison.md) · [릴리즈 파일](docs/release_v9.md)
