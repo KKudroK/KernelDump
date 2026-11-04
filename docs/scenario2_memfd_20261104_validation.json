@@ -1,0 +1,58 @@
+{
+  "passed": true,
+  "binary_sha256": "00ab40c3569bf9d21ab80327b2f13bf8d8f3056cc2ccca62ca9d8bfddea40591",
+  "unit_tests": 82,
+  "added_regression_tests": 7,
+  "kernel_release": "7.0.0-38-generic",
+  "btf_sha256": "2b91134c0f8fdf86be01ddf92bd7bb12393b0137aedd190556d0f26bddddd12b",
+  "environment": "Local QEMU TCG, 1GiB RAM, 2 vCPUs, no network; exact Pod UID cgroup fixture, not EKS.",
+  "captures": [
+    {
+      "case": "memfd-pod",
+      "status": "complete_for_policy",
+      "verified": true,
+      "lime_sha256": "0e261e93ed48de8b58afa4012343fc444fdf7ab5b8ef2df9811848d2ae677f07",
+      "all_resource_witnesses_valid": true,
+      "socket_control_bytes_recovered": true,
+      "file_cache_bytes_recovered": 8192,
+      "shared_vmas": 2,
+      "private_vmas": 1,
+      "host_pids": [
+        93,
+        96,
+        97
+      ],
+      "closed_memfd_fds": true,
+      "raw_reverse_tree_and_task_links_match": true,
+      "request_response_bytes_recovered": true,
+      "private_cow_not_confused_with_shared_bytes": true,
+      "cache_discovery": {
+        "queued_jobs": 5,
+        "elapsed_ns": 12734021,
+        "requested_bytes": 25831,
+        "proc_maps_requested_bytes": 24576,
+        "candidate_pages_including_metadata": 15
+      }
+    },
+    {
+      "case": "node-control",
+      "status": "complete_for_policy",
+      "verified": true,
+      "lime_sha256": "4ccaf0721ebc6a2e9ed893ec8ca19609dacd5b6b0fd07029e1aaf56af589256a",
+      "all_resource_witnesses_valid": true,
+      "socket_control_bytes_recovered": true
+    }
+  ],
+  "existing_scenario2_eks_dump_reverified": {
+    "coverage_ranges": 24638,
+    "lime_sha256": "f9edaa7244d841683774cb83e73afd9ca69cc2c9f542280fe94d86e5088fa4de",
+    "payload_bytes": 509652992,
+    "status": "complete_for_policy",
+    "verified": true
+  },
+  "limitations": [
+    "Live non-atomic capture; bounded current mappings, not complete historical users or communication.",
+    "New binary was live-tested locally, not deployed to the existing EKS cluster.",
+    "Older EKS dump verification checks integrity and format compatibility, not retrospective collection of missing bytes."
+  ]
+}

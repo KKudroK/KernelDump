@@ -1,12 +1,59 @@
 //! Pod references only; resident memory only. This stage cannot spend the
 //! discovery time or extra-page slots already assigned to code and sockets.
 use super::*;
+use std::io::Read;
+
+#[cfg(test)]
+mod memfd_tests;
 
 const MAX_JOBS: usize = 128;
 const MAX_PAGES: usize = 256;
 const MAX_FILE: u64 = 64 * 1024;
 const MAX_NS: u64 = 100_000_000;
 const MAX_BYTES: u64 = 4 * 1024 * 1024;
+const MAX_PROC_MAPS_BYTES: u64 = 512 * 1024;
+const MAX_REVERSE_VMAS: usize = 64;
+
+#[derive(Clone, Debug, PartialEq)]
+struct MemfdSeed {
+    start: u64,
+    end: u64,
+    page_offset: u64,
+    inode: u64,
+}
+// Proc is a hint only. The kernel VMA and inode must match before retention.
+fn memfd_seed(line: &str) -> Result<Option<MemfdSeed>> {
+    let mut fields = line.split_whitespace();
+    let range = fields.next().unwrap_or("");
+    let permissions = fields.next().unwrap_or("");
+    let offset = fields.next().unwrap_or("");
+    let _device = fields.next();
+    let inode = fields.next().unwrap_or("");
+    let name = fields.next().unwrap_or("");
+    if !name.starts_with("/memfd:") || !permissions.ends_with('s') {
+        return Ok(None);
+    }
+    let (start, end) = range.split_once('-').ok_or("memfd maps range malformed")?;
+    let start = u64::from_str_radix(start, 16)?;
+    let end = u64::from_str_radix(end, 16)?;
+    let offset = u64::from_str_radix(offset, 16)?;
+    let inode = inode.parse()?;
+    if permissions.len() != 4
+        || start >= end
+        || start % PAGE != 0
+        || end % PAGE != 0
+        || offset % PAGE != 0
+        || inode == 0
+    {
+        return Err("memfd maps fields invalid".into());
+    }
+    Ok(Some(MemfdSeed {
+        start,
+        end,
+        page_offset: offset / PAGE,
+        inode,
+    }))
+}
 
 struct Job {
     kind: JobKind,
@@ -14,9 +61,18 @@ struct Job {
     checks: Vec<Check>,
 }
 enum JobKind {
+    Maps {
+        task: u64,
+        pid: u32,
+        mm: u64,
+    },
     Fd {
         file: u64,
         origin: Value,
+    },
+    Vma {
+        task: u64,
+        seed: MemfdSeed,
     },
     Cow {
         task: u64,
@@ -28,9 +84,16 @@ enum JobKind {
 #[derive(Default)]
 pub(super) struct CacheState {
     jobs: Vec<Job>,
+    maps_jobs: Vec<Job>,
+    maps_mms: BTreeSet<u64>,
+    proc_maps_bytes: u64,
+    proc_maps_calls: u64,
     pages: BTreeSet<u64>,
     metadata: BTreeSet<u64>,
     seen: BTreeSet<(u64, u64)>,
+    vma_seeds: BTreeSet<(u32, u64)>,
+    memfd_mappings: BTreeSet<u64>,
+    reverse_observations: Vec<Value>,
     queued: usize,
     omitted: usize,
     excluded: usize,
@@ -58,10 +121,14 @@ impl CacheState {
             "empty_files":self.empty,"observations":self.observations,
             "resident_pages_found":self.hits,"nonresident_or_value_entries":self.misses,
             "duplicate_mapping_indices":self.duplicates,"candidate_pages_including_metadata":self.pages.len(),
+            "memfd_vma_seeds":self.vma_seeds.len(),"memfd_mappings_walked":self.memfd_mappings.len(),
+            "memfd_reverse_mappings":self.reverse_observations,
             "requested_bytes":self.bytes,"read_calls":self.calls,"elapsed_ns":self.elapsed,
+            "proc_maps_requested_bytes":self.proc_maps_bytes,"proc_maps_read_calls":self.proc_maps_calls,
             "limits":{"jobs":MAX_JOBS,"candidate_pages_including_metadata":MAX_PAGES,
-                "small_file_bytes":MAX_FILE,"additional_discovery_ns":MAX_NS,"additional_read_bytes":MAX_BYTES},
-            "selection":"Pod-only small shmem or unlinked regular files through open FDs; one file-cache page per discovered executable COW page. Lower priority than code/network. Only already resident pages; no file-content reads or fault-in.",
+                "small_file_bytes":MAX_FILE,"additional_discovery_ns":MAX_NS,"additional_read_bytes":MAX_BYTES,
+                "proc_maps_bytes_per_address_space":MAX_PROC_MAPS_BYTES,"reverse_vmas_per_mapping":MAX_REVERSE_VMAS},
+            "selection":"Pod-only small shmem or unlinked regular files through open FDs, shared memfd VMAs with address_space.i_mmap reverse validation, and one file-cache page per discovered executable COW page. Lower priority than code/network. Only already resident pages; no file-content reads or fault-in.",
             "meaning":"Cache is current in-memory file content, not a trusted original. References are live and checked around reads; payload bytes can still change."})
     }
 }
@@ -123,7 +190,7 @@ fn folio_pa(page: u64, base: u64, size: u64, first: u64, count: u64, index: u64)
 }
 impl Scan<'_, '_> {
     fn queue_cache(&mut self, kind: JobKind) {
-        if self.cache.jobs.len() == MAX_JOBS {
+        if self.cache.queued >= MAX_JOBS {
             self.cache.omitted += 1;
             return;
         }
@@ -136,6 +203,69 @@ impl Scan<'_, '_> {
     }
     pub(super) fn queue_file_cache(&mut self, file: u64, origin: Value) {
         self.queue_cache(JobKind::Fd { file, origin });
+    }
+    pub(super) fn queue_memfd_discovery(&mut self, task: u64, pid: u32) -> Result<()> {
+        let mm = self.value(task, "task_struct", "mm")?;
+        if mm == 0 || self.cache.maps_mms.contains(&mm) {
+            return Ok(());
+        }
+        if self.cache.maps_jobs.len() >= MAX_JOBS {
+            self.cache.omitted += 1;
+            return Ok(());
+        }
+        let mut checks = self.task_checks.clone();
+        checks.push(self.expect(task, "task_struct", "mm", mm)?);
+        self.cache.maps_mms.insert(mm);
+        self.cache.maps_jobs.push(Job {
+            kind: JobKind::Maps { task, pid, mm },
+            identity: self.task_identity.clone(),
+            checks,
+        });
+        Ok(())
+    }
+    fn read_memfd_maps(&mut self, mut input: impl Read) -> Result<Vec<u8>> {
+        let mut maps = Vec::new();
+        let mut buffer = [0u8; 4096];
+        loop {
+            let take = buffer
+                .len()
+                .min((MAX_PROC_MAPS_BYTES + 1 - maps.len() as u64) as usize);
+            if now() >= self.live.deadline
+                || self.live.read_bytes.get().saturating_add(take as u64) > self.live.read_limit
+                || crate::CANCEL.load(std::sync::atomic::Ordering::Relaxed)
+            {
+                return Err("memfd proc maps discovery budget exhausted".into());
+            }
+            self.live
+                .read_bytes
+                .set(self.live.read_bytes.get() + take as u64);
+            self.live.calls.set(self.live.calls.get() + 1);
+            self.cache.proc_maps_bytes += take as u64;
+            self.cache.proc_maps_calls += 1;
+            let n = input.read(&mut buffer[..take])?;
+            if n == 0 {
+                return Ok(maps);
+            }
+            maps.extend_from_slice(&buffer[..n]);
+            if maps.len() as u64 > MAX_PROC_MAPS_BYTES {
+                return Err("Pod proc maps exceeds memfd discovery bound".into());
+            }
+        }
+    }
+    fn queue_memfd_vmas(&mut self, task: u64, pid: u32, mm: u64) -> Result<()> {
+        // Deferred until after every socket/FD traversal; proc IO shares the
+        // cache time/read budget. Kernel checks also reject PID/mm reuse.
+        self.expect(task, "task_struct", "mm", mm)?;
+        let input = std::fs::File::open(format!("/proc/{pid}/maps"))?;
+        let maps = self.read_memfd_maps(input)?;
+        for line in String::from_utf8_lossy(&maps).lines() {
+            if let Some(seed) = memfd_seed(line)? {
+                if self.cache.vma_seeds.insert((pid, seed.start)) {
+                    self.queue_cache(JobKind::Vma { task, seed });
+                }
+            }
+        }
+        Ok(())
     }
     pub(super) fn queue_code_cache(&mut self, task: u64, pid: u32) {
         let targets: Vec<_> = self
@@ -162,22 +292,33 @@ impl Scan<'_, '_> {
         let calls = self.live.calls.get();
         self.live.deadline = self.live.deadline.min(begin.saturating_add(MAX_NS));
         self.live.read_limit = MAX_READ_BYTES.min(bytes.saturating_add(MAX_BYTES));
-        let jobs = std::mem::take(&mut self.cache.jobs);
-        let mut remaining = jobs.len();
-        for job in jobs {
+        // FD/COW jobs already queued by the primary traversal take precedence.
+        for job in std::mem::take(&mut self.cache.maps_jobs) {
+            if self.cache.queued >= MAX_JOBS {
+                self.cache.omitted += 1;
+            } else {
+                self.cache.jobs.push(job);
+                self.cache.queued += 1;
+            }
+        }
+        let mut jobs = std::collections::VecDeque::from(std::mem::take(&mut self.cache.jobs));
+        while let Some(job) = jobs.pop_front() {
             if now() >= self.live.deadline
                 || self.cache.pages.len() >= MAX_PAGES
                 || self.live.read_bytes.get() >= self.live.read_limit
                 || crate::CANCEL.load(std::sync::atomic::Ordering::Relaxed)
             {
-                self.cache.omitted += remaining;
+                self.cache.omitted += jobs.len() + 1;
                 break;
             }
-            remaining -= 1;
             self.task_identity = job.identity;
             self.task_checks = job.checks;
             let mut observation = match &job.kind {
                 JobKind::Fd { file, origin } => json!({"kind":"fd","file":file,"fd":origin["fd"]}),
+                JobKind::Maps { .. } => json!({"kind":"shared_memfd_maps_discovery"}),
+                JobKind::Vma { seed, .. } => {
+                    json!({"kind":"shared_memfd_vma","virtual_address":seed.start})
+                }
                 JobKind::Cow { va, offset, .. } => {
                     json!({"kind":"executable_cow_comparison","virtual_address":va,"file_offset":offset})
                 }
@@ -193,6 +334,8 @@ impl Scan<'_, '_> {
             );
             let result = match job.kind {
                 JobKind::Fd { file, origin } => self.small_file(file, origin),
+                JobKind::Maps { task, pid, mm } => self.queue_memfd_vmas(task, pid, mm),
+                JobKind::Vma { task, seed } => self.memfd_vma(task, &seed),
                 JobKind::Cow {
                     task,
                     va,
@@ -219,6 +362,7 @@ impl Scan<'_, '_> {
                 self.plan.issue("pod_file_cache", e);
             }
             self.cache.observations.push(observation);
+            jobs.extend(std::mem::take(&mut self.cache.jobs));
         }
         if self.cache.omitted > 0 {
             self.plan.issue("pod_cache_job_limit", self.cache.omitted);
@@ -316,6 +460,160 @@ impl Scan<'_, '_> {
             )?;
         }
         Ok(())
+    }
+    fn memfd_vma(&mut self, task: u64, seed: &MemfdSeed) -> Result<()> {
+        let va = seed.start;
+        let mut checks = self.task_checks.clone();
+        let mm = self.checked_field(task, "task_struct", "mm", &mut checks)?;
+        if mm == 0 {
+            return Err("memfd task lost mm".into());
+        }
+        let vma = self.vma_at(mm, va, &mut checks)?;
+        if self.checked_field(vma, "vm_area_struct", "vm_mm", &mut checks)? != mm {
+            return Err("memfd VMA mm mismatch".into());
+        }
+        let start = self.checked_field(vma, "vm_area_struct", "vm_start", &mut checks)?;
+        let end = self.checked_field(vma, "vm_area_struct", "vm_end", &mut checks)?;
+        let flags = self.checked_field(vma, "vm_area_struct", "vm_flags", &mut checks)?;
+        let offset = self.checked_field(vma, "vm_area_struct", "vm_pgoff", &mut checks)?;
+        if start != seed.start || end != seed.end || offset != seed.page_offset || flags & 8 == 0 {
+            return Err("memfd shared VMA changed".into());
+        }
+        let file = self.checked_field(vma, "vm_area_struct", "vm_file", &mut checks)?;
+        if file == 0 {
+            return Err("memfd VMA lost backing file".into());
+        }
+        let inode = self.checked_field(file, "file", "f_inode", &mut checks)?;
+        if self.checked_field(inode, "inode", "i_mode", &mut checks)? & 0xf000 != 0x8000 {
+            return Err("memfd backing object is not regular".into());
+        }
+        if self.checked_field(inode, "inode", "i_ino", &mut checks)? != seed.inode
+            || self.checked_field(inode, "inode", "i_nlink", &mut checks)? != 0
+        {
+            return Err("memfd backing inode changed or still linked".into());
+        }
+        let sb = self.checked_field(inode, "inode", "i_sb", &mut checks)?;
+        if self.checked_field(sb, "super_block", "s_magic", &mut checks)? != 0x01021994 {
+            return Err("memfd VMA is not shmem".into());
+        }
+        let mapping = self.checked_field(file, "file", "f_mapping", &mut checks)?;
+        if self.checked_field(mapping, "address_space", "host", &mut checks)? != inode {
+            return Err("memfd address_space inode mismatch".into());
+        }
+        let size = self.checked_field(inode, "inode", "i_size", &mut checks)?;
+        if size > MAX_FILE {
+            self.cache.oversized += 1;
+            return Ok(());
+        }
+        if size == 0 {
+            self.cache.empty += 1;
+            return Ok(());
+        }
+        let reverse = self.reverse_memfd_vmas(mapping, vma, &mut checks)?;
+        if self.cache.memfd_mappings.insert(mapping) {
+            self.cache.reverse_observations.push(json!({
+                "mapping":mapping,"inode":inode,"file_size":size,
+                "source_vma":vma,"fd_required":false,"vmas":reverse,
+                "observation_phase":"discovery",
+                "owner_coverage":"indexed process leaders; empty owners means unresolved, not no users",
+                "validation":"Selected reverse-tree and owner fields are included in file-cache ledger same_fields checks. Summary alone does not establish stability or communication."
+            }));
+        }
+        for index in 0..size.div_ceil(PAGE) {
+            self.cache_page(
+                file,
+                inode,
+                mapping,
+                index,
+                (size - index * PAGE).min(PAGE),
+                json!({"kind":"shared_memfd_vma","vma":vma,
+                    "virtual_address":va,"file_size":size,"fd_required":false}),
+                checks.clone(),
+            )?;
+        }
+        Ok(())
+    }
+    fn reverse_memfd_vmas(
+        &self,
+        mapping: u64,
+        target: u64,
+        checks: &mut Vec<Check>,
+    ) -> Result<Vec<Value>> {
+        let root =
+            self.checked_field(mapping, "address_space", "i_mmap.rb_root.rb_node", checks)?;
+        if root == 0 {
+            return Err("memfd i_mmap is empty".into());
+        }
+        let rb_offset = self.off("vm_area_struct", "shared.rb")?;
+        let mut stack = vec![root];
+        let mut seen = BTreeSet::new();
+        let mut observations = Vec::new();
+        let mut found = false;
+        while let Some(node) = stack.pop() {
+            if !seen.insert(node) {
+                return Err("memfd i_mmap tree cycle".into());
+            }
+            if seen.len() > MAX_REVERSE_VMAS {
+                return Err("memfd i_mmap traversal bound".into());
+            }
+            let vma = node
+                .checked_sub(rb_offset)
+                .ok_or("memfd rb node underflow")?;
+            let file = self.checked_field(vma, "vm_area_struct", "vm_file", checks)?;
+            if file == 0 || self.checked_field(file, "file", "f_mapping", checks)? != mapping {
+                return Err("memfd reverse VMA mapping mismatch".into());
+            }
+            let mm = self.checked_field(vma, "vm_area_struct", "vm_mm", checks)?;
+            let start = self.checked_field(vma, "vm_area_struct", "vm_start", checks)?;
+            let end = self.checked_field(vma, "vm_area_struct", "vm_end", checks)?;
+            let pgoff = self.checked_field(vma, "vm_area_struct", "vm_pgoff", checks)?;
+            let flags = self.checked_field(vma, "vm_area_struct", "vm_flags", checks)?;
+            if mm == 0 || start >= end {
+                return Err("memfd reverse VMA invalid".into());
+            }
+            if vma == target {
+                found = true;
+            }
+            let mut owners = Vec::new();
+            let mut host_pids = Vec::new();
+            if let Some(candidates) = self.mm_owners.get(&mm) {
+                for owner in candidates {
+                    for check in &owner.checks {
+                        if !check.matches(&self.live.read(check.address, check.bytes.len())?) {
+                            return Err("memfd reverse process identity changed".into());
+                        }
+                    }
+                    checks.extend(owner.checks.clone());
+                    host_pids.push(owner.pid);
+                    owners.push(json!({"task":owner.task,"host_pid":owner.pid,
+                        "start_time_ns":owner.start_time_ns}));
+                }
+            }
+            let file_start = pgoff
+                .checked_mul(PAGE)
+                .ok_or("memfd file offset overflow")?;
+            let file_end = file_start
+                .checked_add(end - start)
+                .ok_or("memfd file range overflow")?;
+            observations.push(
+                json!({"vma":vma,"mm":mm,"host_pids":host_pids,"owners":owners,
+                "virtual_start":start,"virtual_end":end,"file_page_offset":pgoff,
+                "file_byte_start":file_start,"file_byte_end_exclusive":file_end,
+                "shared":flags & 8 != 0}),
+            );
+            let left = self.checked_field(node, "rb_node", "rb_left", checks)?;
+            let right = self.checked_field(node, "rb_node", "rb_right", checks)?;
+            if left != 0 {
+                stack.push(left);
+            }
+            if right != 0 {
+                stack.push(right);
+            }
+        }
+        if !found {
+            return Err("source VMA absent from address_space.i_mmap".into());
+        }
+        Ok(observations)
     }
     fn cow_file(&mut self, task: u64, va: u64, offset: u64, physical: u64) -> Result<()> {
         let mut checks = self.task_checks.clone();
@@ -633,6 +931,7 @@ mod tests {
             let mut scan = Scan {
                 pod: None,
                 target_seen: BTreeSet::new(),
+                mm_owners: BTreeMap::new(),
                 cache: CacheState::default(),
                 code_targets: vec![],
                 btf: b.finish(),
