@@ -22,6 +22,7 @@ const PFN_MASK: u64 = 0x000f_ffff_ffff_f000;
 const MAX_READ_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_REFS: usize = 16384;
 const MAX_CANDIDATES: usize = 8192;
+const MAX_THREAD_TASKS: usize = 16384;
 const QUEUE_BYTES: u64 = 64 * 1024;
 
 fn metadata_owner(mut detail: Value, identity: &Value) -> Value {
@@ -382,6 +383,7 @@ impl Resources {
                 files: BTreeSet::new(),
                 tables: BTreeSet::new(),
                 tasks: 0,
+                thread_tasks: BTreeSet::new(),
                 fd_refs: 0,
                 sockets: 0,
                 skbs: 0,
@@ -408,7 +410,7 @@ impl Resources {
             }
             scan.capture_cache();
             Ok(
-                json!({"file_cache":scan.cache.summary(),"tasks_examined":scan.tasks,"address_spaces_indexed":scan.mm_owners.len(),"fd_references_examined":scan.fd_refs,
+                json!({"file_cache":scan.cache.summary(),"tasks_examined":scan.tasks,"threads_examined":scan.thread_tasks.len(),"unique_fd_tables":scan.tables.len(),"address_spaces_indexed":scan.mm_owners.len(),"fd_references_examined":scan.fd_refs,
                 "unique_files":scan.files.len(),"sockets_examined":scan.sockets,"skbs_examined":scan.skbs,
                 "target_threads_observed":scan.target_seen.len(),
                 "policy_window_truncations":scan.policy_truncations,
@@ -422,10 +424,10 @@ impl Resources {
                 Value::Null
             }
         };
-        result.summary = json!({"policy":"referenced_socket_queues_and_pod_cache_v4","pod_uid":pod.map(|p|&p.uid),"begin_ns":started,"end_ns":now(),"stats":stats,
+        result.summary = json!({"policy":"referenced_socket_queues_and_pod_cache_v5","pod_uid":pod.map(|p|&p.uid),"begin_ns":started,"end_ns":now(),"stats":stats,
             "candidate_pages":result.pages.len(),"references":result.evidence.len(),"issues_at_discovery":result.issue_count.get(),
-            "limits":{"requested_metadata_bytes":MAX_READ_BYTES,"candidate_pages":MAX_CANDIDATES,"references":MAX_REFS,"queue_payload_bytes":QUEUE_BYTES},
-            "scope":"Selected Pod census threads including separate FD tables when --pod is supplied; otherwise process-leader FD references. Socket receive/write queues plus TCP retransmit/out-of-order trees. With Pod scope, bounded resident small shmem/unlinked-file cache through FDs or live shared memfd VMAs, and cache pages corresponding to discovered executable COW pages are considered after sockets. No general file-cache sweep or full socket history.",
+            "limits":{"requested_metadata_bytes":MAX_READ_BYTES,"candidate_pages":MAX_CANDIDATES,"references":MAX_REFS,"queue_payload_bytes":QUEUE_BYTES,"process_leaders":4096,"threads_per_group":4096,"threads":MAX_THREAD_TASKS},
+            "scope":"Selected Pod census threads when --pod is supplied; otherwise node-wide process leaders and threads, including separate FD tables. Shared FD tables are deduplicated. Socket receive/write queues plus TCP retransmit/out-of-order trees. With Pod scope, bounded resident small shmem/unlinked-file cache through FDs or live shared memfd VMAs, and cache pages corresponding to discovered executable COW pages are considered after sockets. No general file-cache sweep or full socket history.",
             "window_policy":"64KiB per queue. Bytes beyond this per-queue limit are explicit policy truncations, not all-content coverage.",
             "btf_required":true});
         result
@@ -446,6 +448,7 @@ struct Scan<'a, 'p> {
     files: BTreeSet<u64>,
     tables: BTreeSet<u64>,
     tasks: usize,
+    thread_tasks: BTreeSet<u64>,
     fd_refs: usize,
     sockets: usize,
     skbs: usize,
@@ -590,6 +593,9 @@ impl Scan<'_, '_> {
         let mut at = self.live.uint(head, 8)?;
         let mut seen = BTreeSet::new();
         while at != head {
+            if self.thread_tasks.len() >= MAX_THREAD_TASKS {
+                return Err("global thread traversal limit".into());
+            }
             if !seen.insert(at) || self.tasks >= 4096 {
                 return Err("task traversal limit/cycle".into());
             }
@@ -599,14 +605,19 @@ impl Scan<'_, '_> {
             if self.pod.is_some() {
                 self.index_mm_owner(task, pid)?;
             }
-            if let Some(scope) = &self.pod {
-                if scope.processes.contains_key(&(pid as u32)) {
-                    if let Err(e) = self.threads(task) {
-                        self.plan.issue("pod_threads", e);
-                    }
+            if self
+                .pod
+                .as_ref()
+                .is_none_or(|scope| scope.processes.contains_key(&(pid as u32)))
+            {
+                // Preserve leader evidence even if the optional thread list is
+                // unreadable or changes while the collector walks it.
+                if let Err(e) = self.task_files(task) {
+                    self.plan.issue("task_files", e);
                 }
-            } else if let Err(e) = self.task_files(task) {
-                self.plan.issue("task_files", e);
+                if let Err(e) = self.threads(task) {
+                    self.plan.issue("threads", e);
+                }
             }
             at = self.live.uint(at, 8)?;
         }
@@ -633,51 +644,72 @@ impl Scan<'_, '_> {
     }
     fn threads(&mut self, leader: u64) -> Result<()> {
         let signal = self.value(leader, "task_struct", "signal")?;
-        let head = signal + self.off("signal_struct", "thread_head")?;
+        if signal == 0 {
+            return Err("thread group signal unavailable".into());
+        }
+        let tgid = self.value(leader, "task_struct", "tgid")?;
+        let head = signal
+            .checked_add(self.off("signal_struct", "thread_head")?)
+            .ok_or("thread head overflow")?;
         let offset = self.off("task_struct", "thread_node")?;
         let mut at = self.live.uint(head, 8)?;
         let mut seen = BTreeSet::new();
         while at != head {
             if !seen.insert(at) || seen.len() > 4096 {
-                return Err("Pod thread traversal limit/cycle".into());
+                return Err("thread traversal limit/cycle".into());
             }
             let task = at.checked_sub(offset).ok_or("thread address underflow")?;
-            if self.value(task, "task_struct", "signal")? != signal {
-                return Err("thread signal changed".into());
+            if self.value(task, "task_struct", "signal")? != signal
+                || self.value(task, "task_struct", "tgid")? != tgid
+            {
+                return Err("thread group identity changed".into());
+            }
+            if !self.thread_tasks.contains(&task) && self.thread_tasks.len() >= MAX_THREAD_TASKS {
+                return Err("global thread traversal limit".into());
             }
             if let Err(e) = self.task_files(task) {
-                self.plan.issue("pod_thread_files", e);
+                self.plan.issue("thread_files", e);
             }
             at = self.live.uint(at, 8)?;
         }
         Ok(())
     }
     fn task_files(&mut self, task: u64) -> Result<()> {
+        if self.thread_tasks.contains(&task) {
+            return Ok(());
+        }
+        if self.thread_tasks.len() >= MAX_THREAD_TASKS {
+            return Err("global thread traversal limit".into());
+        }
+        self.thread_tasks.insert(task);
         let pid = self.value(task, "task_struct", "pid")?;
+        let tgid = self.value(task, "task_struct", "tgid")?;
         let boot = if self.pod.is_some() {
-            self.value(task, "task_struct", "start_boottime")?
+            Some(self.value(task, "task_struct", "start_boottime")?)
         } else {
-            0
+            None
         };
         if let Some(scope) = &self.pod {
             if !scope.threads.contains_key(&(pid as u32)) {
                 return Ok(());
             }
-            let id = scope.validate_thread(pid as u32, boot)?;
-            if self.value(task, "task_struct", "tgid")? != id.tgid as u64 {
+            let id =
+                scope.validate_thread(pid as u32, boot.ok_or("Pod start time unavailable")?)?;
+            if tgid != id.tgid as u64 {
                 return Err("target tgid changed".into());
             }
             self.target_seen.insert(pid as u32);
         }
         let files = self.value(task, "task_struct", "files")?;
         let start = self.value(task, "task_struct", "start_time")?;
-        self.task_identity = json!({"task":task,"pid":pid,"start_time_ns":start,"start_boottime_ns":boot,"pod_uid":self.pod.as_ref().map(|p|&p.uid)});
+        self.task_identity = json!({"task":task,"pid":pid,"tgid":tgid,"start_time_ns":start,"start_boottime_ns":boot,"pod_uid":self.pod.as_ref().map(|p|&p.uid)});
         self.task_checks = vec![
             self.expect(task, "task_struct", "pid", pid)?,
+            self.expect(task, "task_struct", "tgid", tgid)?,
             self.expect(task, "task_struct", "start_time", start)?,
             self.expect(task, "task_struct", "files", files)?,
         ];
-        if self.pod.is_some() {
+        if let Some(boot) = boot {
             self.task_checks
                 .push(self.expect(task, "task_struct", "start_boottime", boot)?);
         }

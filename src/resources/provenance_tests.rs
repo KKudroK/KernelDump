@@ -63,7 +63,24 @@ fn network_btf() -> Btf {
     let u8t = b.int("u8", 1);
     let u16t = b.int("u16", 2);
     let u32t = b.int("u32", 4);
+    let u64t = b.int("u64", 8);
     let ptr = b.record(&[0, 2 << 24, 0]);
+    b.structure(
+        "task_struct",
+        80,
+        &[
+            ("pid", u32t, 0),
+            ("tgid", u32t, 4),
+            ("signal", ptr, 8),
+            ("files", ptr, 16),
+            ("start_time", u64t, 24),
+            ("tasks", ptr, 32),
+            ("thread_node", ptr, 48),
+            ("start_boottime", u64t, 64),
+            ("mm", ptr, 72),
+        ],
+    );
+    b.structure("signal_struct", 16, &[("thread_head", ptr, 0)]);
     b.structure("files_struct", 8, &[("fdt", ptr, 0)]);
     b.structure(
         "fdtable",
@@ -219,6 +236,7 @@ fn socket_witness_must_detect_changed_ownership() {
             files: BTreeSet::new(),
             tables: BTreeSet::new(),
             tasks: 1,
+            thread_tasks: BTreeSet::new(),
             fd_refs: 0,
             sockets: 0,
             skbs: 0,
@@ -263,5 +281,176 @@ fn socket_witness_must_detect_changed_ownership() {
             "ownership mutation at {changed_at:x}"
         );
         assert_eq!(plan.finish()["complete"], valid);
+    }
+}
+
+#[test]
+fn node_collection_follows_private_thread_fds_and_preserves_leader_on_list_errors() {
+    for (shared, fault) in [(false, ""), (true, ""), (true, "group"), (true, "cycle")] {
+        const BASE: u64 = 0xffff888000000000;
+        let path = std::env::temp_dir().join(format!(
+            "kerneldump_threads_{}_{}",
+            std::process::id(),
+            now()
+        ));
+        let mut core = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .unwrap();
+        let mut data = vec![0u8; 0x5000];
+        let put = |data: &mut [u8], at: usize, value: u64, n: usize| {
+            data[at..at + n].copy_from_slice(&value.to_le_bytes()[..n]);
+        };
+        let init = BASE + 0x3000;
+        let leader = BASE + 0x3100;
+        let worker = BASE + 0x3200;
+        let signal = BASE + 0x3300;
+        put(&mut data, 0x3020, leader + 32, 8);
+        put(&mut data, 0x3120, init + 32, 8);
+        for (offset, pid, files) in [
+            (0x3100, 42, if shared { BASE + 0x100 } else { BASE + 0x180 }),
+            (0x3200, 43, BASE + 0x100),
+        ] {
+            put(&mut data, offset, pid, 4);
+            put(&mut data, offset + 4, 42, 4);
+            put(&mut data, offset + 8, signal, 8);
+            put(&mut data, offset + 16, files, 8);
+            put(&mut data, offset + 24, pid * 100, 8);
+        }
+        put(&mut data, 0x3300, leader + 48, 8);
+        put(&mut data, 0x3130, worker + 48, 8);
+        put(
+            &mut data,
+            0x3230,
+            if fault == "cycle" {
+                worker + 48
+            } else {
+                signal
+            },
+            8,
+        );
+        if fault == "group" {
+            put(&mut data, 0x3204, 99, 4);
+        }
+        // One empty leader table and a socket reachable only from the worker's
+        // private table. In the shared case, both tasks use the socket table.
+        for (at, value, n) in [
+            (0x180, BASE + 0x280, 8),
+            (0x280, 64, 4),
+            (0x288, BASE + 0x380, 8),
+            (0x290, BASE + 0x480, 8),
+            (0x100, BASE + 0x200, 8),
+            (0x200, 64, 4),
+            (0x208, BASE + 0x300, 8),
+            (0x210, BASE + 0x400, 8),
+            (0x300, BASE + 0x500, 8),
+            (0x400, 1, 8),
+            (0x500, BASE + 0x600, 8),
+            (0x508, BASE + 0x700, 8),
+            (0x600, 0xc000, 2),
+            (0x700, BASE + 0x500, 8),
+            (0x708, BASE + 0x800, 8),
+            (0x800, 1, 2),
+            (0x808, BASE + 0x700, 8),
+            (0x810, BASE + 0x1000, 8),
+            (0x820, BASE + 0x820, 8),
+            (0x1000, BASE + 0x2000, 8),
+            (0x1008, BASE + 0x2000, 8),
+            (0x1010, 16, 4),
+            (0x1018, 16, 4),
+            (0x101c, 128, 4),
+            (0x1020, BASE + 0x810, 8),
+        ] {
+            put(&mut data, at, value, n);
+        }
+        data[0x2000..0x2010].fill(0x41);
+        core.write_all(&data).unwrap();
+        let segs = [Segment {
+            offset: 0,
+            va: BASE,
+            pa: PAGE,
+            bytes: data.len() as u64,
+        }];
+        let ram = [(PAGE, PAGE + data.len() as u64)];
+        let mut plan = Resources::default();
+        let mut scan = Scan {
+            pod: None,
+            target_seen: BTreeSet::new(),
+            mm_owners: BTreeMap::new(),
+            cache: cache::CacheState::default(),
+            code_targets: vec![],
+            btf: network_btf(),
+            live: Live {
+                core: &core,
+                segs: &segs,
+                ram: &ram,
+                deadline: now() + 5_000_000_000,
+                read_limit: MAX_READ_BYTES,
+                read_bytes: Cell::new(0),
+                calls: Cell::new(0),
+                root: 0,
+                levels: 4,
+            },
+            plan: &mut plan,
+            fields: RefCell::new(HashMap::new()),
+            vmemmap: BASE + 0x4000,
+            page_size: 64,
+            files: BTreeSet::new(),
+            tables: BTreeSet::new(),
+            tasks: 0,
+            thread_tasks: BTreeSet::new(),
+            fd_refs: 0,
+            sockets: 0,
+            skbs: 0,
+            policy_truncations: 0,
+            task_identity: Value::Null,
+            task_checks: vec![],
+        };
+        scan.tasks(init).unwrap();
+        assert_eq!(
+            scan.thread_tasks.len(),
+            if fault == "group" { 1 } else { 2 }
+        );
+        assert_eq!(scan.tables.len(), if shared { 1 } else { 2 });
+        assert_eq!(scan.fd_refs, 1, "shared tables must not be rescanned");
+        assert_eq!(scan.sockets, 1);
+        scan.thread_tasks.extend(0..MAX_THREAD_TASKS as u64);
+        assert!(
+            scan.task_files(BASE + 0x3500)
+                .unwrap_err()
+                .to_string()
+                .contains("global thread")
+        );
+        drop(scan);
+        let payload = plan
+            .evidence
+            .iter()
+            .find(|e| e.detail["role"] == "network_bytes")
+            .expect("worker-only queued bytes must be retained");
+        assert_eq!(
+            payload.detail["process"]["pid"],
+            if shared { 42 } else { 43 }
+        );
+        assert_eq!(payload.detail["process"]["tgid"], 42);
+        assert!(plan.pages.contains_key(&(PAGE + 0x2000)));
+        assert_eq!(plan.issue_count.get() > 0, !fault.is_empty());
+        // A later TGID change must invalidate ownership at payload-read time.
+        let owner = if shared { 0x3104 } else { 0x3204 };
+        core.write_all_at(&99u32.to_le_bytes(), owner).unwrap();
+        let witnesses = plan.witness(PAGE, PAGE + data.len() as u64, true, |va, buf| {
+            virtual_read(&core, &segs, va, buf)
+        });
+        assert!(
+            witnesses
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|v| v["category"] == "network")
+                .all(|v| v["same_fields"] == false)
+        );
+        drop(core);
+        std::fs::remove_file(path).unwrap();
     }
 }
