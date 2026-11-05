@@ -35,18 +35,13 @@ fn pod_segment(s: &str, uid: &str) -> bool {
         || s.ends_with(&format!("-pod{u}.slice"))
         || s.ends_with(&format!("-pod{uid}.slice"))
 }
-fn membership(text: &str, uid: &str) -> Result<Option<String>> {
+fn membership(bytes: impl AsRef<[u8]>, uid: &str) -> Result<Option<String>> {
+    let text = std::str::from_utf8(bytes.as_ref())?;
     let mut paths = Vec::new();
     for line in text.lines() {
         let fields: Vec<_> = line.splitn(3, ':').collect();
         if fields.len() != 3 || fields[0].parse::<u32>().is_err() || !fields[2].starts_with('/') {
             return Err("malformed proc cgroup entry".into());
-        }
-        if fields[0] == "0" && fields[1].is_empty() {
-            return Ok(fields[2]
-                .split('/')
-                .any(|s| pod_segment(s, uid))
-                .then(|| fields[2].to_string()));
         }
         if fields[2].split('/').any(|s| pod_segment(s, uid)) {
             paths.push(fields[2].to_string());
@@ -59,13 +54,20 @@ fn membership(text: &str, uid: &str) -> Result<Option<String>> {
     }
     Ok(paths.pop())
 }
-pub fn start_ticks(stat: &str) -> Result<u64> {
-    stat.rsplit_once(')')
-        .and_then(|(_, tail)| tail.split_whitespace().nth(19))
+pub fn start_ticks(stat: impl AsRef<[u8]>) -> Result<u64> {
+    let bytes = stat.as_ref();
+    let end = bytes
+        .iter()
+        .rposition(|&b| b == b')')
+        .ok_or("invalid proc stat name")?;
+    // comm is arbitrary bytes. Only the numeric tail must be UTF-8/ASCII.
+    std::str::from_utf8(&bytes[end + 1..])?
+        .split_whitespace()
+        .nth(19)
         .and_then(|v| v.parse().ok())
         .ok_or_else(|| "invalid proc stat start time".into())
 }
-fn text(path: &Path, limit: usize) -> Result<String> {
+fn read_proc(path: &Path, limit: usize) -> Result<Vec<u8>> {
     let mut bytes = Vec::new();
     File::open(path)?
         .take(limit as u64 + 1)
@@ -73,7 +75,7 @@ fn text(path: &Path, limit: usize) -> Result<String> {
     if bytes.len() > limit {
         return Err("Pod scope proc read exceeds bound".into());
     }
-    Ok(String::from_utf8(bytes)?)
+    Ok(bytes)
 }
 fn gone(error: &(dyn std::error::Error + Send + Sync + 'static)) -> bool {
     error
@@ -96,8 +98,8 @@ impl Identity {
     }
     fn current(&self, uid: &str, bytes: &Cell<usize>) -> Result<()> {
         let p = self.path();
-        let read = |name, limit| -> Result<String> {
-            let result = text(&p.join(name), limit);
+        let read = |name, limit| -> Result<Vec<u8>> {
+            let result = read_proc(&p.join(name), limit);
             bytes.set(bytes.get() + result.as_ref().map_or(limit, |s| s.len()));
             result
         };
@@ -132,15 +134,15 @@ impl PodScope {
         let mut processes = BTreeMap::new();
         let mut threads = BTreeMap::new();
         let mut exited = 0;
-        let mut read = |path: &Path, limit| -> Result<String> {
+        let mut read = |path: &Path, limit| -> Result<Vec<u8>> {
             if now() >= deadline || CANCEL.load(Ordering::Relaxed) || reads + limit > MAX_BYTES {
                 return Err("Pod census deadline/cancel/metadata limit".into());
             }
-            let value = text(path, limit);
+            let value = read_proc(path, limit);
             reads += value.as_ref().map_or(limit, |s| s.len());
             value
         };
-        let boot_id = read(&proc.join("sys/kernel/random/boot_id"), 128)?
+        let boot_id = String::from_utf8(read(&proc.join("sys/kernel/random/boot_id"), 128)?)?
             .trim()
             .to_string();
         for entry in fs::read_dir(proc)? {
@@ -319,16 +321,37 @@ mod tests {
         assert!(membership(&format!("7:pids:/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod{u}.slice/abc.scope\n"),UID).unwrap().is_some());
         assert_eq!(
             membership(&format!("0::/\n7:pids:/pod{UID}"), UID).unwrap(),
-            None
+            Some(format!("/pod{UID}"))
         );
         assert!(membership(&format!("7:pids:/pod{UID}/a\n8:memory:/pod{UID}/b"), UID).is_err());
         assert!(membership("malformed", UID).is_err());
+    }
+    #[test]
+    fn hybrid_membership_checks_all_controllers_in_any_order() {
+        let path = format!("/kubepods/pod{UID}/container");
+        for cg in [
+            format!("0::/\n7:pids:{path}\n8:memory:{path}"),
+            format!("7:pids:{path}\n8:memory:{path}\n0::/"),
+        ] {
+            assert_eq!(membership(&cg, UID).unwrap(), Some(path.clone()));
+        }
+        for cg in [
+            format!("0::{path}\n7:pids:/pod{UID}/other"),
+            format!("7:pids:/pod{UID}/other\n0::{path}"),
+        ] {
+            assert!(membership(&cg, UID).is_err());
+        }
     }
     #[test]
     fn stat_name_is_not_tokenized() {
         let stat = format!("42 (a ) b) S {} 912", vec!["0"; 18].join(" "));
         assert_eq!(start_ticks(&stat).unwrap(), 912);
         assert!(start_ticks("42 broken").is_err());
+        let mut raw = b"42 (name \xff ) extra)".to_vec();
+        raw.extend(format!(" S {} 912", vec!["0"; 18].join(" ")).as_bytes());
+        assert_eq!(start_ticks(&raw).unwrap(), 912);
+        raw.push(0xff);
+        assert!(start_ticks(&raw).is_err());
     }
     #[test]
     fn wrong_pod_and_deadline_never_fallback() {
@@ -345,11 +368,10 @@ mod tests {
         fs::create_dir_all(root.join("sys/kernel/random")).unwrap();
         fs::write(root.join("sys/kernel/random/boot_id"), "boot-test").unwrap();
         let stat = |pid: u32| {
-            format!(
-                "{pid} (test ) name) S {} {}",
-                vec!["0"; 18].join(" "),
-                pid * 100
-            )
+            let mut raw = format!("{pid} (test ").into_bytes();
+            raw.push(0xff);
+            raw.extend(format!(") name) S {} {}", vec!["0"; 18].join(" "), pid * 100).as_bytes());
+            raw
         };
         for (pid, member) in [(100, true), (200, false)] {
             let p = root.join(pid.to_string());

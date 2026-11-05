@@ -1,5 +1,7 @@
 # KernelDump
 
+The 2026-11-05 source review fixes collection omissions and identity checks. See [changes and validation limits](docs/capture_review.md). Earlier release captures and performance figures below describe previous builds.
+
 [Release v1.2.2](https://github.com/KKudroK/KernelDump/releases/tag/v1.2.2) adds bounded Pod-scoped retention of shared memfds after FD closure through current mappings. A fresh static musl build passes 82 tests, dependency checksums, embedded source identity, static ELF checks and readiness on AWS AL2023 6.18.56. See [release files and checksums](docs/release_v1_2_2.md). Internal version: 0.1.1; policy: `kernel-focused-v9`.
 
 See the merged [closed-FD memfd validation](docs/scenario2_memfd_20261104.md) for the team's local-VM results and bounds. [Earlier Linux 7.0 validation](docs/kernel_7_0_0_38_validation.md) and performance measurements below describe their recorded builds. The v1.2.1 AWS Pod capture and the new binary's readiness check are separate validations.
@@ -68,7 +70,7 @@ Memfd discovery reads proc maps only in the cache stage after socket traversal, 
 
 Code, network and selected cache share 4,096 deduplicated candidate pages (at most 16MiB additional payload) and a cooperative one-second discovery deadline. Metadata candidates count against that cap; JSON metadata, process RSS and original-policy payload are outside it. Cache runs after code/network discovery and uses remaining candidate slots only: at most 256 pages including provenance metadata, 128 jobs, 100ms within the remaining shared deadline and 4MiB requested reads. Existing object/read/reference limits remain. No collection-mode switches are added.
 
-Network layouts use running-kernel BTF. A selected Pod includes census threads with separate FD tables; unscoped collection follows process-leader FDs. Only known COW addresses are looked up in the Maple Tree, and selected file offsets in XArray. Other kernels remain unqualified for these new paths. Missing required fields, unread candidates or changed checked references cause partial capture. Per-queue windows are separately recorded. Large executable regions can still exhaust the evidence budget, including important code pages. See [scope, decision and measured costs](docs/resource_retention.md).
+Network layouts use running-kernel BTF. Both Pod-scoped and node-wide collection follow thread FD tables, including private tables, while deduplicating shared tables. Traversal is bounded to 4,096 process leaders, 4,096 threads per group and 16,384 threads in total. Only known COW addresses are looked up in the Maple Tree, and selected file offsets in XArray. Other kernels remain unqualified for these new paths. Missing required fields, unread candidates or changed checked references cause partial capture. Per-queue windows are separately recorded. Large executable regions can still exhaust the evidence budget, including important code pages. See [scope, decision and measured costs](docs/resource_retention.md).
 
 ## Original versus current capture cost
 

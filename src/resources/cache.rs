@@ -953,6 +953,7 @@ mod tests {
                 files: BTreeSet::new(),
                 tables: BTreeSet::new(),
                 tasks: 0,
+                thread_tasks: BTreeSet::new(),
                 fd_refs: 0,
                 sockets: 0,
                 skbs: 0,
