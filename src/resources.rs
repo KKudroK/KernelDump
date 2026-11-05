@@ -74,12 +74,23 @@ mod tests {
         assert_eq!(result[0]["same_fields"], false);
         assert_eq!(r.finish()["complete"], false);
         assert_eq!(r.finish()["unread_candidate_pages"], 0);
+        assert!(r.finish()["issues"].as_array().unwrap().iter().any(|issue|
+            issue["error"].as_str().unwrap_or("").contains("0xffff800000001000")));
         let stable = candidate();
         stable.witness(PAGE, 2 * PAGE, true, |_, data| {
             data.copy_from_slice(&[1, 2, 3, 4]);
             Ok(())
         });
         assert_eq!(stable.finish()["complete"], true);
+    }
+
+    #[test]
+    fn folio_flag_mask_ignores_volatile_state_but_rejects_geometry_or_uptodate_change() {
+        let original = (1u64 << 3) | (1u64 << 4);
+        let check = Check {address:0,bytes:original.to_le_bytes().to_vec(),mask:Some(original)};
+        assert!(check.matches(&(original | (1u64 << 15)).to_le_bytes()));
+        assert!(!check.matches(&(1u64 << 3).to_le_bytes()));
+        assert!(!check.matches(&(1u64 << 4).to_le_bytes()));
     }
     #[test]
     fn missing_btf_is_explicit_and_never_complete() {
@@ -201,7 +212,7 @@ impl Live<'_> {
 struct Check {
     address: u64,
     bytes: Vec<u8>,
-    // For an open_fds word only the target FD bit is part of this reference.
+    // Validate only identity-relevant bits in shared words (open_fds and folio flags).
     mask: Option<u64>,
 }
 impl Check {
@@ -292,18 +303,28 @@ impl Resources {
                     } else {
                         true
                     };
+                    let mut first_failure = None;
                     for c in &e.checks {
                         let mut bytes = vec![0; c.bytes.len()];
                         self.validation_bytes
                             .set(self.validation_bytes.get() + bytes.len() as u64);
-                        if read(c.address, &mut bytes).is_err() || !c.matches(&bytes) {
+                        let reason = match read(c.address, &mut bytes) {
+                            Err(error) => Some(format!("unreadable check at {:#x}: {error}", c.address)),
+                            Ok(()) if !c.matches(&bytes) => Some(format!(
+                                "check at {:#x}, expected {:02x?}, observed {:02x?}, mask {:?}",
+                                c.address, c.bytes, bytes, c.mask)),
+                            Ok(()) => None,
+                        };
+                        if let Some(reason) = reason {
                             valid = false;
+                            first_failure.get_or_insert(reason);
                         }
                     }
                     if !valid {
                         self.issue(
                             "reference_changed",
-                            format!("{} evidence {}", e.category, index),
+                            format!("{} evidence {}; {}", e.category, index,
+                                first_failure.unwrap_or_else(|| "process identity validation failed".into())),
                         );
                     }
                     valid
@@ -603,7 +624,9 @@ impl Scan<'_, '_> {
             let task = at.checked_sub(tasks_off).ok_or("task address underflow")?;
             let pid = self.value(task, "task_struct", "pid")?;
             if self.pod.is_some() {
-                self.index_mm_owner(task, pid)?;
+                if let Err(e) = self.index_mm_owner(task, pid) {
+                    self.plan.issue("mm_owner_index", e);
+                }
             }
             if self
                 .pod
@@ -758,6 +781,7 @@ impl Scan<'_, '_> {
                         pid,
                         json!({"kind":"fd","fd":fd,"files":files,"table":table,"array":array}),
                     ) {
+                        self.files.remove(&file);
                         self.plan.issue("file", e);
                     }
                 }
@@ -770,7 +794,7 @@ impl Scan<'_, '_> {
         if inode != 0 {
             match self.value(inode, "inode", "i_mode")? & 0xf000 {
                 0xc000 => self.socket(file, pid, origin)?,
-                0x8000 if self.pod.is_some() => self.queue_file_cache(file, origin),
+                0x8000 if self.pod.is_some() => self.queue_file_cache(file, origin)?,
                 _ => {}
             }
         }
@@ -889,22 +913,28 @@ impl Scan<'_, '_> {
                 self.metadata(sk, "udp_sock", "network", detail.clone())?;
             }
             for (typ, name) in queues {
-                let queue = sk + self.off(typ, name)?;
-                let mut at = self.value(queue, "sk_buff_head", "next")?;
-                let mut seen = BTreeSet::new();
-                let mut left = QUEUE_BYTES;
-                while at != 0 && at != queue {
-                    if !seen.insert(at) || seen.len() > 256 {
-                        return Err("skb queue cycle/node limit".into());
-                    }
-                    self.skb(at, &detail, name, &mut left, 0)?;
-                    at = self.value(at, "sk_buff", "next")?;
-                    if left == 0 {
-                        if at != queue {
-                            self.policy_truncations += 1;
+                let queue_result = (|| -> Result<()> {
+                    let queue = sk + self.off(typ, name)?;
+                    let mut at = self.value(queue, "sk_buff_head", "next")?;
+                    let mut seen = BTreeSet::new();
+                    let mut left = QUEUE_BYTES;
+                    while at != 0 && at != queue {
+                        if !seen.insert(at) || seen.len() > 256 {
+                            return Err("skb queue cycle/node limit".into());
                         }
-                        break;
+                        self.skb(at, &detail, name, &mut left, 0)?;
+                        at = self.value(at, "sk_buff", "next")?;
+                        if left == 0 {
+                            if at != queue {
+                                self.policy_truncations += 1;
+                            }
+                            break;
+                        }
                     }
+                    Ok(())
+                })();
+                if let Err(error) = queue_result {
+                    self.plan.issue(name, error);
                 }
             }
             if tcp {
@@ -913,29 +943,12 @@ impl Scan<'_, '_> {
                     ("sock", "tcp_rtx_queue"),
                     ("tcp_sock", "out_of_order_queue"),
                 ] {
-                    let root = sk + self.off(typ, name)?;
-                    let mut todo = vec![self.value(root, "rb_root", "rb_node")?];
-                    let mut seen = BTreeSet::new();
-                    let mut left = QUEUE_BYTES;
-                    while let Some(node) = todo.pop() {
-                        if node == 0 {
-                            continue;
-                        }
-                        if !seen.insert(node) || seen.len() > 256 {
-                            return Err("TCP skb tree cycle/node limit".into());
-                        }
-                        let skb = node
-                            .checked_sub(self.off("sk_buff", "rbnode")?)
-                            .ok_or("skb rbnode underflow")?;
-                        self.skb(skb, &detail, name, &mut left, 0)?;
-                        todo.push(self.value(node, "rb_node", "rb_right")?);
-                        todo.push(self.value(node, "rb_node", "rb_left")?);
-                        if left == 0 {
-                            if todo.iter().any(|&n| n != 0) {
-                                self.policy_truncations += 1;
-                            }
-                            break;
-                        }
+                    let queue_result = (|| -> Result<()> {
+                        let root = sk + self.off(typ, name)?;
+                        self.retain_skb_tree(root, &detail, name)
+                    })();
+                    if let Err(error) = queue_result {
+                        self.plan.issue(name, error);
                     }
                 }
             }
@@ -943,6 +956,38 @@ impl Scan<'_, '_> {
         })();
         self.task_checks = task_checks;
         result
+    }
+    fn retain_skb_tree(&mut self, root: u64, detail: &Value, name: &'static str) -> Result<()> {
+        let mut todo = vec![self.value(root, "rb_root", "rb_node")?];
+        let mut seen = BTreeSet::new();
+        let offset = self.off("sk_buff", "rbnode")?;
+        let mut left = QUEUE_BYTES;
+        while let Some(node) = todo.pop() {
+            if node == 0 { continue; }
+            if seen.len() >= 256 { return Err("TCP skb tree node limit".into()); }
+            if !seen.insert(node) {
+                self.plan.issue(name, format!("TCP skb tree cycle at {node:#x}"));
+                continue;
+            }
+            let result = node.checked_sub(offset).ok_or_else(|| "skb rbnode underflow".into())
+                .and_then(|skb| self.skb(skb, detail, name, &mut left, 0));
+            if let Err(error) = result {
+                self.plan.issue(name, format!("skb node {node:#x}: {error}"));
+            }
+            // Child metadata and payload are independent observations. A bad
+            // buffer or one unreadable child must not discard the other branch.
+            for field in ["rb_right", "rb_left"] {
+                match self.value(node, "rb_node", field) {
+                    Ok(child) => todo.push(child),
+                    Err(error) => self.plan.issue(name, format!("{node:#x}.{field}: {error}")),
+                }
+            }
+            if left == 0 {
+                if todo.iter().any(|&node| node != 0) { self.policy_truncations += 1; }
+                break;
+            }
+        }
+        Ok(())
     }
     fn skb(
         &mut self,

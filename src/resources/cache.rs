@@ -1,5 +1,5 @@
-//! Pod references only; resident memory only. This stage cannot spend the
-//! discovery time or extra-page slots already assigned to code and sockets.
+//! Pod references only; resident memory only. Independent discovery budget
+//! and fair allocation alongside code and sockets; no file-content fault-in.
 use super::*;
 use std::io::Read;
 
@@ -81,6 +81,16 @@ enum JobKind {
         physical: u64,
     },
 }
+impl JobKind {
+    fn group(&self) -> usize {
+        match self {
+            Self::Fd { .. } => 0,
+            Self::Maps { .. } => 1,
+            Self::Vma { .. } => 2,
+            Self::Cow { .. } => 3,
+        }
+    }
+}
 #[derive(Default)]
 pub(super) struct CacheState {
     jobs: Vec<Job>,
@@ -95,6 +105,7 @@ pub(super) struct CacheState {
     memfd_mappings: BTreeSet<u64>,
     reverse_observations: Vec<Value>,
     queued: usize,
+    queued_by_kind: [usize; 4],
     omitted: usize,
     excluded: usize,
     oversized: usize,
@@ -117,7 +128,7 @@ impl CacheState {
     }
     pub(super) fn summary(&self) -> Value {
         json!({"queued_jobs":self.queued,"unprocessed_or_unqueued_jobs":self.omitted,
-            "ordinary_files_excluded":self.excluded,"files_over_64kib_excluded":self.oversized,
+            "ordinary_files_excluded":self.excluded,"files_truncated_to_prefix":self.oversized,
             "empty_files":self.empty,"observations":self.observations,
             "resident_pages_found":self.hits,"nonresident_or_value_entries":self.misses,
             "duplicate_mapping_indices":self.duplicates,"candidate_pages_including_metadata":self.pages.len(),
@@ -125,10 +136,10 @@ impl CacheState {
             "memfd_reverse_mappings":self.reverse_observations,
             "requested_bytes":self.bytes,"read_calls":self.calls,"elapsed_ns":self.elapsed,
             "proc_maps_requested_bytes":self.proc_maps_bytes,"proc_maps_read_calls":self.proc_maps_calls,
-            "limits":{"jobs":MAX_JOBS,"candidate_pages_including_metadata":MAX_PAGES,
-                "small_file_bytes":MAX_FILE,"additional_discovery_ns":MAX_NS,"additional_read_bytes":MAX_BYTES,
+            "limits":{"jobs_per_kind":MAX_JOBS,"candidate_pages_including_metadata":MAX_PAGES,
+                "file_prefix_bytes":MAX_FILE,"additional_discovery_ns":MAX_NS,"additional_read_bytes":MAX_BYTES,
                 "proc_maps_bytes_per_address_space":MAX_PROC_MAPS_BYTES,"reverse_vmas_per_mapping":MAX_REVERSE_VMAS},
-            "selection":"Pod-only small shmem or unlinked regular files through open FDs, shared memfd VMAs with address_space.i_mmap reverse validation, and one file-cache page per discovered executable COW page. Lower priority than code/network. Only already resident pages; no file-content reads or fault-in.",
+            "selection":"Pod-only prefixes of shmem or unlinked regular files through open FDs, shared memfd VMAs with address_space.i_mmap reverse validation, and one file-cache page per discovered executable COW page. Round-robin across FD, maps, VMA and COW jobs; shares final page slots fairly with code/network. Only already resident pages; no file-content reads or fault-in.",
             "meaning":"Cache is current in-memory file content, not a trusted original. References are live and checked around reads; payload bytes can still change."})
     }
 }
@@ -190,10 +201,11 @@ fn folio_pa(page: u64, base: u64, size: u64, first: u64, count: u64, index: u64)
 }
 impl Scan<'_, '_> {
     fn queue_cache(&mut self, kind: JobKind) {
-        if self.cache.queued >= MAX_JOBS {
+        if self.cache.queued_by_kind[kind.group()] >= MAX_JOBS {
             self.cache.omitted += 1;
             return;
         }
+        self.cache.queued_by_kind[kind.group()] += 1;
         self.cache.jobs.push(Job {
             kind,
             identity: self.task_identity.clone(),
@@ -201,8 +213,19 @@ impl Scan<'_, '_> {
         });
         self.cache.queued += 1;
     }
-    pub(super) fn queue_file_cache(&mut self, file: u64, origin: Value) {
+    pub(super) fn queue_file_cache(&mut self, file: u64, origin: Value) -> Result<()> {
+        // Admission is a hint; small_file revalidates the complete chain later.
+        let inode = self.value(file, "file", "f_inode")?;
+        let links = self.value(inode, "inode", "i_nlink")?;
+        let sb = self.value(inode, "inode", "i_sb")?;
+        let magic = self.value(sb, "super_block", "s_magic")?;
+        require_supported_cache_fs(magic)?;
+        if links != 0 && magic != 0x01021994 {
+            self.cache.excluded += 1;
+            return Ok(());
+        }
         self.queue_cache(JobKind::Fd { file, origin });
+        Ok(())
     }
     pub(super) fn queue_memfd_discovery(&mut self, task: u64, pid: u32) -> Result<()> {
         let mm = self.value(task, "task_struct", "mm")?;
@@ -290,19 +313,25 @@ impl Scan<'_, '_> {
         let begin = now();
         let bytes = self.live.read_bytes.get();
         let calls = self.live.calls.get();
-        self.live.deadline = self.live.deadline.min(begin.saturating_add(MAX_NS));
-        self.live.read_limit = MAX_READ_BYTES.min(bytes.saturating_add(MAX_BYTES));
-        // FD/COW jobs already queued by the primary traversal take precedence.
+        self.live.deadline = begin.saturating_add(MAX_NS);
+        self.live.read_limit = bytes.saturating_add(MAX_BYTES);
+        // A full FD bucket must not starve mapped-only memfd or COW discovery.
         for job in std::mem::take(&mut self.cache.maps_jobs) {
-            if self.cache.queued >= MAX_JOBS {
-                self.cache.omitted += 1;
-            } else {
-                self.cache.jobs.push(job);
-                self.cache.queued += 1;
-            }
+            self.cache.queued_by_kind[job.kind.group()] += 1;
+            self.cache.jobs.push(job);
+            self.cache.queued += 1;
         }
         let mut jobs = std::collections::VecDeque::from(std::mem::take(&mut self.cache.jobs));
-        while let Some(job) = jobs.pop_front() {
+        let mut next_group = 0;
+        while !jobs.is_empty() {
+            let at = (0..4)
+                .find_map(|step| {
+                    let group = (next_group + step) % 4;
+                    jobs.iter().position(|job| job.kind.group() == group)
+                })
+                .unwrap();
+            let job = jobs.remove(at).unwrap();
+            next_group = (job.kind.group() + 1) % 4;
             if now() >= self.live.deadline
                 || self.cache.pages.len() >= MAX_PAGES
                 || self.live.read_bytes.get() >= self.live.read_limit
@@ -351,7 +380,7 @@ impl Scan<'_, '_> {
             } else if self.cache.excluded > counts.3 {
                 "ordinary_file_excluded"
             } else if self.cache.oversized > counts.4 {
-                "file_over_64kib_excluded"
+                "file_prefix_retained"
             } else if self.cache.empty > counts.5 {
                 "empty_file"
             } else {
@@ -392,7 +421,23 @@ impl Scan<'_, '_> {
         n: &'static str,
         checks: &mut Vec<Check>,
     ) -> Result<u64> {
-        let check = self.check(a, t, n)?;
+        self.checked_field_mask(a, t, n, None, checks)
+    }
+    fn checked_word_mask(&self, address: u64, mask: u64, checks: &mut Vec<Check>) -> Result<u64> {
+        let value = self.checked_uint(address, 8, checks)?;
+        // Other FDs in this allocation word do not identify the target file.
+        checks.last_mut().unwrap().mask = Some(mask);
+        Ok(value)
+    }
+    fn checked_field_mask(
+        &self, a: u64, t: &'static str, n: &'static str,
+        mask: Option<u64>, checks: &mut Vec<Check>,
+    ) -> Result<u64> {
+        let mut check = self.check(a, t, n)?;
+        if mask.is_some() && check.bytes.len() != 8 {
+            return Err("masked cache scalar must be 64-bit".into());
+        }
+        check.mask = mask;
         let value = self.field(t, n)?.value(&check.bytes)?;
         checks.push(check);
         Ok(value)
@@ -413,9 +458,11 @@ impl Scan<'_, '_> {
             return Ok(());
         }
         let size = self.checked_field(inode, "inode", "i_size", &mut checks)?;
+        if size > i64::MAX as u64 {
+            return Err("negative or corrupt file size".into());
+        }
         if size > MAX_FILE {
             self.cache.oversized += 1;
-            return Ok(());
         }
         if size == 0 {
             self.cache.empty += 1;
@@ -436,28 +483,31 @@ impl Scan<'_, '_> {
             return Err("cache FD changed".into());
         }
         let bitmap = self.checked_field(table, "fdtable", "open_fds", &mut checks)?;
-        if self.checked_uint(bitmap + (fd / 64) * 8, 8, &mut checks)? & (1 << (fd % 64)) == 0 {
+        let bit = 1u64 << (fd % 64);
+        if self.checked_word_mask(bitmap + (fd / 64) * 8, bit, &mut checks)? & bit == 0 {
             return Err("cache FD closed".into());
         }
         let mapping = self.checked_field(file, "file", "f_mapping", &mut checks)?;
         if self.checked_field(mapping, "address_space", "host", &mut checks)? != inode {
             return Err("cache mapping inode mismatch".into());
         }
-        for index in 0..size.div_ceil(PAGE) {
+        for index in 0..size.min(MAX_FILE).div_ceil(PAGE) {
             let reason = if magic == 0x01021994 {
                 "small_shmem"
             } else {
                 "small_unlinked_file"
             };
-            self.cache_page(
+            if let Err(error) = self.cache_page(
                 file,
                 inode,
                 mapping,
                 index,
                 (size - index * PAGE).min(PAGE),
-                json!({"kind":reason,"fd":fd,"file_size":size}),
+                json!({"kind":reason,"fd":fd,"file_size":size,"prefix_limit_bytes":MAX_FILE,"truncated":size>MAX_FILE}),
                 checks.clone(),
-            )?;
+            ) {
+                self.plan.issue("file_cache_index", format!("file {file:#x}, index {index}: {error}"));
+            }
         }
         Ok(())
     }
@@ -501,9 +551,11 @@ impl Scan<'_, '_> {
             return Err("memfd address_space inode mismatch".into());
         }
         let size = self.checked_field(inode, "inode", "i_size", &mut checks)?;
+        if size > i64::MAX as u64 {
+            return Err("negative or corrupt file size".into());
+        }
         if size > MAX_FILE {
             self.cache.oversized += 1;
-            return Ok(());
         }
         if size == 0 {
             self.cache.empty += 1;
@@ -519,7 +571,7 @@ impl Scan<'_, '_> {
                 "validation":"Selected reverse-tree and owner fields are included in file-cache ledger same_fields checks. Summary alone does not establish stability or communication."
             }));
         }
-        for index in 0..size.div_ceil(PAGE) {
+        for index in 0..size.min(MAX_FILE).div_ceil(PAGE) {
             self.cache_page(
                 file,
                 inode,
@@ -527,7 +579,7 @@ impl Scan<'_, '_> {
                 index,
                 (size - index * PAGE).min(PAGE),
                 json!({"kind":"shared_memfd_vma","vma":vma,
-                    "virtual_address":va,"file_size":size,"fd_required":false}),
+                    "virtual_address":va,"file_size":size,"prefix_limit_bytes":MAX_FILE,"truncated":size>MAX_FILE,"fd_required":false}),
                 checks.clone(),
             )?;
         }
@@ -807,11 +859,21 @@ impl Scan<'_, '_> {
         // XArray leaves are folio heads. folio.index survives the rename of
         // page.index to page.__folio_index in newer kernels.
         let first = self.checked_field(page, "folio", "index", &mut checks)?;
-        let flags = self.checked_field(page, "page", "flags", &mut checks)?;
         let head = self.btf.enum_value("pageflags", "PG_head")?;
-        if head >= 64 {
-            return Err("invalid head flag".into());
+        let uptodate = self.btf.enum_value("pageflags", "PG_uptodate")?;
+        if head >= 64 || uptodate >= 64 || head == uptodate {
+            return Err("invalid folio identity flags".into());
         }
+        // Dirty, writeback, referenced and lock state may change while the
+        // same folio still belongs to the same file/index. Do not mistake
+        // those changes for a replaced reference. Keep geometry and initialized
+        // content state checked, alongside mapping, index, XArray and owner links.
+        let mut flag_mask = (1u64 << head) | (1u64 << uptodate);
+        if let Ok(poison) = self.btf.enum_value("pageflags", "PG_hwpoison") {
+            if poison >= 64 { return Err("invalid hardware poison flag".into()); }
+            flag_mask |= 1u64 << poison;
+        }
+        let flags = self.checked_field_mask(page, "page", "flags", Some(flag_mask), &mut checks)?;
         let count = if flags & (1u64 << head) != 0 {
             let name = if self.field("folio", "_nr_pages").is_ok() {
                 "_nr_pages"
@@ -824,7 +886,8 @@ impl Scan<'_, '_> {
         };
         let pa = folio_pa(page, self.vmemmap, self.page_size, first, count, index)?;
         let detail = json!({"role":"file_bytes","pid":self.task_identity["pid"],"process":self.task_identity,
-            "file":file,"inode":inode,"mapping":mapping,"page":page,"file_offset":index*PAGE,"origin":origin});
+            "file":file,"inode":inode,"mapping":mapping,"page":page,"file_offset":index*PAGE,"origin":origin,
+            "page_flags_at_discovery":flags,"page_flag_validation_mask":flag_mask,"folio_pages":count});
         self.add(pa, n, "file_cache", detail.clone(), checks.clone())?;
         self.cache.seen.insert((mapping, index));
         self.cache.hits += 1;
@@ -894,7 +957,8 @@ mod tests {
             );
             let en = b.name("pageflags");
             let head = b.name("PG_head");
-            b.record(&[en, (6 << 24) | 1, 4, head, 3]);
+            let uptodate = b.name("PG_uptodate");
+            b.record(&[en, (6 << 24) | 2, 4, head, 3, uptodate, 4]);
             let path = std::env::temp_dir().join(format!(
                 "kerneldump_cache_btf_{}_{}",
                 std::process::id(),
@@ -915,7 +979,7 @@ mod tests {
             };
             put(&mut data, 0x1000, node + 2, 8);
             put(&mut data, 0x1800 + 8 + 8 * 8, page, 8);
-            put(&mut data, 0x2200, 1 << 3, 8);
+            put(&mut data, 0x2200, (1 << 3) | (1 << 4), 8);
             put(&mut data, 0x2200 + 24, mapping, 8);
             put(&mut data, 0x2200 + 32, 8, 8);
             put(&mut data, 0x2200 + count_offset as usize, 4, 4);
@@ -983,6 +1047,9 @@ mod tests {
                 .unwrap();
             assert_eq!(payload.detail["physical_start"], 9 * PAGE);
             assert_eq!(payload.detail["file_offset"], 9 * PAGE);
+            assert_eq!(payload.detail["page_flag_validation_mask"], (1u64 << 3) | (1u64 << 4));
+            // A volatile flag changing does not replace this mapped file folio.
+            core.write_all_at(&((1u64 << 3) | (1u64 << 4) | (1u64 << 15)).to_le_bytes(), 0x2200).unwrap();
             plan.witness(0, data.len() as u64, true, |va, buf| {
                 virtual_read(&core, &segs, va, buf)
             });

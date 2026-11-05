@@ -51,6 +51,8 @@ fn fixture(run: impl FnOnce(&mut Scan<'_, '_>, &File)) {
         ],
     );
     b.structure("file", 16, &[("f_inode", ptr, 0), ("f_mapping", ptr, 8)]);
+    b.structure("files_struct", 8, &[("fdt", ptr, 0)]);
+    b.structure("fdtable", 24, &[("max_fds", u64t, 0), ("fd", ptr, 8), ("open_fds", ptr, 16)]);
     b.structure(
         "inode",
         40,
@@ -64,6 +66,8 @@ fn fixture(run: impl FnOnce(&mut Scan<'_, '_>, &File)) {
     );
     b.structure("super_block", 8, &[("s_magic", u64t, 0)]);
     let xa = b.structure("xarray", 8, &[("xa_head", ptr, 0)]);
+    let slots = b.record(&[0, 3 << 24, 0, ptr, u64t, 64]);
+    b.structure("xa_node", 520, &[("shift", u64t, 0), ("slots", slots, 8)]);
     b.structure(
         "address_space",
         24,
@@ -73,7 +77,8 @@ fn fixture(run: impl FnOnce(&mut Scan<'_, '_>, &File)) {
     b.structure("folio", 64, &[("index", u64t, 32)]);
     let en = b.name("pageflags");
     let head = b.name("PG_head");
-    b.record(&[en, (6 << 24) | 1, 4, head, 3]);
+    let uptodate = b.name("PG_uptodate");
+    b.record(&[en, (6 << 24) | 2, 4, head, 3, uptodate, 4]);
     let path =
         std::env::temp_dir().join(format!("kerneldump_memfd_{}_{}", std::process::id(), now()));
     let mut core = std::fs::OpenOptions::new()
@@ -325,5 +330,83 @@ fn cache_job_limit_applies_after_pending_jobs_are_drained() {
         });
         assert!(scan.cache.jobs.is_empty());
         assert_eq!(scan.cache.omitted, 1);
+    });
+}
+
+#[test]
+fn large_memfd_keeps_a_verified_prefix_instead_of_excluding_every_page() {
+    fixture(|scan, core| {
+        core.write_all_at(&(96 * 1024u64).to_le_bytes(), INODE + 32 - BASE)
+            .unwrap();
+        scan.memfd_vma(TASK1, &seed()).unwrap();
+        assert_eq!(scan.cache.oversized, 1);
+        let retained = scan
+            .plan
+            .evidence
+            .iter()
+            .find(|e| e.detail["role"] == "file_bytes");
+        assert!(retained.is_some());
+        assert_eq!(scan.cache.hits, 1);
+        assert_eq!(scan.cache.misses, 15);
+    });
+}
+
+#[test]
+fn full_fd_bucket_does_not_exclude_mapped_only_memfd_jobs() {
+    fixture(|scan, _| {
+        for _ in 0..MAX_JOBS + 1 {
+            scan.queue_cache(JobKind::Fd {
+                file: FILE,
+                origin: json!({}),
+            });
+        }
+        scan.queue_cache(JobKind::Vma {
+            task: TASK1,
+            seed: seed(),
+        });
+        assert_eq!(scan.cache.queued_by_kind, [MAX_JOBS, 0, 1, 0]);
+        assert_eq!(scan.cache.omitted, 1);
+    });
+}
+
+fn prepare_fd(scan: &mut Scan<'_, '_>, core: &File) -> Value {
+    for (at, value) in [(0x900, BASE+0xa00), (0xa00, 64), (0xa08, BASE+0xb00),
+                        (0xa10, BASE+0xc00), (0xb00, FILE), (0xc00, 1)] {
+        core.write_all_at(&value.to_le_bytes(), at).unwrap();
+    }
+    scan.live.deadline = now() + 5_000_000_000;
+    json!({"files":BASE+0x900,"table":BASE+0xa00,"array":BASE+0xb00,"fd":0})
+}
+
+#[test]
+fn cache_fd_validation_ignores_other_allocation_bits_but_detects_target_close() {
+    fixture(|scan, core| {
+        let origin = prepare_fd(scan, core);
+        scan.small_file(FILE, origin).unwrap();
+        assert_eq!(scan.cache.hits, 1);
+        core.write_all_at(&3u64.to_le_bytes(), 0xc00).unwrap();
+        let observed = scan.plan.witness(0, 16*PAGE, true, |va, data| virtual_read(core, scan.live.segs, va, data));
+        assert!(observed.as_array().unwrap().iter().all(|row| row["same_fields"]==true));
+        core.write_all_at(&2u64.to_le_bytes(), 0xc00).unwrap();
+        let closed = scan.plan.witness(0, 16*PAGE, true, |va, data| virtual_read(core, scan.live.segs, va, data));
+        assert!(closed.as_array().unwrap().iter().all(|row| row["same_fields"]==false));
+    });
+}
+
+#[test]
+fn bad_file_cache_index_does_not_discard_independent_later_page() {
+    fixture(|scan, core| {
+        let origin = prepare_fd(scan, core);
+        let page = BASE+0x8000+12*64;
+        for (at, value) in [(INODE+32-BASE, 2*PAGE), (MAPPING+16-BASE, BASE+0x1002),
+                            (0x1008, 2), (0x1010, page), (page+32-BASE, 1)] {
+            core.write_all_at(&value.to_le_bytes(), at).unwrap();
+        }
+        scan.small_file(FILE, origin).unwrap();
+        assert_eq!(scan.cache.hits, 1);
+        assert!(scan.plan.evidence.iter().any(|e| e.detail["role"]=="file_bytes" && e.detail["file_offset"]==PAGE));
+        let result = scan.plan.finish();
+        assert_eq!(result["complete"], false);
+        assert!(result["issues"].as_array().unwrap().iter().any(|e| e["stage"]=="file_cache_index"));
     });
 }

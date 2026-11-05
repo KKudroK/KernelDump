@@ -103,6 +103,8 @@ fn network_btf() -> Btf {
             ("sk_write_queue", queue, 32),
         ],
     );
+    let rb = b.structure("rb_node", 24, &[("__rb_parent_color",ptr,0),("rb_left",ptr,8),("rb_right",ptr,16)]);
+    b.structure("rb_root", 8, &[("rb_node",ptr,0)]);
     b.structure(
         "sk_buff",
         64,
@@ -114,6 +116,7 @@ fn network_btf() -> Btf {
             ("tail", u32t, 24),
             ("end", u32t, 28),
             ("next", ptr, 32),
+            ("rbnode", rb, 32),
         ],
     );
     let frag = b.structure(
@@ -285,6 +288,43 @@ fn socket_witness_must_detect_changed_ownership() {
 }
 
 #[test]
+fn bad_tcp_tree_buffer_does_not_discard_other_branch_payloads() {
+    const BASE: u64 = 0xffff888000000000;
+    let path=std::env::temp_dir().join(format!("kerneldump_tree_{}_{}",std::process::id(),now()));
+    let mut core=std::fs::OpenOptions::new().read(true).write(true).create_new(true).open(&path).unwrap();
+    let mut data=vec![0u8;0x5000];
+    let put=|data:&mut [u8],at:usize,value:u64,n:usize|data[at..at+n].copy_from_slice(&value.to_le_bytes()[..n]);
+    put(&mut data,0x80,BASE+0x120,8);
+    for (skb,payload) in [(0x100,0x2000),(0x300,0x2200)] {
+        for (offset,value,n) in [(0,BASE+payload,8),(8,BASE+payload,8),(16,4,4),(24,4,4),(28,128,4)] {
+            put(&mut data,skb+offset,value,n);
+        }
+        data[payload as usize..payload as usize+4].fill(0x41);
+    }
+    put(&mut data,0x128,BASE+0x420,8);
+    put(&mut data,0x130,BASE+0x320,8);
+    put(&mut data,0x410,1,4);
+    put(&mut data,0x414,2,4); // data_len exceeds len in this independent buffer.
+    core.write_all(&data).unwrap();
+    let segs=[Segment{offset:0,va:BASE,pa:PAGE,bytes:data.len() as u64}];
+    let ram=[(PAGE,PAGE+data.len() as u64)];let mut plan=Resources::default();
+    let mut scan=Scan{pod:None,target_seen:BTreeSet::new(),mm_owners:BTreeMap::new(),
+        cache:cache::CacheState::default(),code_targets:vec![],btf:network_btf(),
+        live:Live{core:&core,segs:&segs,ram:&ram,deadline:now()+5_000_000_000,
+            read_limit:MAX_READ_BYTES,read_bytes:Cell::new(0),calls:Cell::new(0),root:0,levels:4},
+        plan:&mut plan,fields:RefCell::new(HashMap::new()),vmemmap:BASE+0x4000,page_size:64,
+        files:BTreeSet::new(),tables:BTreeSet::new(),tasks:0,thread_tasks:BTreeSet::new(),
+        fd_refs:0,sockets:0,skbs:0,policy_truncations:0,task_identity:Value::Null,task_checks:vec![]};
+    scan.retain_skb_tree(BASE+0x80,&json!({}),"tcp_rtx_queue").unwrap();
+    drop(scan);
+    let payloads:Vec<_>=plan.evidence.iter().filter(|e|e.detail["role"]=="network_bytes").collect();
+    assert_eq!(payloads.len(),2);
+    assert!(payloads.iter().any(|e|e.detail["skb"]==BASE+0x300));
+    assert_eq!(plan.finish()["complete"],false);
+    std::fs::remove_file(path).unwrap();
+}
+
+#[test]
 fn node_collection_follows_private_thread_fds_and_preserves_leader_on_list_errors() {
     for (shared, fault) in [(false, ""), (true, ""), (true, "group"), (true, "cycle")] {
         const BASE: u64 = 0xffff888000000000;
@@ -453,4 +493,148 @@ fn node_collection_follows_private_thread_fds_and_preserves_leader_on_list_error
         drop(core);
         std::fs::remove_file(path).unwrap();
     }
+}
+
+#[test]
+fn pod_task_walk_survives_unrelated_mm_owner_error_and_retries_failed_shared_file() {
+    const BASE: u64 = 0xffff888000000000;
+    let path = std::env::temp_dir().join(format!(
+        "kerneldump_mm_owner_and_file_retry_{}_{}",
+        std::process::id(),
+        now()
+    ));
+    let mut core = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .unwrap();
+    let mut data = vec![0u8; 0x5000];
+    let put = |data: &mut [u8], at: usize, value: u64, n: usize| {
+        data[at..at + n].copy_from_slice(&value.to_le_bytes()[..n]);
+    };
+    let init = BASE + 0x3000;
+    let unrelated = BASE + 0x4fb8; // pid (0x4fb8) and tasks (0x4fd8) inside 0x5000, mm (0x5000) outside segment
+    let target = BASE + 0x3100;
+    let signal = BASE + 0x3300;
+    // init -> unrelated -> target -> init
+    put(&mut data, 0x3020, unrelated + 32, 8);
+    put(&mut data, 0x4fb8, 10, 4);
+    put(&mut data, 0x4fd8, target + 32, 8);
+    put(&mut data, 0x3100, 42, 4);
+    put(&mut data, 0x3104, 42, 4);
+    put(&mut data, 0x3108, signal, 8);
+    put(&mut data, 0x3110, BASE + 0x100, 8);
+    put(&mut data, 0x3118, 4200, 8);
+    put(&mut data, 0x3120, init + 32, 8);
+    put(&mut data, 0x3140, 8400, 8);
+    put(&mut data, 0x3148, BASE + 0x900, 8);
+    put(&mut data, 0x3300, signal, 8);
+
+    // Shared struct file at BASE + 0x500 referenced by two fdtable instances (BASE + 0x180 and BASE + 0x100).
+    for (at, value, n) in [
+        (0x180, BASE + 0x280, 8),
+        (0x280, 64, 4),
+        (0x288, BASE + 0x300, 8),
+        (0x290, BASE + 0x400, 8),
+        (0x100, BASE + 0x200, 8),
+        (0x200, 64, 4),
+        (0x208, BASE + 0x300, 8),
+        (0x210, BASE + 0x400, 8),
+        (0x300, BASE + 0x500, 8),
+        (0x400, 1, 8),
+        (0x500, BASE + 0x600, 8),
+        (0x508, BASE + 0x700, 8),
+        (0x600, 0xc000, 2),
+        (0x700, 0, 8), // initially mismatched socket.file backlink for first fdtable attempt
+        (0x708, BASE + 0x800, 8),
+        (0x800, 1, 2),
+        (0x808, BASE + 0x700, 8),
+        (0x810, BASE + 0x1000, 8),
+        (0x820, BASE + 0x820, 8),
+        (0x1000, BASE + 0x2000, 8),
+        (0x1008, BASE + 0x2000, 8),
+        (0x1010, 16, 4),
+        (0x1018, 16, 4),
+        (0x101c, 128, 4),
+        (0x1020, BASE + 0x810, 8),
+    ] {
+        put(&mut data, at, value, n);
+    }
+    data[0x2000..0x2010].fill(0x5a);
+    core.write_all(&data).unwrap();
+
+    let segs = [Segment {
+        offset: 0,
+        va: BASE,
+        pa: PAGE,
+        bytes: data.len() as u64,
+    }];
+    let ram = [(PAGE, PAGE + data.len() as u64)];
+    let pod = crate::pod_scope::PodScope::test_empty("pod-uid-1");
+    let mut plan = Resources::default();
+    let mut scan = Scan {
+        pod: Some(pod),
+        target_seen: BTreeSet::new(),
+        mm_owners: BTreeMap::new(),
+        cache: cache::CacheState::default(),
+        code_targets: vec![],
+        btf: network_btf(),
+        live: Live {
+            core: &core,
+            segs: &segs,
+            ram: &ram,
+            deadline: now() + 5_000_000_000,
+            read_limit: MAX_READ_BYTES,
+            read_bytes: Cell::new(0),
+            calls: Cell::new(0),
+            root: 0,
+            levels: 4,
+        },
+        plan: &mut plan,
+        fields: RefCell::new(HashMap::new()),
+        vmemmap: BASE + 0x4000,
+        page_size: 64,
+        files: BTreeSet::new(),
+        tables: BTreeSet::new(),
+        tasks: 0,
+        thread_tasks: BTreeSet::new(),
+        fd_refs: 0,
+        sockets: 0,
+        skbs: 0,
+        policy_truncations: 0,
+        task_identity: json!({"pid":42,"task":target,"start_time_ns":4200}),
+        task_checks: vec![Check {
+            address: target + 0x10,
+            bytes: (BASE + 0x100).to_le_bytes().to_vec(),
+            mask: None,
+        }],
+    };
+    // 1. Unrelated task's mm_owner_index failure must be recorded as an issue without aborting task traversal.
+    scan.tasks(init).unwrap();
+    assert_eq!(scan.tasks, 2);
+    assert!(scan.mm_owners.contains_key(&(BASE + 0x900)));
+    // 2. First holder fails file inspection because socket.file backlink is 0; file must be removed from seen set.
+    scan.fdtable(BASE + 0x180, 41).unwrap();
+    assert!(!scan.files.contains(&(BASE + 0x500)));
+    assert_eq!(scan.skbs, 0);
+    // 3. Second holder sharing the same struct file * retries after socket.file backlink is valid and retains the socket.
+    core.write_all_at(&(BASE + 0x500).to_le_bytes(), 0x700)
+        .unwrap();
+    scan.fdtable(BASE + 0x100, 42).unwrap();
+    assert!(scan.files.contains(&(BASE + 0x500)));
+    assert_eq!(scan.sockets, 2);
+    assert_eq!(scan.skbs, 1);
+    drop(scan);
+    let stages: Vec<_> = plan
+        .issues
+        .borrow()
+        .iter()
+        .filter_map(|i| i["stage"].as_str().map(str::to_owned))
+        .collect();
+    assert!(stages.contains(&"mm_owner_index".to_string()));
+    assert!(stages.contains(&"file".to_string()));
+    assert!(plan.pages.contains_key(&(PAGE + 0x2000)));
+    drop(core);
+    std::fs::remove_file(path).unwrap();
 }

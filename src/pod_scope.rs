@@ -123,6 +123,18 @@ pub struct PodScope {
     validation_ns: Cell<u64>,
 }
 impl PodScope {
+    #[cfg(test)]
+    pub(crate) fn test_empty(uid: &str) -> Self {
+        Self {
+            uid: uid.to_string(),
+            boot_id: "test-boot".to_string(),
+            processes: BTreeMap::new(),
+            threads: BTreeMap::new(),
+            report: Value::Null,
+            validation_bytes: Cell::new(0),
+            validation_ns: Cell::new(0),
+        }
+    }
     pub fn discover(value: &str, deadline: u64) -> Result<Self> {
         Self::discover_at(value, deadline, Path::new("/proc"))
     }

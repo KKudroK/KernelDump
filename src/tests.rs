@@ -309,21 +309,19 @@ fn shared_resource_budget_deduplicates_and_reuses_idle_shares() {
     }
 }
 #[test]
-fn cache_never_displaces_code_or_network_at_shared_limit() {
-    use crate::source::{allocate_extra, allocate_with_cache};
+fn cache_receives_fair_slots_alongside_code_and_network() {
+    use crate::source::allocate_with_cache;
     let groups = [vec![10, 20, 30], vec![40, 50, 60]];
     assert_eq!(
-        allocate_with_cache(&groups, &[1, 2, 3, 4], 4),
-        allocate_extra(&groups, 4)
-    );
-    assert_eq!(
-        allocate_with_cache(&groups, &[10, 20, 1, 2, 3], 8)
+        allocate_with_cache(&groups, &[1, 2, 3, 4], 3)
             .into_iter()
             .collect::<Vec<_>>(),
-        vec![1, 2, 10, 20, 30, 40, 50, 60]
+        vec![1, 10, 40]
     );
+    assert_eq!(allocate_with_cache(&groups, &[10, 20, 1, 2, 3], 8).len(), 8);
     assert!(allocate_with_cache(&groups, &[1], 0).is_empty());
 }
+
 impl Memory for CodeFake {
     fn info(&self) -> Value {
         self.inner.info()

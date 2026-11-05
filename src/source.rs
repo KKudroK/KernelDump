@@ -487,7 +487,7 @@ impl Memory for Source {
             &self.ram,
             &self.info["symbols"],
             crate::btf::read_running(),
-            deadline,
+            now().saturating_add(1_000_000_000),
             self.pod.as_ref(),
             &self.code_pages.file_targets(),
         );
@@ -505,10 +505,11 @@ impl Memory for Source {
             .collect();
         self.info["resource_retention"] = self.resources.summary();
         self.info["shared_retention_budget"] = json!({"max_candidate_pages":4096,"max_additional_payload_bytes":4096*PAGE,
-            "allocation":"round-robin code/network first, then Pod file cache in remaining slots; deduplicate physical pages",
+            "allocation":"round-robin code/network/Pod file cache; deduplicate physical pages",
             "candidate_pages":candidates.len(),"selected_candidate_pages":self.extra_selected.len(),
             "unselected_candidate_pages":candidates.len()-self.extra_selected.len(),"discovery_begin_ns":start,"discovery_end_ns":now(),
-            "discovery_limit_ns":1_000_000_000,"scope":"BTF resource and proc code discovery share one deadline; active kernel calls are cooperative"});
+            "discovery_limit_ns_per_primary_stage":1_000_000_000,
+            "scope":"Code and resource discovery have independent deadlines; Pod file cache has its own recorded budget. Active kernel calls are cooperative"});
     }
     fn code_pages(&self, start: u64, end: u64) -> Vec<u64> {
         self.code_pages
@@ -606,14 +607,9 @@ pub(crate) fn allocate_with_cache(
     cache: &[u64],
     limit: usize,
 ) -> std::collections::BTreeSet<u64> {
-    let mut selected = allocate_extra(groups, limit);
-    for &pa in cache {
-        if selected.len() == limit {
-            break;
-        }
-        selected.insert(pa);
-    }
-    selected
+    let mut all = groups.to_vec();
+    all.push(cache.to_vec());
+    allocate_extra(&all, limit)
 }
 pub(crate) fn allocate_extra(groups: &[Vec<u64>], limit: usize) -> std::collections::BTreeSet<u64> {
     let mut selected = std::collections::BTreeSet::new();

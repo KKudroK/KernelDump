@@ -76,13 +76,25 @@ fn bounded_text(path: &str, limit: usize) -> io::Result<String> {
     if bytes.len() > limit {
         return Err(io::Error::other("proc text exceeds bound"));
     }
-    String::from_utf8(bytes).map_err(io::Error::other)
+    // Names may contain arbitrary bytes. Only ASCII numeric fields participate
+    // in identity/selection; lossy display decoding must not reject those fields.
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 struct Process {
     pid: u32,
     start: u64,
     pagemap: File,
     maps: Vec<Mapping>,
+    maps_truncated: bool,
+}
+fn executable_maps_unchanged(after_text: &str, before: &[Mapping], truncated: bool) -> bool {
+    let iter = after_text.lines().filter_map(mapping);
+    if truncated {
+        iter.take(before.len()).eq(before.iter().cloned())
+            && after_text.lines().filter_map(mapping).count() >= before.len()
+    } else {
+        iter.eq(before.iter().cloned())
+    }
 }
 struct Reference {
     process: usize,
@@ -216,10 +228,11 @@ impl CodePages {
                 .filter_map(mapping)
                 .take(map_limit + 1)
                 .collect();
-            if maps.len() > map_limit {
+            let maps_truncated = maps.len() > map_limit;
+            if maps_truncated {
                 maps.truncate(map_limit);
                 plan.issue("executable_mapping_limit", json!(pid));
-                stop_scan = true;
+                stop_scan = MAX_EXEC_MAPPINGS - mappings_examined <= MAX_PROCESS_EXEC_MAPPINGS;
             }
             mappings_examined += maps.len();
             let process_index = plan.processes.len();
@@ -321,6 +334,7 @@ impl CodePages {
                     start,
                     pagemap,
                     maps,
+                    maps_truncated,
                 });
                 for (pa, reference) in pending {
                     plan.pages.entry(pa).or_default().push(reference);
@@ -417,9 +431,7 @@ impl CodePages {
                 && maps
                     .as_ref()
                     .ok()
-                    .map(|s| s.lines().filter_map(mapping).collect::<Vec<_>>())
-                    .as_ref()
-                    == Some(&p.maps);
+                    .is_some_and(|s| executable_maps_unchanged(s, &p.maps, p.maps_truncated));
             if !unchanged {
                 self.issue("process_or_executable_maps_changed", json!(p.pid));
             }
@@ -470,5 +482,17 @@ mod tests {
             start_time("12 (name ) spaces) S 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 999 0"),
             Some(999)
         );
+    }
+    #[test]
+    fn truncated_executable_maps_validate_retained_prefix_without_false_change_alarm() {
+        let maps_text = "\
+00400000-00401000 r-xp 00000000 08:01 10 /bin/a\n\
+00402000-00403000 r-xp 00001000 08:01 10 /bin/a\n\
+00404000-00405000 r-xp 00002000 08:01 10 /bin/a\n";
+        let prefix: Vec<_> = maps_text.lines().filter_map(mapping).take(2).collect();
+        assert!(!executable_maps_unchanged(maps_text, &prefix, false));
+        assert!(executable_maps_unchanged(maps_text, &prefix, true));
+        let mutated = maps_text.replace("00402000-00403000", "00409000-0040a000");
+        assert!(!executable_maps_unchanged(&mutated, &prefix, true));
     }
 }
