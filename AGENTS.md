@@ -2,7 +2,7 @@
 
 ## 기본 문체 및 단일 기준 문서 유지 규칙
 
-- 사용자용 설명 문서([docs/CODEBASE_GUIDE.md](docs/CODEBASE_GUIDE.md), [README.ko.md](README.ko.md))는 핵심 결론과 구체적 동작부터 쉬운 한국어로 쓰고 비유는 쓰지 않는다. 새 용어는 쉬운 말로 뜻을 먼저 풀어서 설명한다.
+- 사용자용 설명 문서([docs/CODEBASE_GUIDE.md](docs/CODEBASE_GUIDE.md), [README.md](README.md))는 핵심 결론과 구체적 동작부터 쉬운 한국어로 쓰고 비유는 쓰지 않는다. 새 용어는 쉬운 말로 뜻을 먼저 풀어서 설명한다.
 - 독자용 문서 본문에 검토 기준일, 조사 과정, 작성자 설명, 작업 시각, 예약 상태 같은 관리 기록을 넣지 않는다. 중요한 조건과 한계는 해당 기능을 설명하는 자리에 한 번만 적는다.
 - 코드 구조·기능·검증 근거는 [docs/CODEBASE_GUIDE.md](docs/CODEBASE_GUIDE.md) 한 문서에서 유지관리한다.
 - `src/` 모듈, CLI 옵션(`--pod`, `--allow-exited-pod`, `--max-write-mbps`, `development-options` 포함), `manifest.json` 또는 `ranges.jsonl` 스키마, 필터 정책, 검증 계약을 변경할 때는 **같은 작업 안에서 `docs/CODEBASE_GUIDE.md`도 함께 갱신**한다.

@@ -6,7 +6,7 @@ separately so the normal executable cannot silently acquire a different scope:
 ```sh
 cargo build --release --locked --offline --features development-options --target-dir target-dev
 cargo test --locked --offline --features development-options --target-dir target-dev
-sudo ./target-dev/release/kernel_dump capture --scope full-ram --output full_control
+sudo ./target-dev/release/kerneldump --scope full-ram --output full_control
 ```
 
 Development-only flags are `--scope full-ram|kernel-focused`, `--chunk-mib 1..16`
@@ -35,9 +35,9 @@ public build does not read this environment variable and has no injection flag.
 
 ```sh
 sudo env KERNEL_DUMP_TEST_WRITER_PANIC=before-receive \
-  ./target-dev/release/kernel_dump capture --output panic_before_receive
+  ./target-dev/release/kerneldump --output panic_before_receive
 sudo env KERNEL_DUMP_TEST_WRITER_PANIC=after-header \
-  ./target-dev/release/kernel_dump capture --output panic_after_header
+  ./target-dev/release/kerneldump --output panic_after_header
 ```
 
 Use new outputs in a dedicated test directory with an existing parent. In a
@@ -61,4 +61,4 @@ failure and indefinitely blocked I/O remain outside its guarantee.
 
 ## Verifier input bounds
 
-Both builds enforce a16MiB manifest-byte cap before JSON deserialization and a128KiB JSONL-record cap; per-record payload length is limited to16MiB. Scope must be kernel-focused/full-ram and status complete_for_policy/partial/failed. These caps do not authenticate metadata or bound total RSS. Full-RAM scope is development-only, not a public fallback or strict kernel-only mode.
+Both builds enforce a16MiB manifest-byte cap before JSON deserialization and an 8MiB JSONL-record cap; per-record payload length is limited to16MiB. Scope must be kernel-focused/full-ram and status complete_for_policy/partial/failed. These caps do not authenticate metadata or bound total RSS. Full-RAM scope is development-only, not a public fallback or strict kernel-only mode.

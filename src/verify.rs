@@ -140,7 +140,6 @@ fn hash_flags_runs(runs: &[(u64, u64)], size: u64) -> Result<String> {
     Ok(format!("{:x}", flags_hash.finalize()))
 }
 
-#[allow(dead_code)]
 pub fn verify(output: &Path) -> Result<Value> {
     verify_impl(output, true)
 }
@@ -366,6 +365,7 @@ fn verify_impl(output: &Path, full_payload_hash: bool) -> Result<Value> {
     }
     Ok(json!({
         "verified": true,
+        "payload_hash_verified": full_payload_hash,
         "mode": if full_payload_hash { "full_sha256" } else { "fast_header_ledger" },
         "status": m["status"],
         "payload_bytes": payload,

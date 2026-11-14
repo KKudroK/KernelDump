@@ -824,3 +824,22 @@ fn sparse_lime_preserves_exact_digest_and_verifies_in_both_modes() {
     assert_eq!(full["lime_sha256"], fast["lime_sha256"]);
     assert_eq!(full["payload_bytes"], fast["payload_bytes"]);
 }
+
+#[test]
+fn fast_verification_does_not_claim_payload_integrity() {
+    let t = Temp::new();
+    capture(Fake::new(), &t, Scope::FullRam);
+    let full = verify::verify(&t.out()).unwrap();
+    assert_eq!(full["payload_hash_verified"], true);
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .open(t.out().join("memory.lime"))
+        .unwrap();
+    file.seek(SeekFrom::Start(32)).unwrap();
+    file.write_all(b"corrupt").unwrap();
+    file.sync_all().unwrap();
+    let fast = verify::verify_fast(&t.out()).unwrap();
+    assert_eq!(fast["mode"], "fast_header_ledger");
+    assert_eq!(fast["payload_hash_verified"], false);
+    assert!(verify::verify(&t.out()).is_err());
+}

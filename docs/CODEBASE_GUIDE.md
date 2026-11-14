@@ -1,75 +1,64 @@
-# KernelDump 코드 · 기능 · 검증 근거 기준 문서
+# KernelDump 코드와 수집 원리
 
-**핵심 결론:** KernelDump(버전 **1.4.0**)는 커널 모듈을 올리거나 프로세스를 멈추지 않고, 리눅스 `/proc/kpageflags`(물리 페이지 상태 표)와 실행 커널의 BTF(커널 구조체 크기·위치 정보)를 읽어 **커널 메모리와 핵심 실행·통신·파일 캐시 증거만 골라 Sparse LiME(0-구간 디스크 쓰기를 건너뛴 LiME 물리 메모리 이미지)로 저장**하는 단일 실행 도구입니다. `1.4.0`에서는 기존 3단계 명령(`check`·`capture`·`verify`)을 단일 명령으로 합치고, 4 KiB AVX2 기반 Sparse LiME 쓰기와 버퍼 재사용 파이프라인, `--allow-exited-pod` 옵션, `--max-write-mbps` 쓰기 속도 제한을 적용했습니다.
+KernelDump는 커널 모듈 없이 Linux의 메모리 읽기 파일과 BTF를 사용해 커널 중심 메모리를 수집합니다. 기본 사용 명령은 [README](../README.md)에 있습니다.
 
----
+## 수집 순서
 
-## 1. 핵심 용어 쉽게 이해하기
+1. `main`과 `safe_output`이 저장소에 쓸 수 있는지 검사합니다. `btf`가 실행 중인 커널의 필수 자료 위치를 읽고, `source`가 kcore·kpageflags·RAM 범위·심볼 접근을 확인합니다.
+2. `--pod`가 있으면 호스트 PID·cgroup namespace인지 먼저 확인합니다. 전체 Pod UID와 현재 프로세스 소속을 대조합니다. `--allow-exited-pod`는 현재 소속 프로세스가 없을 때 기본 커널 수집을 허용할 뿐, 과거 존재나 종료를 증명하지 않습니다.
+3. `source`가 PFN 상태로 수집 범위를 고릅니다. PFN은 물리 메모리 페이지의 번호입니다. SLAB·페이지 테이블과 그 주변 등을 유지하고 일반 사용자 메모리·파일 캐시 등은 정책에 따라 제외합니다.
+4. `code_pages`·`resources`·`resources/cache`가 실행 코드, 소켓 대기 내용, 일부 파일 캐시 후보를 보탭니다. 세 종류가 합계 4,096페이지, 본문 최대 16MiB 한도를 공유합니다. 빠진 후보나 바뀐 참조는 결과에 남깁니다.
+5. `capture`가 기본 4MiB 단위로 읽고 별도 쓰기 작업에 전달합니다. 사용한 버퍼를 최대 32개까지 재사용합니다. 모든 0 페이지는 Sparse 방식으로 저장하고 논리 바이트 전체로 SHA-256을 계산합니다.
+6. 파일을 동기화하고 게시한 뒤 `verify_fast`가 헤더·범위 기록·카운터를 확인합니다. 완료 상태는 `complete_for_policy`입니다.
 
-- **PFN (Page Frame Number)**: 물리 RAM을 4 KiB 칸으로 나눌 때 각 칸에 붙는 일련번호입니다.
-- **`/proc/kpageflags`**: 각 PFN 칸이 현재 어떤 용도(커널 SLAB 객체, 페이지 테이블, 익명 사용자 메모리, 파일 캐시 등)로 쓰이고 있는지 비트로 알려 주는 커널 읽기 파일입니다.
-- **BTF (`/sys/kernel/btf/vmlinux`)**: 지금 실행 중인 리눅스 커널이 직접 들고 있는 구조체 설계도(필드 위치·크기)입니다. 덕분에 커널 버전마다 오프셋을 코드에 직접 적어 둘 필요가 없습니다.
-- **LiME 형식**: 각 물리 메모리 구간 앞에 `0x4c694d45` 매직 값과 시작·끝 물리 주소를 담은 32바이트 헤더를 붙여 순서대로 저장하는 물리 메모리 덤프 표준 형식입니다.
-- **Sparse LiME(희소 LiME)**: LiME 파일의 논리 주소와 헤더 형식은 그대로 유지하되, 본문 중 4 KiB 칸 전체가 0바이트인 구간은 디스크에 쓰지 않고 파일 위치만 건너뛰어(`seek`) 실제 디스크 사용량과 I/O 부담을 줄이는 저장 방식입니다.
+프로세스와 커널은 수집 중 계속 실행됩니다. `--pod`가 있어도 기본 커널 범위는 노드 전체이며 추가 탐색만 해당 Pod로 좁힙니다.
 
----
+## 구조 검사와 전체 검사
 
-## 2. 단일 통합 실행 흐름 (`preflight -> acquire -> verify_fast`)
-
-`kerneldump --output NEW_DIR [옵션]` 한 번만 호출하면 내부에서 3단계가 자동으로 이어집니다.
-
-1. **사전 준비 검사 (`main`, `safe_output`, `source`, `btf`)**:
-   - 출력 디렉터리를 심볼릭 링크 차단(`O_NOFOLLOW`)·소유자 전용 권한(`0o700`)으로 검사하고 임시 프로브 파일을 생성·동기화·무교체 게시(`SYS_renameat2(..., RENAME_NOREPLACE)`)·삭제해 저장소가 안전한지 확인합니다(`probe_storage`).
-   - 10% of System RAM(최소 1 GiB) 기준 여유 공간을 점검합니다(`check_available_space`).
-   - `/sys/kernel/btf/vmlinux` 매직(`0x9feb`, 최대 64 MiB)과 필수 커널 6개 필드·`/proc/kcore`·`/proc/kpageflags`·`/proc/kallsyms`·샘플 PFN 읽기를 검증합니다.
-2. **PFN 선별 + 추가 증거 수집 (`source`, `pod_scope`, `code_pages`, `resources`, `resources/cache`)**:
-   - `/proc/iomem`에서 시스템 RAM 범위를 읽고(`ram_ranges`), `/proc/kpageflags`의 `KEEP = (1<<7)|(1<<26)`(SLAB·PGTABLE) 플래그와 제외(`EXCLUDE`)·위험(`UNSAFE`) 마스크를 기준으로 커널에 꼭 필요한 PFN을 고릅니다.
-   - Volatility/커널 순회 안정성을 위해 SLAB·PGTABLE 주변 이웃 페이지까지 함께 보존합니다(`classify_with_neighbors`).
-   - 기본 `kernel-focused` 정책은 여기에 아래 3종류 추가 증거를 **중복 제거 합계 4,096페이지(본문 최대 16 MiB)** 한도 안에서 번갈아(라운드로빈) 더합니다.
-     - `--pod <전체_Pod_UID>`를 주면 `/proc/self/ns/{pid,cgroup}`가 호스트 `init_pid_ns`·`init_cgroup_ns`와 일치하는지 먼저 검증한 뒤(불일치 시 노드 전체로 우회하지 않고 종료 코드 `1` 반환), 해당 Pod 소속 프로세스만 추가 탐색합니다.
-     - 호스트 네임스페이스 뷰에서 대상 Pod 프로세스가 모두 이미 종료된 경우 `--allow-exited-pod`를 함께 주면 노드 전체 커널 수집을 계속 진행합니다.
-3. **4 MiB 재사용 파이프라인 · Sparse LiME 쓰기 · 인라인 검증 (`capture`, `verify`)**:
-   - 생산자(`produce`)와 쓰기 파이프라인이 4 MiB 청크와 `recycle_tx`/`recycle_rx` 버퍼 풀(최대 32개)로 동적 메모리 재할당을 줄여 `/proc/kcore`를 읽고 씁니다.
-   - `write_sparse_lime_body`가 4 KiB 단위 AVX2 연산(`is_all_zero`)으로 0-페이지를 찾으면 디스크 쓰기를 건너뛰어 `sparse_zero_hole_bytes`를 줄이고, `--max-write-mbps`가 있으면 초당 쓰기 속도를 제한합니다(`max_write_mbps * 1_000_000.0`).
-   - `FLUSH_WINDOW = 16 MiB`마다 `sync_file_range_write`와 `advise_dontneed`(`POSIX_FADV_DONTNEED`)를 호출해 운영체제 페이지 캐시에 덤프 데이터가 쌓이지 않게 비우고 `set_len`으로 최종 논리 크기를 맞춥니다.
-   - 수집 직후 `verify::verify_fast`가 `ranges.jsonl`, `flags_rle_pages_u64`/`flags_sha256`, LiME 헤더, witness, `manifest.json` 카운터와 페이로드 길이를 즉시 대조해 `verified: true`와 함께 `0`으로 종료합니다.
-
----
-
-## 3. 모듈별 코드 · 기능 · 근거 표
-
-| 파일 | 역할 | 주요 심볼 · 상수 · 근거 |
+| 검사 | 실행 | 확인하는 내용 |
 |---|---|---|
-| `src/main.rs` | 단일 CLI 진입, 사전 점검·수집·검증 연결 | `--output`, `--pod`, `--allow-exited-pod`, `--request-id`, `--max-write-mbps 1..10000` (dev: `--scope`, `--chunk-mib 1..16`, `--queue-depth 1..16`), 기본 `kernel-focused`·`4 MiB`·큐 깊이 `2`, 종료 `0/2/1` |
-| `src/source.rs` | `kpageflags` 필터링, RAM 범위, 호스트 네임스페이스 검증 | `ReadCounter`, `KEEP = (1<<7)\|(1<<26)`, `EXCLUDE`, `UNSAFE`, `classify_with_neighbors`, `ram_ranges`, `select_pod_with_policy` (`init_pid_ns`·`init_cgroup_ns` 검증), `/proc/kcore`·`/proc/kpageflags`·`/proc/kallsyms` |
-| `src/btf.rs` | 실행 커널 BTF 동적 파싱 | `/sys/kernel/btf/vmlinux` (최대 64 MiB), `0x9feb` 매직, 동적 `Field` 오프셋·비트필드 추출 |
-| `src/pod_scope.rs` | Pod UID 검증 및 프로세스 소속·시작 시각 대조 | `uid`, `membership`, `start_ticks`, `Identity::current` 읽기 전후 재검증 |
-| `src/code_pages.rs` | private 실행(`x`) 영역의 익명 코드 페이지 선별 | `MAX_PAGES = 4096` (16 MiB 상한), `MAX_SCAN_NS = 2_000_000_000`, `anon_pfn` (`present & !(swapped\|file)`), 파일 기반 COW·JIT/무파일 실행 코드 포함 |
-| `src/resources.rs` | 소켓 대기열(수신·송신·TCP 재전송·OOM·UDP `reader_queue`) 탐색 | `QUEUE_BYTES = 64 KiB`, 여러 페이지 조각 및 제한된 `frag_list` 추적, folio 마스크 검사 |
-| `src/resources/cache.rs` | 열린/닫힌 `memfd`·삭제 후 열린 파일·COW 비교 캐시 탐색 | `CacheState`: `MAX_JOBS = 128`, `MAX_PAGES = 256`, `MAX_FILE = 64 KiB`, `MAX_NS = 100 ms`, `MAX_BYTES = 4 MiB`, `MAX_PROC_MAPS_BYTES = 512 KiB`, `MAX_REVERSE_VMAS = 64`, `memfd_seed` |
-| `src/capture.rs` | 생산자-쓰기 파이프라인, Sparse LiME, 캐시 제어, `manifest.json` 기록 | `produce`, `recycle_tx`/`recycle_rx` (`free_bufs` 32), `write_sparse_lime_body`, `FLUSH_WINDOW = 16 MiB`, `set_len`, `allocated_file_bytes`, `sparse_zero_hole_bytes`, `actual_written_bytes`, `lime_header` (`0x4c694d45`) |
-| `src/verify.rs` | 전수 SHA-256 검증(`verify`) 및 수집 직후 고속 검증(`verify_fast`) | `verify` (`full_sha256`), `verify_fast` (`fast_header_ledger`), `ranges.jsonl`·`flags_rle_pages_u64`·`flags_sha256`·LiME 헤더·witness 대조 |
-| `src/ledger.rs` | `ranges.jsonl` 범위 기록 상한 관리 | `RECORD_LIMIT = 8 MiB` |
-| `src/safe_output.rs` | 저장소 안전 검사, AVX2 0-검사, 캐시 힌트, 무교체 게시 | `probe_storage`, `check_available_space`, `advise_dontneed`, `advise_sequential`, `sync_file_range_write`, `allocated_file_bytes`, AVX2 `is_all_zero`, `SYS_renameat2(..., RENAME_NOREPLACE)` |
-| `build.rs` / `src/build_info.rs` | 빌드 시 소스·벤더 해시 및 실행 파일 자기 해시 생성 | 컴파일 시 `source_sha256`·`vendor_tree_sha256` 내장, 실행 시 `/proc/self/exe` SHA-256 기록 |
-| `src/tests.rs` 외 테스트 모듈 | 필터·보존·`memfd`·스토리지 회귀 단위 테스트 | `src/tests/retention_regressions.rs`, `src/resources/provenance_tests.rs`, `src/resources/cache/memfd_tests.rs` |
+| `fast_header_ledger` | 수집 완료 직후 자동 | LiME 헤더, 범위 기록 해시, PFN 플래그, 파일 길이와 수집 카운터 |
+| `full_sha256` | `kerneldump verify --output DIR` | 위 항목과 실제 메모리 본문·전체 파일 SHA-256 |
 
----
+구조 검사 결과는 `payload_hash_verified: false`입니다. 저장된 본문 한 바이트가 변해도 구조 검사를 통과할 수 있습니다. 전체 검사는 그 변경을 거부합니다. `verified: true`만 보지 말고 검사 종류도 함께 봐야 합니다. 전체 검사는 커널 메모리를 다시 읽지 않으며 결과 파일에 쓰지 않습니다.
 
-## 4. 커버리지 보존과 호환 한계
+기본 수집 명령은 `kerneldump --output NEW_DIR`입니다. 기존 스크립트를 위해 `check --target-dir DIR [--json]`, `capture --output NEW_DIR`, `probe`, `verify DIR`도 유지합니다. `check`만 통과한 것은 수집 완료가 아닙니다.
 
-- **커버리지와 비유출 원칙**: 기본 커널 메타데이터 필터는 `--pod`를 주더라도 노드 전체 범위로 유지됩니다. 추가 탐색(익명 실행 코드·소켓 대기열·상주 캐시)만 `--pod` 대상에 좁혀지며, 탐색 중 참조가 바뀌거나 4,096페이지(16 MiB) 한도에 닿으면 조용히 생략하지 않고 상태를 `partial`로 남기고 누락 원인을 `manifest.json`에 기록합니다.
-- **중첩 네임스페이스 및 실행 요구 환경**: `/proc/kcore`, `/proc/kpageflags`, `/sys/kernel/btf/vmlinux` 및 `page_offset_base`·`linux_banner` 읽기 권한이 필수이므로 kcore가 없는 환경은 지원하지 않습니다. WSL2처럼 중첩 PID/cgroup 네임스페이스 안에서는 `--pod`가 즉시 거부되며(`--pod requires host PID and cgroup namespace views`), 실제 `--pod` 수집은 호스트 PID·cgroup 네임스페이스 뷰가 있는 Linux 노드에서 실행해야 합니다.
-- **분석 도구와의 관계**: 제외된 물리 페이지 구간은 LiME에서 빠진 범위로 기록되므로, 누락 페이지 예외를 처리하지 않는 일반 Volatility 3 `psscan`에서는 스캔이 중단될 수 있습니다(단 `pslist`·`sockstat`·`lsof` 등 커널 메타데이터 플러그인과 전용 분석기 `rrudrok`은 이 형식을 정상 처리합니다).
+## Sparse와 쓰기 속도
 
----
+LiME 헤더는 32바이트이며 물리 주소와 구간 길이를 기록합니다. 본문을 4KiB씩 검사해 모두 0이면 파일 위치만 옮깁니다. 파일을 다시 읽으면 같은 0바이트가 나옵니다. AVX2 지원 여부는 실행 중 확인하고, 미지원 CPU에서는 일반 비교를 사용합니다.
 
-## 5. 검증 근거
+- `file_bytes`: Sparse 구간을 포함한 파일 길이
+- `allocated_file_bytes`: 파일 시스템이 실제 할당한 크기
+- `sparse_zero_hole_bytes`: 쓰지 않고 건너뛴 0바이트 수
+- `actual_written_bytes`: LiME 헤더와 실제 쓴 본문 바이트 수
 
-- **WSL2 (`6.18.33.2-microsoft-standard-WSL2`) 노드 전체 수집 A/B (`10c367d` 3단계 대 `v1.4.0` 단일 명령)**:
-  - 소요 시간: `8,347.846 ms -> 6,101.231 ms` (`-26.9%`, `status: "complete_for_policy"`, `v140_verification: true`).
-  - Sparse LiME 효과: 논리 `file_bytes` `1,066,746,240 B` 중 `289,443,840 B`(~276.0 MiB) 0-페이지 쓰기를 건너뛰어 실제 디스크 할당(`allocated_file_bytes`) `802,004,992 B`, 실제 쓰기(`actual_written_bytes`) `777,302,400 B`를 기록했습니다.
-  - 무결성 교차 검증: `manifest.lime_sha256`과 디스크 전체 파일 읽기 SHA-256(`1bd87d23...`)이 일치했고, LiME 헤더 `9,740`건 검사 실패 `0`건, 기준판 `kerneldump verify` 전수 검증도 `rc=0` (`"verified": true`, `coverage_ranges: 22940`)으로 통과했습니다.
-  - 중첩 네임스페이스 가드: WSL2 중첩 `pid:[4026532221]`/`cgroup:[4026531835]`에서 `--pod` 호출 시 `rc=1`로 거부해 노드 전체 수집으로 우회하지 않음을 확인했습니다.
-- **`rrudrok` 분석 호환**: Linux `6.18.33.2` `btf_isf.py` 출력에서 `2^63` 이상 부호 없는 enum 상수 `13`개를 임시 ISF에서만 `i64`로 정규화해 전달했을 때 `rrudrok analyze --verify-hashes`가 오류·경고 `0`건으로 완료(`33,549` 레코드)됐고, `read-memory`로 물리 주소 `0x1000`(`64 B`)과 가상 주소 `linux_banner`(`"Linux version 6.18.33.2-microsoft-standard-WSL2..."`)를 정상 복원했습니다.
-- **오프라인 단위/정적 검사**: `cargo fmt --check`, `cargo clippy --offline --locked --all-targets -- -D warnings`(기본 및 `--features development-options`), `cargo test --offline --locked`(99 passed), `python3 scripts/build_release.py --check-vendor`를 모두 통과했습니다.
+`rate_limit::RateLimiter`는 실제 본문 쓰기의 평균 속도를 제한합니다. 필요한 시간 동안 20ms 단위로 반복 대기하며 취소를 확인합니다. 헤더·범위 기록·파일 시스템 자체 쓰기는 제한값에 포함되지 않습니다. 짧은 구간에는 쓰기 묶음 때문에 순간 속도가 높을 수 있습니다.
+
+16MiB 창마다 `sync_file_range`와 `POSIX_FADV_DONTNEED`를 요청합니다. 이들은 페이지 캐시를 줄이기 위한 힌트입니다. 저장 완료는 별도의 파일·디렉터리 동기화와 `RENAME_NOREPLACE` 게시로 확인합니다.
+
+## 파일별 역할
+
+| 파일 | 담당 |
+|---|---|
+| `src/main.rs` | 명령 검사, 준비·수집·검증 연결, 이전 명령 호환 |
+| `src/source.rs` | RAM 범위, kcore 주소, PFN 필터, 호스트 namespace 검사 |
+| `src/btf.rs` | 실행 커널의 BTF에서 자료 크기·필드 위치 읽기 |
+| `src/pod_scope.rs` | 전체 Pod UID와 현재 프로세스 소속 대조 |
+| `src/code_pages.rs` | 일부 익명 실행 코드 후보 |
+| `src/resources.rs` | 소켓 큐와 네트워크 후보, 참조 검증 |
+| `src/resources/cache.rs` | memfd·삭제 후 열린 파일·코드 비교용 캐시 후보 |
+| `src/capture.rs` | 읽기·쓰기 작업, 버퍼 재사용, Sparse, manifest |
+| `src/rate_limit.rs` | 실제 본문 쓰기 평균 속도와 취소 대기 |
+| `src/verify.rs` | 구조 검사와 전체 SHA-256 검사 |
+| `src/ledger.rs` | JSONL 범위 기록과 레코드 크기 제한 |
+| `src/safe_output.rs` | 안전한 출력, 저장소 검사, 캐시 힌트, AVX2 검사 |
+| `build.rs`, `src/build_info.rs` | 소스·의존성·실행 파일 해시 |
+
+커널 구조체의 필드 위치는 현재 BTF에서 읽습니다. 특정 커널 버전의 위치를 다른 버전에 그대로 적용하지 않습니다. 한 경로의 필드를 해석하지 못하면 해당 추가 수집의 문제를 기록합니다.
+
+## 검증 범위
+
+배포 전 기본·개발 옵션의 clippy와 test, 형식, vendor 해시, musl 정적 빌드를 검사합니다. Sparse 전체 해시, LiME 헤더, 변조 검출, 0.25초보다 긴 속도 제한, 대기 취소, namespace 거부, 쓰기 실패·panic 복구를 검사합니다.
+
+[이전 후보판 측정](history_codebase_candidate.md)의 수치와 99개 테스트는 해당 후보판의 기록입니다. 기존 3단계 명령과 새 기본 명령의 전체 시간에는 검사 범위 차이가 포함됩니다. 최신 배포 검사 결과는 [릴리스 검증](release_review.md)에 기록합니다.

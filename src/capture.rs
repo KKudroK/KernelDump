@@ -16,7 +16,7 @@ use std::{
         mpsc,
     },
     thread,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -326,8 +326,7 @@ fn write_sparse_lime_body(
     body: &[u8],
     sparse_holes: &mut u64,
     written_bytes: &mut u64,
-    max_bps: Option<f64>,
-    rate_begin: &Instant,
+    rate: &mut crate::rate_limit::RateLimiter,
 ) -> Result<()> {
     const SPARSE_PAGE: usize = PAGE as usize;
     let mut pos = 0usize;
@@ -358,12 +357,8 @@ fn write_sparse_lime_body(
             file.write_all(&body[pos..data_end])?;
             let chunk_written = (data_end - pos) as u64;
             *written_bytes += chunk_written;
-            if let Some(bps) = max_bps {
-                let expected = *written_bytes as f64 / bps;
-                let elapsed = rate_begin.elapsed().as_secs_f64();
-                if expected > elapsed {
-                    thread::sleep(Duration::from_secs_f64((expected - elapsed).min(0.25)));
-                }
+            if !rate.account(chunk_written as usize, || CANCEL.load(Ordering::Relaxed)) {
+                return Err("cancelled during rate-limited write".into());
             }
             pos = data_end;
         }
@@ -496,8 +491,7 @@ pub fn acquire_with_options<S: Memory + 'static>(
         const FLUSH_WINDOW: u64 = 16 * 1024 * 1024;
         let mut window_start = 0u64;
         let mut prev_window: Option<(u64, u64)> = None;
-        let rate_begin = Instant::now();
-        let max_bps = options.max_write_mbps.map(|m| m as f64 * 1_000_000.0);
+        let mut rate = crate::rate_limit::RateLimiter::new(options.max_write_mbps);
         while !cancelled(&local) {
             let t = now();
             let packet = rx.recv_timeout(Duration::from_millis(50));
@@ -544,8 +538,7 @@ pub fn acquire_with_options<S: Memory + 'static>(
                             &part.body,
                             &mut sparse_hole_bytes,
                             &mut actual_written_bytes,
-                            max_bps,
-                            &rate_begin,
+                            &mut rate,
                         )?;
                         let end = now();
                         part.meta["write_end_ns"] = json!(end);

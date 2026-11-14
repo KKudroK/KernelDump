@@ -4,6 +4,7 @@ mod capture;
 mod code_pages;
 mod ledger;
 mod pod_scope;
+mod rate_limit;
 mod resources;
 mod safe_output;
 mod source;
@@ -43,7 +44,7 @@ fn clock_pair() -> Value {
 }
 fn run() -> Result<bool> {
     use source::Memory;
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
     if args.len() == 1 && args[0] == "--version" {
         println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
         return Ok(true);
@@ -56,7 +57,7 @@ fn run() -> Result<bool> {
         #[cfg(not(feature = "development-options"))]
         {
             println!(
-                "kerneldump {}\nUsage:\n  kerneldump --output NEW_DIR [--pod FULL_POD_UID] [--allow-exited-pod] [--request-id ID] [--max-write-mbps 1..10000]\n\nSingle unified workflow: Preflight (storage/BTF/kcore/kpageflags) -> PFN-Selective Sparse LiME Capture -> Inline Verification.\n--pod restricts additional executable/code and socket/cache retention to one local Pod UID; base kernel filter stays node-wide.\n--allow-exited-pod permits node-wide kernel acquisition even if no live Pod processes remain.\n--max-write-mbps caps storage write bandwidth in MiB/s (MB/s decimal: 1000000 B/s per unit) to protect production disk I/O.\n--version and --build-info report the version and actual executable SHA-256.\nStandalone Rust live physical LiME acquisition for Linux x86-64/4KiB (sparse 4KiB zero-seek, 4MiB chunk pipeline).\nExit 0 confirms complete acquisition for the recorded policy, durable publication, and inline verification; exit 2 means incomplete.",
+                "kerneldump {}\nUsage:\n  kerneldump --output NEW_DIR [--pod FULL_POD_UID] [--allow-exited-pod] [--request-id ID] [--max-write-mbps 1..10000]\n\nSingle unified workflow: Preflight (storage/BTF/kcore/kpageflags) -> PFN-Selective Sparse LiME Capture -> Header/Ledger Verification.\n  kerneldump verify --output EXISTING_DIR performs full SHA-256 verification.\nLegacy check, capture, probe, and verify DIR commands remain accepted.\n--pod restricts additional executable/code and socket/cache retention to one local Pod UID; base kernel filter stays node-wide.\n--allow-exited-pod permits node-wide kernel acquisition even if no live Pod processes remain.\n--max-write-mbps caps payload write bandwidth in MB/s (1000000 B/s per unit) to protect production disk I/O.\n--version and --build-info report the version and actual executable SHA-256.\nStandalone Rust live physical LiME acquisition for Linux x86-64/4KiB (sparse 4KiB zero-seek, 4MiB chunk pipeline).\nExit 0 confirms complete acquisition for the recorded policy, durable publication, and inline verification; exit 2 means incomplete.",
                 env!("CARGO_PKG_VERSION")
             );
             return Ok(true);
@@ -64,11 +65,98 @@ fn run() -> Result<bool> {
         #[cfg(feature = "development-options")]
         {
             println!(
-                "kerneldump {}\nUsage:\n  kerneldump --output NEW_DIR [--pod FULL_POD_UID] [--allow-exited-pod] [--request-id ID]\n             [--max-write-mbps 1..10000] [--scope full-ram|kernel-focused]\n             [--chunk-mib 1..16] [--queue-depth 1..16]\n\nSingle unified workflow: Preflight -> PFN-Selective Sparse LiME Capture -> Inline Verification.\nDefaults: kernel-focused, chunk 4 MiB, queue 2. Requires readable kcore/kpageflags/BTF and\nunmasked page_offset_base/linux_banner; no security settings are changed.\nExit 0 confirms successful policy acquisition, durability, and verification; 2 means incomplete.",
+                "kerneldump {}\nUsage:\n  kerneldump --output NEW_DIR [--pod FULL_POD_UID] [--allow-exited-pod] [--request-id ID]\n             [--max-write-mbps 1..10000] [--scope full-ram|kernel-focused]\n             [--chunk-mib 1..16] [--queue-depth 1..16]\n\nSingle unified workflow: Preflight -> PFN-Selective Sparse LiME Capture -> Header/Ledger Verification.\n  kerneldump verify --output EXISTING_DIR performs full SHA-256 verification.\nLegacy check, capture, probe, and verify DIR commands remain accepted.\nDefaults: kernel-focused, chunk 4 MiB, queue 2. Requires readable kcore/kpageflags/BTF and\nunmasked page_offset_base/linux_banner; no security settings are changed.\nExit 0 confirms successful policy acquisition, durability, and verification; 2 means incomplete.",
                 env!("CARGO_PKG_VERSION")
             );
             return Ok(true);
         }
+    }
+    match args.first().map(String::as_str) {
+        Some("check") => {
+            let mut target_dir = None;
+            let mut json_mode = false;
+            let mut index = 1;
+            while index < args.len() {
+                let arg = &args[index];
+                if arg == "--json" && !json_mode {
+                    json_mode = true;
+                } else if arg == "--target-dir" && target_dir.is_none() {
+                    index += 1;
+                    let value = args
+                        .get(index)
+                        .filter(|v| !v.starts_with("--"))
+                        .ok_or("--target-dir requires a value")?;
+                    target_dir = Some(PathBuf::from(value));
+                } else if let Some(value) = arg.strip_prefix("--target-dir=") {
+                    if target_dir.is_some() || value.is_empty() {
+                        return Err("duplicate or empty --target-dir".into());
+                    }
+                    target_dir = Some(PathBuf::from(value));
+                } else {
+                    return Err(format!("unknown/duplicate check option: {arg}").into());
+                }
+                index += 1;
+            }
+            let report = source::check_readiness(target_dir.as_deref())?;
+            let ready = report["ready"].as_bool().unwrap_or(false);
+            if json_mode {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                println!(
+                    "kerneldump system readiness check (Linux {}):",
+                    report["kernel_release"]
+                );
+                if let Some(checks) = report["checks"].as_array() {
+                    for c in checks {
+                        let passed = c["passed"].as_bool().unwrap_or(false);
+                        let symbol = if passed {
+                            "[\x1b[32mPASS\x1b[0m]"
+                        } else {
+                            "[\x1b[31mFAIL\x1b[0m]"
+                        };
+                        println!(
+                            "  {} {:<18} : {}",
+                            symbol,
+                            c["name"].as_str().unwrap_or(""),
+                            c["detail"].as_str().unwrap_or("")
+                        );
+                    }
+                }
+                println!();
+                if ready {
+                    println!("\x1b[32mStatus: READY for live kernel memory acquisition.\x1b[0m");
+                } else {
+                    println!(
+                        "\x1b[31mStatus: NOT READY. Please address failed checks above.\x1b[0m"
+                    );
+                }
+            }
+            return Ok(ready);
+        }
+        Some("probe") if args.len() == 1 => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&source::Source::open()?.info())?
+            );
+            return Ok(true);
+        }
+        Some("capture") => {
+            args.remove(0);
+        }
+        _ => {}
+    }
+    if args.first().is_some_and(|s| s == "verify") {
+        let output = match args.as_slice() {
+            [_, path] if !path.starts_with("--") => PathBuf::from(path),
+            [_, flag, path] if flag == "--output" => PathBuf::from(path),
+            [_, flag] if flag.starts_with("--output=") && flag.len() > 9 => {
+                PathBuf::from(&flag[9..])
+            }
+            _ => return Err("Usage: kerneldump verify --output EXISTING_DIR".into()),
+        };
+        let result = verify::verify(&output)?;
+        println!("{result}");
+        return Ok(result["status"] == "complete_for_policy");
     }
     let mut output: Option<PathBuf> = None;
     let mut pod: Option<String> = None;
@@ -250,6 +338,8 @@ fn run() -> Result<bool> {
             "elapsed_s": m["elapsed_s"],
             "errors": m["errors"],
             "verified": verified.as_ref().map(|v| &v["verified"]),
+            "verification_mode": verified.as_ref().map(|v| &v["mode"]),
+            "payload_hash_verified": false,
             "manifest": output.join("manifest.json")
         })
     );
