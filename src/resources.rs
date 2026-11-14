@@ -74,8 +74,16 @@ mod tests {
         assert_eq!(result[0]["same_fields"], false);
         assert_eq!(r.finish()["complete"], false);
         assert_eq!(r.finish()["unread_candidate_pages"], 0);
-        assert!(r.finish()["issues"].as_array().unwrap().iter().any(|issue|
-            issue["error"].as_str().unwrap_or("").contains("0xffff800000001000")));
+        assert!(
+            r.finish()["issues"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|issue| issue["error"]
+                    .as_str()
+                    .unwrap_or("")
+                    .contains("0xffff800000001000"))
+        );
         let stable = candidate();
         stable.witness(PAGE, 2 * PAGE, true, |_, data| {
             data.copy_from_slice(&[1, 2, 3, 4]);
@@ -87,7 +95,11 @@ mod tests {
     #[test]
     fn folio_flag_mask_ignores_volatile_state_but_rejects_geometry_or_uptodate_change() {
         let original = (1u64 << 3) | (1u64 << 4);
-        let check = Check {address:0,bytes:original.to_le_bytes().to_vec(),mask:Some(original)};
+        let check = Check {
+            address: 0,
+            bytes: original.to_le_bytes().to_vec(),
+            mask: Some(original),
+        };
         assert!(check.matches(&(original | (1u64 << 15)).to_le_bytes()));
         assert!(!check.matches(&(1u64 << 3).to_le_bytes()));
         assert!(!check.matches(&(1u64 << 4).to_le_bytes()));
@@ -309,10 +321,13 @@ impl Resources {
                         self.validation_bytes
                             .set(self.validation_bytes.get() + bytes.len() as u64);
                         let reason = match read(c.address, &mut bytes) {
-                            Err(error) => Some(format!("unreadable check at {:#x}: {error}", c.address)),
+                            Err(error) => {
+                                Some(format!("unreadable check at {:#x}: {error}", c.address))
+                            }
                             Ok(()) if !c.matches(&bytes) => Some(format!(
                                 "check at {:#x}, expected {:02x?}, observed {:02x?}, mask {:?}",
-                                c.address, c.bytes, bytes, c.mask)),
+                                c.address, c.bytes, bytes, c.mask
+                            )),
                             Ok(()) => None,
                         };
                         if let Some(reason) = reason {
@@ -323,8 +338,13 @@ impl Resources {
                     if !valid {
                         self.issue(
                             "reference_changed",
-                            format!("{} evidence {}; {}", e.category, index,
-                                first_failure.unwrap_or_else(|| "process identity validation failed".into())),
+                            format!(
+                                "{} evidence {}; {}",
+                                e.category,
+                                index,
+                                first_failure
+                                    .unwrap_or_else(|| "process identity validation failed".into())
+                            ),
                         );
                     }
                     valid
@@ -482,6 +502,22 @@ struct MmOwner {
     pid: u64,
     start_time_ns: u64,
     checks: Vec<Check>,
+}
+fn task_boottime_field(btf: &Btf) -> Result<(&'static str, Field)> {
+    let (name, field) = match btf.field("task_struct", "start_boottime") {
+        Ok(field) => ("start_boottime", field),
+        Err(error) if error.to_string() == "BTF member unavailable: start_boottime" => (
+            "real_start_time",
+            btf.field("task_struct", "real_start_time")?,
+        ),
+        Err(error) => return Err(error),
+    };
+    // Older kernels call the boot-based nanosecond value real_start_time.
+    // start_time uses the monotonic clock and is not a substitute.
+    if field.size != 8 || field.bits != 0 {
+        return Err("unsupported task boot-time scalar layout".into());
+    }
+    Ok((name, field))
 }
 impl Scan<'_, '_> {
     fn field(&self, t: &'static str, n: &'static str) -> Result<Field> {
@@ -707,11 +743,14 @@ impl Scan<'_, '_> {
         self.thread_tasks.insert(task);
         let pid = self.value(task, "task_struct", "pid")?;
         let tgid = self.value(task, "task_struct", "tgid")?;
-        let boot = if self.pod.is_some() {
-            Some(self.value(task, "task_struct", "start_boottime")?)
+        let boot_field = if self.pod.is_some() {
+            Some(task_boottime_field(&self.btf)?.0)
         } else {
             None
         };
+        let boot = boot_field
+            .map(|name| self.value(task, "task_struct", name))
+            .transpose()?;
         if let Some(scope) = &self.pod {
             if !scope.threads.contains_key(&(pid as u32)) {
                 return Ok(());
@@ -725,7 +764,7 @@ impl Scan<'_, '_> {
         }
         let files = self.value(task, "task_struct", "files")?;
         let start = self.value(task, "task_struct", "start_time")?;
-        self.task_identity = json!({"task":task,"pid":pid,"tgid":tgid,"start_time_ns":start,"start_boottime_ns":boot,"pod_uid":self.pod.as_ref().map(|p|&p.uid)});
+        self.task_identity = json!({"task":task,"pid":pid,"tgid":tgid,"start_time_ns":start,"start_boottime_ns":boot,"start_boottime_field":boot_field,"pod_uid":self.pod.as_ref().map(|p|&p.uid)});
         self.task_checks = vec![
             self.expect(task, "task_struct", "pid", pid)?,
             self.expect(task, "task_struct", "tgid", tgid)?,
@@ -733,8 +772,12 @@ impl Scan<'_, '_> {
             self.expect(task, "task_struct", "files", files)?,
         ];
         if let Some(boot) = boot {
-            self.task_checks
-                .push(self.expect(task, "task_struct", "start_boottime", boot)?);
+            self.task_checks.push(self.expect(
+                task,
+                "task_struct",
+                boot_field.ok_or("task boot-time field unavailable")?,
+                boot,
+            )?);
         }
         if self.pod.is_some() {
             self.queue_code_cache(task, pid as u32);
@@ -963,16 +1006,24 @@ impl Scan<'_, '_> {
         let offset = self.off("sk_buff", "rbnode")?;
         let mut left = QUEUE_BYTES;
         while let Some(node) = todo.pop() {
-            if node == 0 { continue; }
-            if seen.len() >= 256 { return Err("TCP skb tree node limit".into()); }
-            if !seen.insert(node) {
-                self.plan.issue(name, format!("TCP skb tree cycle at {node:#x}"));
+            if node == 0 {
                 continue;
             }
-            let result = node.checked_sub(offset).ok_or_else(|| "skb rbnode underflow".into())
+            if seen.len() >= 256 {
+                return Err("TCP skb tree node limit".into());
+            }
+            if !seen.insert(node) {
+                self.plan
+                    .issue(name, format!("TCP skb tree cycle at {node:#x}"));
+                continue;
+            }
+            let result = node
+                .checked_sub(offset)
+                .ok_or_else(|| "skb rbnode underflow".into())
                 .and_then(|skb| self.skb(skb, detail, name, &mut left, 0));
             if let Err(error) = result {
-                self.plan.issue(name, format!("skb node {node:#x}: {error}"));
+                self.plan
+                    .issue(name, format!("skb node {node:#x}: {error}"));
             }
             // Child metadata and payload are independent observations. A bad
             // buffer or one unreadable child must not discard the other branch.
@@ -983,7 +1034,9 @@ impl Scan<'_, '_> {
                 }
             }
             if left == 0 {
-                if todo.iter().any(|&node| node != 0) { self.policy_truncations += 1; }
+                if todo.iter().any(|&node| node != 0) {
+                    self.policy_truncations += 1;
+                }
                 break;
             }
         }

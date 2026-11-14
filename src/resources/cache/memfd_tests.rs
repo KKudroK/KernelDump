@@ -52,7 +52,11 @@ fn fixture(run: impl FnOnce(&mut Scan<'_, '_>, &File)) {
     );
     b.structure("file", 16, &[("f_inode", ptr, 0), ("f_mapping", ptr, 8)]);
     b.structure("files_struct", 8, &[("fdt", ptr, 0)]);
-    b.structure("fdtable", 24, &[("max_fds", u64t, 0), ("fd", ptr, 8), ("open_fds", ptr, 16)]);
+    b.structure(
+        "fdtable",
+        24,
+        &[("max_fds", u64t, 0), ("fd", ptr, 8), ("open_fds", ptr, 16)],
+    );
     b.structure(
         "inode",
         40,
@@ -370,8 +374,14 @@ fn full_fd_bucket_does_not_exclude_mapped_only_memfd_jobs() {
 }
 
 fn prepare_fd(scan: &mut Scan<'_, '_>, core: &File) -> Value {
-    for (at, value) in [(0x900, BASE+0xa00), (0xa00, 64), (0xa08, BASE+0xb00),
-                        (0xa10, BASE+0xc00), (0xb00, FILE), (0xc00, 1)] {
+    for (at, value) in [
+        (0x900, BASE + 0xa00),
+        (0xa00, 64),
+        (0xa08, BASE + 0xb00),
+        (0xa10, BASE + 0xc00),
+        (0xb00, FILE),
+        (0xc00, 1),
+    ] {
         core.write_all_at(&value.to_le_bytes(), at).unwrap();
     }
     scan.live.deadline = now() + 5_000_000_000;
@@ -385,11 +395,27 @@ fn cache_fd_validation_ignores_other_allocation_bits_but_detects_target_close() 
         scan.small_file(FILE, origin).unwrap();
         assert_eq!(scan.cache.hits, 1);
         core.write_all_at(&3u64.to_le_bytes(), 0xc00).unwrap();
-        let observed = scan.plan.witness(0, 16*PAGE, true, |va, data| virtual_read(core, scan.live.segs, va, data));
-        assert!(observed.as_array().unwrap().iter().all(|row| row["same_fields"]==true));
+        let observed = scan.plan.witness(0, 16 * PAGE, true, |va, data| {
+            virtual_read(core, scan.live.segs, va, data)
+        });
+        assert!(
+            observed
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|row| row["same_fields"] == true)
+        );
         core.write_all_at(&2u64.to_le_bytes(), 0xc00).unwrap();
-        let closed = scan.plan.witness(0, 16*PAGE, true, |va, data| virtual_read(core, scan.live.segs, va, data));
-        assert!(closed.as_array().unwrap().iter().all(|row| row["same_fields"]==false));
+        let closed = scan.plan.witness(0, 16 * PAGE, true, |va, data| {
+            virtual_read(core, scan.live.segs, va, data)
+        });
+        assert!(
+            closed
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|row| row["same_fields"] == false)
+        );
     });
 }
 
@@ -397,16 +423,32 @@ fn cache_fd_validation_ignores_other_allocation_bits_but_detects_target_close() 
 fn bad_file_cache_index_does_not_discard_independent_later_page() {
     fixture(|scan, core| {
         let origin = prepare_fd(scan, core);
-        let page = BASE+0x8000+12*64;
-        for (at, value) in [(INODE+32-BASE, 2*PAGE), (MAPPING+16-BASE, BASE+0x1002),
-                            (0x1008, 2), (0x1010, page), (page+32-BASE, 1)] {
+        let page = BASE + 0x8000 + 12 * 64;
+        for (at, value) in [
+            (INODE + 32 - BASE, 2 * PAGE),
+            (MAPPING + 16 - BASE, BASE + 0x1002),
+            (0x1008, 2),
+            (0x1010, page),
+            (page + 32 - BASE, 1),
+        ] {
             core.write_all_at(&value.to_le_bytes(), at).unwrap();
         }
         scan.small_file(FILE, origin).unwrap();
         assert_eq!(scan.cache.hits, 1);
-        assert!(scan.plan.evidence.iter().any(|e| e.detail["role"]=="file_bytes" && e.detail["file_offset"]==PAGE));
+        assert!(
+            scan.plan
+                .evidence
+                .iter()
+                .any(|e| e.detail["role"] == "file_bytes" && e.detail["file_offset"] == PAGE)
+        );
         let result = scan.plan.finish();
         assert_eq!(result["complete"], false);
-        assert!(result["issues"].as_array().unwrap().iter().any(|e| e["stage"]=="file_cache_index"));
+        assert!(
+            result["issues"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|e| e["stage"] == "file_cache_index")
+        );
     });
 }

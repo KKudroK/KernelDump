@@ -430,8 +430,12 @@ impl Scan<'_, '_> {
         Ok(value)
     }
     fn checked_field_mask(
-        &self, a: u64, t: &'static str, n: &'static str,
-        mask: Option<u64>, checks: &mut Vec<Check>,
+        &self,
+        a: u64,
+        t: &'static str,
+        n: &'static str,
+        mask: Option<u64>,
+        checks: &mut Vec<Check>,
     ) -> Result<u64> {
         let mut check = self.check(a, t, n)?;
         if mask.is_some() && check.bytes.len() != 8 {
@@ -870,7 +874,9 @@ impl Scan<'_, '_> {
         // content state checked, alongside mapping, index, XArray and owner links.
         let mut flag_mask = (1u64 << head) | (1u64 << uptodate);
         if let Ok(poison) = self.btf.enum_value("pageflags", "PG_hwpoison") {
-            if poison >= 64 { return Err("invalid hardware poison flag".into()); }
+            if poison >= 64 {
+                return Err("invalid hardware poison flag".into());
+            }
             flag_mask |= 1u64 << poison;
         }
         let flags = self.checked_field_mask(page, "page", "flags", Some(flag_mask), &mut checks)?;
@@ -1047,9 +1053,16 @@ mod tests {
                 .unwrap();
             assert_eq!(payload.detail["physical_start"], 9 * PAGE);
             assert_eq!(payload.detail["file_offset"], 9 * PAGE);
-            assert_eq!(payload.detail["page_flag_validation_mask"], (1u64 << 3) | (1u64 << 4));
+            assert_eq!(
+                payload.detail["page_flag_validation_mask"],
+                (1u64 << 3) | (1u64 << 4)
+            );
             // A volatile flag changing does not replace this mapped file folio.
-            core.write_all_at(&((1u64 << 3) | (1u64 << 4) | (1u64 << 15)).to_le_bytes(), 0x2200).unwrap();
+            core.write_all_at(
+                &((1u64 << 3) | (1u64 << 4) | (1u64 << 15)).to_le_bytes(),
+                0x2200,
+            )
+            .unwrap();
             plan.witness(0, data.len() as u64, true, |va, buf| {
                 virtual_read(&core, &segs, va, buf)
             });

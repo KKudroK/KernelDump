@@ -103,8 +103,16 @@ fn network_btf() -> Btf {
             ("sk_write_queue", queue, 32),
         ],
     );
-    let rb = b.structure("rb_node", 24, &[("__rb_parent_color",ptr,0),("rb_left",ptr,8),("rb_right",ptr,16)]);
-    b.structure("rb_root", 8, &[("rb_node",ptr,0)]);
+    let rb = b.structure(
+        "rb_node",
+        24,
+        &[
+            ("__rb_parent_color", ptr, 0),
+            ("rb_left", ptr, 8),
+            ("rb_right", ptr, 16),
+        ],
+    );
+    b.structure("rb_root", 8, &[("rb_node", ptr, 0)]);
     b.structure(
         "sk_buff",
         64,
@@ -139,6 +147,57 @@ fn network_btf() -> Btf {
         ],
     );
     b.finish()
+}
+
+#[test]
+fn legacy_task_boot_time_uses_the_correct_clock_and_btf_offset() {
+    let mut b = TestBtf::new();
+    let u64t = b.int("u64", 8);
+    b.structure(
+        "task_struct",
+        32,
+        &[("start_time", u64t, 8), ("real_start_time", u64t, 24)],
+    );
+    let btf = b.finish();
+    let (name, field) = task_boottime_field(&btf).unwrap();
+    let mut bytes = [0u8; 32];
+    bytes[8..16].copy_from_slice(&100_000_000u64.to_le_bytes());
+    bytes[24..32].copy_from_slice(&200_000_000u64.to_le_bytes());
+    assert_eq!(name, "real_start_time");
+    assert_eq!(
+        field
+            .value(&bytes[field.offset as usize..field.offset as usize + field.size])
+            .unwrap(),
+        200_000_000
+    );
+}
+
+#[test]
+fn modern_task_boot_time_is_preferred_and_bad_width_does_not_fall_back() {
+    for modern_size in [8, 4] {
+        let mut b = TestBtf::new();
+        let modern = b.int("modern", modern_size);
+        let legacy = b.int("u64", 8);
+        b.structure(
+            "task_struct",
+            32,
+            &[
+                ("start_boottime", modern, 0),
+                ("real_start_time", legacy, 16),
+            ],
+        );
+        let btf = b.finish();
+        if modern_size == 8 {
+            assert_eq!(task_boottime_field(&btf).unwrap().0, "start_boottime");
+        } else {
+            assert!(
+                task_boottime_field(&btf)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("unsupported task boot-time scalar")
+            );
+        }
+    }
 }
 
 #[test]
@@ -290,37 +349,88 @@ fn socket_witness_must_detect_changed_ownership() {
 #[test]
 fn bad_tcp_tree_buffer_does_not_discard_other_branch_payloads() {
     const BASE: u64 = 0xffff888000000000;
-    let path=std::env::temp_dir().join(format!("kerneldump_tree_{}_{}",std::process::id(),now()));
-    let mut core=std::fs::OpenOptions::new().read(true).write(true).create_new(true).open(&path).unwrap();
-    let mut data=vec![0u8;0x5000];
-    let put=|data:&mut [u8],at:usize,value:u64,n:usize|data[at..at+n].copy_from_slice(&value.to_le_bytes()[..n]);
-    put(&mut data,0x80,BASE+0x120,8);
-    for (skb,payload) in [(0x100,0x2000),(0x300,0x2200)] {
-        for (offset,value,n) in [(0,BASE+payload,8),(8,BASE+payload,8),(16,4,4),(24,4,4),(28,128,4)] {
-            put(&mut data,skb+offset,value,n);
+    let path =
+        std::env::temp_dir().join(format!("kerneldump_tree_{}_{}", std::process::id(), now()));
+    let mut core = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .unwrap();
+    let mut data = vec![0u8; 0x5000];
+    let put = |data: &mut [u8], at: usize, value: u64, n: usize| {
+        data[at..at + n].copy_from_slice(&value.to_le_bytes()[..n])
+    };
+    put(&mut data, 0x80, BASE + 0x120, 8);
+    for (skb, payload) in [(0x100, 0x2000), (0x300, 0x2200)] {
+        for (offset, value, n) in [
+            (0, BASE + payload, 8),
+            (8, BASE + payload, 8),
+            (16, 4, 4),
+            (24, 4, 4),
+            (28, 128, 4),
+        ] {
+            put(&mut data, skb + offset, value, n);
         }
-        data[payload as usize..payload as usize+4].fill(0x41);
+        data[payload as usize..payload as usize + 4].fill(0x41);
     }
-    put(&mut data,0x128,BASE+0x420,8);
-    put(&mut data,0x130,BASE+0x320,8);
-    put(&mut data,0x410,1,4);
-    put(&mut data,0x414,2,4); // data_len exceeds len in this independent buffer.
+    put(&mut data, 0x128, BASE + 0x420, 8);
+    put(&mut data, 0x130, BASE + 0x320, 8);
+    put(&mut data, 0x410, 1, 4);
+    put(&mut data, 0x414, 2, 4); // data_len exceeds len in this independent buffer.
     core.write_all(&data).unwrap();
-    let segs=[Segment{offset:0,va:BASE,pa:PAGE,bytes:data.len() as u64}];
-    let ram=[(PAGE,PAGE+data.len() as u64)];let mut plan=Resources::default();
-    let mut scan=Scan{pod:None,target_seen:BTreeSet::new(),mm_owners:BTreeMap::new(),
-        cache:cache::CacheState::default(),code_targets:vec![],btf:network_btf(),
-        live:Live{core:&core,segs:&segs,ram:&ram,deadline:now()+5_000_000_000,
-            read_limit:MAX_READ_BYTES,read_bytes:Cell::new(0),calls:Cell::new(0),root:0,levels:4},
-        plan:&mut plan,fields:RefCell::new(HashMap::new()),vmemmap:BASE+0x4000,page_size:64,
-        files:BTreeSet::new(),tables:BTreeSet::new(),tasks:0,thread_tasks:BTreeSet::new(),
-        fd_refs:0,sockets:0,skbs:0,policy_truncations:0,task_identity:Value::Null,task_checks:vec![]};
-    scan.retain_skb_tree(BASE+0x80,&json!({}),"tcp_rtx_queue").unwrap();
+    let segs = [Segment {
+        offset: 0,
+        va: BASE,
+        pa: PAGE,
+        bytes: data.len() as u64,
+    }];
+    let ram = [(PAGE, PAGE + data.len() as u64)];
+    let mut plan = Resources::default();
+    let mut scan = Scan {
+        pod: None,
+        target_seen: BTreeSet::new(),
+        mm_owners: BTreeMap::new(),
+        cache: cache::CacheState::default(),
+        code_targets: vec![],
+        btf: network_btf(),
+        live: Live {
+            core: &core,
+            segs: &segs,
+            ram: &ram,
+            deadline: now() + 5_000_000_000,
+            read_limit: MAX_READ_BYTES,
+            read_bytes: Cell::new(0),
+            calls: Cell::new(0),
+            root: 0,
+            levels: 4,
+        },
+        plan: &mut plan,
+        fields: RefCell::new(HashMap::new()),
+        vmemmap: BASE + 0x4000,
+        page_size: 64,
+        files: BTreeSet::new(),
+        tables: BTreeSet::new(),
+        tasks: 0,
+        thread_tasks: BTreeSet::new(),
+        fd_refs: 0,
+        sockets: 0,
+        skbs: 0,
+        policy_truncations: 0,
+        task_identity: Value::Null,
+        task_checks: vec![],
+    };
+    scan.retain_skb_tree(BASE + 0x80, &json!({}), "tcp_rtx_queue")
+        .unwrap();
     drop(scan);
-    let payloads:Vec<_>=plan.evidence.iter().filter(|e|e.detail["role"]=="network_bytes").collect();
-    assert_eq!(payloads.len(),2);
-    assert!(payloads.iter().any(|e|e.detail["skb"]==BASE+0x300));
-    assert_eq!(plan.finish()["complete"],false);
+    let payloads: Vec<_> = plan
+        .evidence
+        .iter()
+        .filter(|e| e.detail["role"] == "network_bytes")
+        .collect();
+    assert_eq!(payloads.len(), 2);
+    assert!(payloads.iter().any(|e| e.detail["skb"] == BASE + 0x300));
+    assert_eq!(plan.finish()["complete"], false);
     std::fs::remove_file(path).unwrap();
 }
 
