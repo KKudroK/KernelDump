@@ -287,6 +287,58 @@ pub fn advise_sequential(file: &File, offset: i64, len: i64) -> io::Result<()> {
     Ok(())
 }
 
+pub fn sync_file_range_write(file: &File, offset: i64, nbytes: i64) -> io::Result<()> {
+    let rc = unsafe {
+        libc::sync_file_range(
+            file.as_raw_fd(),
+            offset,
+            nbytes,
+            libc::SYNC_FILE_RANGE_WRITE,
+        )
+    };
+    if rc != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+pub fn allocated_file_bytes(file: &File) -> io::Result<u64> {
+    Ok(file.metadata()?.blocks().saturating_mul(512))
+}
+
+#[inline]
+pub fn is_all_zero_scalar(data: &[u8]) -> bool {
+    let (prefix, middle, suffix) = unsafe { data.align_to::<u64>() };
+    prefix.iter().all(|&b| b == 0)
+        && middle.iter().all(|&w| w == 0)
+        && suffix.iter().all(|&b| b == 0)
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+unsafe fn is_all_zero_avx2(data: &[u8]) -> bool {
+    use std::arch::x86_64::{__m256i, _mm256_loadu_si256, _mm256_testz_si256};
+    let (chunks, rem) = data.as_chunks::<32>();
+    for chunk in chunks {
+        // SAFETY: as_chunks::<32>() guarantees 32 readable bytes at chunk.as_ptr().
+        let vec = unsafe { _mm256_loadu_si256(chunk.as_ptr().cast::<__m256i>()) };
+        if _mm256_testz_si256(vec, vec) == 0 {
+            return false;
+        }
+    }
+    is_all_zero_scalar(rem)
+}
+
+#[inline]
+pub fn is_all_zero(data: &[u8]) -> bool {
+    #[cfg(target_arch = "x86_64")]
+    if data.len() >= 32 && std::is_x86_feature_detected!("avx2") {
+        // SAFETY: AVX2 availability was dynamically verified above.
+        return unsafe { is_all_zero_avx2(data) };
+    }
+    is_all_zero_scalar(data)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -388,5 +440,21 @@ mod tests {
         let _f = file(&output.path().join("data"), b"captured");
         assert_eq!(fs::read(moved.join("data")).unwrap(), b"captured");
         assert!(!unrelated.join("data").exists());
+    }
+    #[test]
+    fn simd_zero_detection_matches_scalar_across_alignments_and_sizes() {
+        for size in [0usize, 1, 7, 15, 31, 32, 33, 63, 64, 129, 4096] {
+            let mut buf = vec![0u8; size];
+            assert!(is_all_zero(&buf));
+            assert!(is_all_zero_scalar(&buf));
+            for pos in [0, size / 2, size.saturating_sub(1)] {
+                if pos < size {
+                    buf[pos] = 0x42;
+                    assert!(!is_all_zero(&buf));
+                    assert!(!is_all_zero_scalar(&buf));
+                    buf[pos] = 0;
+                }
+            }
+        }
     }
 }

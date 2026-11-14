@@ -119,6 +119,7 @@ pub struct PodScope {
     pub processes: BTreeMap<u32, Identity>,
     pub threads: BTreeMap<u32, Identity>,
     pub report: Value,
+    pub allow_exited: bool,
     validation_bytes: Cell<usize>,
     validation_ns: Cell<u64>,
 }
@@ -131,14 +132,28 @@ impl PodScope {
             processes: BTreeMap::new(),
             threads: BTreeMap::new(),
             report: Value::Null,
+            allow_exited: false,
             validation_bytes: Cell::new(0),
             validation_ns: Cell::new(0),
         }
     }
+    #[allow(dead_code)]
     pub fn discover(value: &str, deadline: u64) -> Result<Self> {
-        Self::discover_at(value, deadline, Path::new("/proc"))
+        Self::discover_with_policy(value, deadline, false)
     }
+    pub fn discover_with_policy(value: &str, deadline: u64, allow_exited: bool) -> Result<Self> {
+        Self::discover_at_with_policy(value, deadline, Path::new("/proc"), allow_exited)
+    }
+    #[cfg(test)]
     fn discover_at(value: &str, deadline: u64, proc: &Path) -> Result<Self> {
+        Self::discover_at_with_policy(value, deadline, proc, false)
+    }
+    fn discover_at_with_policy(
+        value: &str,
+        deadline: u64,
+        proc: &Path,
+        allow_exited: bool,
+    ) -> Result<Self> {
         let uid = uid(value)?;
         let begin = now();
         let mut reads = 0;
@@ -230,12 +245,14 @@ impl PodScope {
                 Err(e) => return Err(e),
             }
         }
-        if processes.is_empty() {
+        let pod_exited = processes.is_empty();
+        if pod_exited && !allow_exited {
             return Err(
                 "Pod has no visible live member processes; refusing node-wide fallback".into(),
             );
         }
         let report = json!({"pod_uid":uid,"boot_id":boot_id,"begin_ns":begin,"end_ns":now(),
+            "pod_exited":pod_exited,"allow_exited_pod":allow_exited,
             "processes_examined":examined,"disappeared_during_census":exited,"metadata_request_bound_bytes":reads,
             "processes":processes.values().map(Identity::json).collect::<Vec<_>>(),"threads":threads.values().map(Identity::json).collect::<Vec<_>>(),
             "selection":"exact cgroup Pod UID segment; current host process identities, not historical ownership",
@@ -247,6 +264,7 @@ impl PodScope {
             processes,
             threads,
             report,
+            allow_exited,
             validation_bytes: Cell::new(0),
             validation_ns: Cell::new(0),
         })
@@ -293,7 +311,7 @@ impl PodScope {
         Ok(id)
     }
     pub fn finish(&self) -> Value {
-        match Self::discover(&self.uid, now() + 500_000_000) {
+        match Self::discover_with_policy(&self.uid, now() + 500_000_000, self.allow_exited) {
             Ok(current) => {
                 json!({"complete":current.boot_id==self.boot_id && current.processes==self.processes && current.threads==self.threads,
                 "before":self.report,"after":current.report,"consistency":"Two bounded censuses, not an atomic snapshot; transient membership and ABA remain possible"})
@@ -325,17 +343,17 @@ mod tests {
     #[test]
     fn cgroup_v1_v2_and_systemd() {
         assert!(
-            membership(&format!("0::/kubepods/burstable/pod{UID}/abc\n"), UID)
+            membership(format!("0::/kubepods/burstable/pod{UID}/abc\n"), UID)
                 .unwrap()
                 .is_some()
         );
         let u = UID.replace('-', "_");
-        assert!(membership(&format!("7:pids:/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod{u}.slice/abc.scope\n"),UID).unwrap().is_some());
+        assert!(membership(format!("7:pids:/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod{u}.slice/abc.scope\n"),UID).unwrap().is_some());
         assert_eq!(
-            membership(&format!("0::/\n7:pids:/pod{UID}"), UID).unwrap(),
+            membership(format!("0::/\n7:pids:/pod{UID}"), UID).unwrap(),
             Some(format!("/pod{UID}"))
         );
-        assert!(membership(&format!("7:pids:/pod{UID}/a\n8:memory:/pod{UID}/b"), UID).is_err());
+        assert!(membership(format!("7:pids:/pod{UID}/a\n8:memory:/pod{UID}/b"), UID).is_err());
         assert!(membership("malformed", UID).is_err());
     }
     #[test]
@@ -413,6 +431,14 @@ mod tests {
         );
         fs::write(root.join("100/cgroup"), "0::/moved").unwrap();
         assert!(PodScope::discover_at(UID, now() + 1_000_000_000, &root).is_err());
+        assert!(
+            PodScope::discover_at_with_policy(UID, now() + 1_000_000_000, &root, false).is_err()
+        );
+        let exited =
+            PodScope::discover_at_with_policy(UID, now() + 1_000_000_000, &root, true).unwrap();
+        assert_eq!(exited.report["pod_exited"], true);
+        assert_eq!(exited.report["allow_exited_pod"], true);
+        assert!(exited.processes.is_empty());
         fs::remove_dir_all(root).unwrap();
     }
 }

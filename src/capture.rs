@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     fs::{File, OpenOptions},
-    io::Write,
+    io::{Seek, SeekFrom, Write},
     os::{fd::AsRawFd, unix::fs::OpenOptionsExt},
     panic::{AssertUnwindSafe, catch_unwind},
     path::Path,
@@ -16,8 +16,25 @@ use std::{
         mpsc,
     },
     thread,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct AcquireOptions {
+    pub max_write_mbps: Option<u64>,
+}
+
+pub(crate) fn hash_flags_slice(flags: &[u64]) -> String {
+    let mut hash = Sha256::new();
+    let mut buf = [0u8; 4096];
+    for chunk in flags.chunks(512) {
+        for (i, flag) in chunk.iter().enumerate() {
+            buf[i * 8..(i + 1) * 8].copy_from_slice(&flag.to_le_bytes());
+        }
+        hash.update(&buf[..chunk.len() * 8]);
+    }
+    format!("{:x}", hash.finalize())
+}
 
 struct Part {
     meta: Value,
@@ -68,63 +85,15 @@ fn handoff<T>(tx: &mpsc::SyncSender<T>, packet: T, local: &AtomicBool) -> bool {
     true
 }
 
-#[cfg(test)]
-mod channel_tests {
-    use super::*;
-    #[test]
-    fn full_queue_cancellation_drops_receiver_before_join() {
-        let (tx, rx) = mpsc::sync_channel(1);
-        tx.send(1).unwrap();
-        let stop = Arc::new(AtomicBool::new(false));
-        let stop_reader = stop.clone();
-        let (done_tx, done_rx) = mpsc::channel();
-        let reader = thread::spawn(move || {
-            done_tx.send(handoff(&tx, 2, &stop_reader)).unwrap();
-        });
-        assert!(done_rx.recv_timeout(Duration::from_millis(20)).is_err());
-        stop.store(true, Ordering::Relaxed);
-        drop(rx);
-        assert!(!done_rx.recv_timeout(Duration::from_secs(1)).unwrap());
-        reader.join().unwrap();
-    }
-    #[test]
-    fn consumer_unwind_and_producer_failure_disconnect() {
-        let (tx, rx) = mpsc::sync_channel(1);
-        tx.send(1).unwrap();
-        let (done_tx, done_rx) = mpsc::channel();
-        let reader = thread::spawn(move || {
-            let stop = AtomicBool::new(false);
-            done_tx.send(handoff(&tx, 2, &stop)).unwrap();
-        });
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
-            let _receiver = rx;
-            panic!("synthetic writer failure");
-        }));
-        assert!(!done_rx.recv_timeout(Duration::from_secs(1)).unwrap());
-        reader.join().unwrap();
-        let (tx, rx) = mpsc::sync_channel::<usize>(1);
-        let writer = thread::spawn(move || rx.recv_timeout(Duration::from_secs(1)));
-        drop(tx);
-        assert_eq!(
-            writer.join().unwrap(),
-            Err(mpsc::RecvTimeoutError::Disconnected)
-        );
-    }
-    #[test]
-    fn cancelled_before_send_publishes_no_packet() {
-        let (tx, rx) = mpsc::sync_channel(1);
-        assert!(!handoff(&tx, vec![0xaa; 4096], &AtomicBool::new(true)));
-        assert!(rx.try_recv().is_err());
-    }
-}
-
 fn produce<S: Memory>(
     source: S,
     scope: Scope,
     chunk: u64,
     tx: mpsc::SyncSender<Packet>,
+    recycle_rx: mpsc::Receiver<Vec<u8>>,
     local: Arc<AtomicBool>,
 ) -> ReadStats {
+    let mut free_bufs: Vec<Vec<u8>> = Vec::new();
     let mut stats = ReadStats {
         begin: now(),
         ..Default::default()
@@ -188,11 +157,7 @@ fn produce<S: Memory>(
                         stats.select_ns += now() - t;
                         error_at = Some(address);
                         let t = now();
-                        let mut hash = Sha256::new();
-                        for flag in &flags[i..j] {
-                            hash.update(flag.to_le_bytes());
-                        }
-                        let flags_sha = format!("{:x}", hash.finalize());
+                        let flags_sha = hash_flags_slice(&flags[i..j]);
                         stats.flags_hash_ns += now() - t;
                         let mut meta = json!({"physical_start":address,"bytes":size,"status":status,"flags_observed_ns":observed,"flags_sha256":flags_sha});
                         let t = now();
@@ -274,7 +239,18 @@ fn produce<S: Memory>(
                                 );
                             }
                             let t = now();
-                            body = vec![0; size];
+                            while let Ok(buf) = recycle_rx.try_recv() {
+                                if free_bufs.len() < 32 {
+                                    free_bufs.push(buf);
+                                }
+                            }
+                            if let Some(pos) = free_bufs.iter().position(|b| b.capacity() >= size) {
+                                body = free_bufs.swap_remove(pos);
+                                body.clear();
+                                body.resize(size, 0);
+                            } else {
+                                body = vec![0; size];
+                            }
                             stats.allocate_ns += now() - t;
                             let t = now();
                             meta["read_begin_ns"] = json!(t);
@@ -345,12 +321,81 @@ fn new_file(path: &Path) -> std::io::Result<File> {
         .mode(0o600)
         .open(path)
 }
+fn write_sparse_lime_body(
+    file: &mut File,
+    body: &[u8],
+    sparse_holes: &mut u64,
+    written_bytes: &mut u64,
+    max_bps: Option<f64>,
+    rate_begin: &Instant,
+) -> Result<()> {
+    const SPARSE_PAGE: usize = PAGE as usize;
+    let mut pos = 0usize;
+    while pos < body.len() {
+        let end = (pos + SPARSE_PAGE).min(body.len());
+        if crate::safe_output::is_all_zero(&body[pos..end]) {
+            let mut hole_end = end;
+            while hole_end < body.len() {
+                let next_end = (hole_end + SPARSE_PAGE).min(body.len());
+                if !crate::safe_output::is_all_zero(&body[hole_end..next_end]) {
+                    break;
+                }
+                hole_end = next_end;
+            }
+            let hole_len = (hole_end - pos) as u64;
+            file.seek(SeekFrom::Current(hole_len as i64))?;
+            *sparse_holes += hole_len;
+            pos = hole_end;
+        } else {
+            let mut data_end = end;
+            while data_end < body.len() {
+                let next_end = (data_end + SPARSE_PAGE).min(body.len());
+                if crate::safe_output::is_all_zero(&body[data_end..next_end]) {
+                    break;
+                }
+                data_end = next_end;
+            }
+            file.write_all(&body[pos..data_end])?;
+            let chunk_written = (data_end - pos) as u64;
+            *written_bytes += chunk_written;
+            if let Some(bps) = max_bps {
+                let expected = *written_bytes as f64 / bps;
+                let elapsed = rate_begin.elapsed().as_secs_f64();
+                if expected > elapsed {
+                    thread::sleep(Duration::from_secs_f64((expected - elapsed).min(0.25)));
+                }
+            }
+            pos = data_end;
+        }
+    }
+    Ok(())
+}
+
+#[allow(dead_code)]
 pub fn acquire<S: Memory + 'static>(
+    source: S,
+    output: &Path,
+    scope: Scope,
+    chunk: usize,
+    depth: usize,
+) -> Result<Value> {
+    acquire_with_options(
+        source,
+        output,
+        scope,
+        chunk,
+        depth,
+        AcquireOptions::default(),
+    )
+}
+
+pub fn acquire_with_options<S: Memory + 'static>(
     mut source: S,
     output: &Path,
     scope: Scope,
     chunk: usize,
     depth: usize,
+    options: AcquireOptions,
 ) -> Result<Value> {
     if !(1..=16).contains(&depth)
         || chunk == 0
@@ -387,8 +432,8 @@ pub fn acquire<S: Memory + 'static>(
     let mut m = json!({"schema":2,"tool":"kerneldump","implementation":"rust","version":env!("CARGO_PKG_VERSION"),"scope":scope.name(),"atomic":false,"strict_kernel_only":false,
         "build_provenance":crate::build_info::current(),
         "status":"in_progress","source":info,"ram_ranges":ram,"expected_ram_bytes":expected,"start_ns":started,
-        "wall_start_unix_ns":SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos(),"timebase":"CLOCK_MONOTONIC ns","chunk_bytes":chunk,"queue_depth":depth,
-        "payload_buffer_bound_bytes":(depth+2)*chunk,"filter":{"policy":"kernel-focused-v9","unsafe_mask":UNSAFE,"retain_mask":KEEP,"exclude_mask":EXCLUDE,"slab_neighbor_pages_retained":1,"exclusion_basis":"LRU, BUDDY, MMAP, ANON, SWAPCACHE, SWAPBACKED, KSM, THP and ZERO_PAGE are excluded except retained kernel neighbors and bounded executable anonymous, referenced queue and Pod file-cache candidates. Unsafe flags always exclude.","retained":"SLAB, PGTABLE, unclassified pages and immediate SLAB/PGTABLE neighbors; additionally present anonymous pages of private executable mappings, including file COW and fileless/JIT code discovered through proc. Also bounded socket queue bytes through running-kernel BTF; Pod-only bounded resident small shmem/unlinked files and cache pages corresponding to executable COW pages, after code/network discovery. Optional Pod scope applies only to these additions, not the base kernel filter. See source.pod_scope and source.shared_retention_budget, source.resource_retention and ledger references."},"errors":[],
+        "wall_start_unix_ns":SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos(),"timebase":"CLOCK_MONOTONIC ns","chunk_bytes":chunk,"queue_depth":depth,"max_write_mbps":options.max_write_mbps,
+        "payload_buffer_bound_bytes":(depth+2)*chunk,"filter":{"policy":"kernel-focused-v9","unsafe_mask":UNSAFE,"retain_mask":KEEP,"exclude_mask":EXCLUDE,"slab_neighbor_pages_retained":1,"exclusion_basis":"LRU, BUDDY, MMAP, ANON, SWAPCACHE, SWAPBACKED, KSM, THP, HUGETLB and ZERO_PAGE are excluded except retained kernel neighbors and bounded executable anonymous, referenced queue and Pod file-cache candidates. Unsafe flags always exclude.","retained":"SLAB, PGTABLE, unclassified pages and immediate SLAB/PGTABLE neighbors; additionally present anonymous pages of private executable mappings, including file COW and fileless/JIT code discovered through proc. Also bounded socket queue bytes through running-kernel BTF; Pod-only bounded resident small shmem/unlinked files and cache pages corresponding to executable COW pages, after code/network discovery. Optional Pod scope applies only to these additions, not the base kernel filter. See source.pod_scope and source.shared_retention_budget, source.resource_retention and ledger references."},"errors":[],
         "limitations":["Non-atomic live acquisition: flags, addresses and payload are observed at different times.","Kernel-focused filtering can omit kernel-relevant information and retain user/residual bytes.",
         "kcore can return internally zero-filled bytes; read success is not proof of physical-byte availability.","Unsafe/unmapped PFNs are explicit omissions and prevent complete status.",
         "Cancellation is cooperative; a kernel I/O syscall can block beyond the request.","Payload budget excludes metadata, allocator overhead and OS page cache.","Matching symbols and successful plugins do not prove complete forensic coverage.",
@@ -411,6 +456,8 @@ pub fn acquire<S: Memory + 'static>(
     let mut hash_ns = 0u64;
     let mut ledger_ns = 0u64;
     let mut receive_ns = 0u64;
+    let mut sparse_hole_bytes = 0u64;
+    let mut actual_written_bytes = 0u64;
     let local = Arc::new(AtomicBool::new(false));
     let mut worker = None;
     let mut reserve = None;
@@ -435,9 +482,10 @@ pub fn acquire<S: Memory + 'static>(
         payload_owned = Some(file.try_clone()?);
         ledger_owned = Some(ledger.try_clone()?);
         let (tx, rx) = mpsc::sync_channel(depth);
+        let (recycle_tx, recycle_rx) = mpsc::sync_channel::<Vec<u8>>(depth * 4 + 4);
         let stop = local.clone();
         worker = Some(thread::spawn(move || {
-            produce(source, scope, chunk as u64, tx, stop)
+            produce(source, scope, chunk as u64, tx, recycle_rx, stop)
         }));
         #[cfg(feature = "development-options")]
         if writer_panic_at == "before-receive" {
@@ -445,6 +493,11 @@ pub fn acquire<S: Memory + 'static>(
         }
         let is_tty = unsafe { libc::isatty(libc::STDERR_FILENO) } == 1;
         let mut last_progress_bytes = 0u64;
+        const FLUSH_WINDOW: u64 = 16 * 1024 * 1024;
+        let mut window_start = 0u64;
+        let mut prev_window: Option<(u64, u64)> = None;
+        let rate_begin = Instant::now();
+        let max_bps = options.max_write_mbps.map(|m| m as f64 * 1_000_000.0);
         while !cancelled(&local) {
             let t = now();
             let packet = rx.recv_timeout(Duration::from_millis(50));
@@ -481,11 +534,19 @@ pub fn acquire<S: Memory + 'static>(
                         let t = now();
                         part.meta["write_begin_ns"] = json!(t);
                         file.write_all(&header)?;
+                        actual_written_bytes += 32;
                         #[cfg(feature = "development-options")]
                         if writer_panic_at == "after-header" {
                             panic!("injected acquisition writer panic after LiME header");
                         }
-                        file.write_all(&part.body)?;
+                        write_sparse_lime_body(
+                            &mut file,
+                            &part.body,
+                            &mut sparse_hole_bytes,
+                            &mut actual_written_bytes,
+                            max_bps,
+                            &rate_begin,
+                        )?;
                         let end = now();
                         part.meta["write_end_ns"] = json!(end);
                         write_ns += end - t;
@@ -493,8 +554,27 @@ pub fn acquire<S: Memory + 'static>(
                         digest.update(header);
                         digest.update(&part.body);
                         hash_ns += now() - t;
+                        if !part.body.is_empty() {
+                            let _ = recycle_tx.try_send(std::mem::take(&mut part.body));
+                        }
                         offset += 32 + size;
                         total += size;
+                        if offset - window_start >= FLUSH_WINDOW {
+                            let _ = crate::safe_output::sync_file_range_write(
+                                &file,
+                                window_start as i64,
+                                (offset - window_start) as i64,
+                            );
+                            if let Some((pw_start, pw_len)) = prev_window.take() {
+                                let _ = crate::safe_output::advise_dontneed(
+                                    &file,
+                                    pw_start as i64,
+                                    pw_len as i64,
+                                );
+                            }
+                            prev_window = Some((window_start, offset - window_start));
+                            window_start = offset;
+                        }
                     }
                     Some("policy_excluded" | "unsafe_pfn" | "unmapped") => (),
                     _ => return Err("invalid coverage status".into()),
@@ -530,6 +610,7 @@ pub fn acquire<S: Memory + 'static>(
         // Wake a producer blocked on a full queue before final fsync or join.
         // On error/unwind Rust also drops this closure-owned receiver first.
         drop(rx);
+        file.set_len(offset)?;
         m["write_complete_ns"] = json!(now());
         let t = now();
         file.sync_all()?;
@@ -622,6 +703,14 @@ pub fn acquire<S: Memory + 'static>(
             .map(|s| s.len())
             .unwrap_or(0)
     );
+    m["allocated_file_bytes"] = json!(
+        payload_owned
+            .as_ref()
+            .and_then(|f| crate::safe_output::allocated_file_bytes(f).ok())
+            .unwrap_or(0)
+    );
+    m["sparse_zero_hole_bytes"] = json!(sparse_hole_bytes);
+    m["actual_written_bytes"] = json!(actual_written_bytes);
     let mut payload_path_valid = false;
     for (path, owned) in [
         (&partial, payload_owned.as_ref()),
@@ -647,7 +736,7 @@ pub fn acquire<S: Memory + 'static>(
     m["clock_correlation_end"] = crate::clock_pair();
     m["lime_sha256"] = json!(format!("{:x}", digest.finalize()));
     m["ranges_sha256"] = json!(format!("{:x}", ledger_digest.finalize()));
-    m["write_stages"] = json!({"file_write_ns":write_ns,"file_hash_ns":hash_ns,"ledger_serialize_write_hash_ns":ledger_ns,"queue_receive_wait_ns":receive_ns});
+    m["write_stages"] = json!({"file_write_ns":write_ns,"file_hash_ns":hash_ns,"ledger_serialize_write_hash_ns":ledger_ns,"queue_receive_wait_ns":receive_ns,"sparse_zero_hole_bytes":sparse_hole_bytes,"actual_written_bytes":actual_written_bytes});
     let complete = m["errors"].as_array().unwrap().is_empty() && unavailable == 0;
     m["status"] = json!(if complete {
         "complete_for_policy"
@@ -674,11 +763,14 @@ pub fn acquire<S: Memory + 'static>(
             payload_published = true;
         }
     }
-    if let Some(reserve) = reserve.as_ref() {
-        if let Err(e) = crate::safe_output::remove_owned(&reserve_path, reserve) {
-            m["status"] = json!("failed");
-            m["errors"].as_array_mut().unwrap().push(json!({"stage":"reserve_cleanup","error":e.to_string(),"path":reserve_path,"time_ns":now()}));
-        }
+    if let Some(reserve) = reserve.as_ref()
+        && let Err(e) = crate::safe_output::remove_owned(&reserve_path, reserve)
+    {
+        m["status"] = json!("failed");
+        m["errors"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"stage":"reserve_cleanup","error":e.to_string(),"path":reserve_path,"time_ns":now()}));
     }
     drop(reserve);
     m["artifact"] = if payload_published {
@@ -723,4 +815,54 @@ pub fn lime_header(start: u64, size: u64) -> Result<[u8; 32]> {
     header[8..16].copy_from_slice(&start.to_le_bytes());
     header[16..24].copy_from_slice(&end.to_le_bytes());
     Ok(header)
+}
+
+#[cfg(test)]
+mod channel_tests {
+    use super::*;
+    #[test]
+    fn full_queue_cancellation_drops_receiver_before_join() {
+        let (tx, rx) = mpsc::sync_channel(1);
+        tx.send(1).unwrap();
+        let stop = Arc::new(AtomicBool::new(false));
+        let stop_reader = stop.clone();
+        let (done_tx, done_rx) = mpsc::channel();
+        let reader = thread::spawn(move || {
+            done_tx.send(handoff(&tx, 2, &stop_reader)).unwrap();
+        });
+        assert!(done_rx.recv_timeout(Duration::from_millis(20)).is_err());
+        stop.store(true, Ordering::Relaxed);
+        drop(rx);
+        assert!(!done_rx.recv_timeout(Duration::from_secs(1)).unwrap());
+        reader.join().unwrap();
+    }
+    #[test]
+    fn consumer_unwind_and_producer_failure_disconnect() {
+        let (tx, rx) = mpsc::sync_channel(1);
+        tx.send(1).unwrap();
+        let (done_tx, done_rx) = mpsc::channel();
+        let reader = thread::spawn(move || {
+            let stop = AtomicBool::new(false);
+            done_tx.send(handoff(&tx, 2, &stop)).unwrap();
+        });
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+            let _receiver = rx;
+            panic!("synthetic writer failure");
+        }));
+        assert!(!done_rx.recv_timeout(Duration::from_secs(1)).unwrap());
+        reader.join().unwrap();
+        let (tx, rx) = mpsc::sync_channel::<usize>(1);
+        let writer = thread::spawn(move || rx.recv_timeout(Duration::from_secs(1)));
+        drop(tx);
+        assert_eq!(
+            writer.join().unwrap(),
+            Err(mpsc::RecvTimeoutError::Disconnected)
+        );
+    }
+    #[test]
+    fn cancelled_before_send_publishes_no_packet() {
+        let (tx, rx) = mpsc::sync_channel(1);
+        assert!(!handoff(&tx, vec![0xaa; 4096], &AtomicBool::new(true)));
+        assert!(rx.try_recv().is_err());
+    }
 }

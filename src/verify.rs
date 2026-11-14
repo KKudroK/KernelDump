@@ -4,6 +4,7 @@ use sha2::{Digest, Sha256};
 use std::{
     fs::File,
     io::{BufRead, BufReader, Read},
+    os::unix::fs::FileExt,
     path::Path,
 };
 // Bound bytes before JSON deserialization, including a file that grows after
@@ -113,7 +114,42 @@ fn complete_additions(m: &Value) -> Result<()> {
     Ok(())
 }
 
+fn hash_flags_runs(runs: &[(u64, u64)], size: u64) -> Result<String> {
+    let mut pages = 0u64;
+    let mut flags_hash = Sha256::new();
+    let mut buf = [0u8; 4096];
+    let mut used = 0usize;
+    for &(count, flags) in runs {
+        require(count > 0 && count <= size / PAGE, "invalid flag run length")?;
+        pages = pages.checked_add(count).ok_or("flag run overflow")?;
+        require(pages <= size / PAGE, "flag runs exceed range")?;
+        let le = flags.to_le_bytes();
+        for _ in 0..count {
+            buf[used..used + 8].copy_from_slice(&le);
+            used += 8;
+            if used == buf.len() {
+                flags_hash.update(buf);
+                used = 0;
+            }
+        }
+    }
+    if used > 0 {
+        flags_hash.update(&buf[..used]);
+    }
+    require(pages == size / PAGE, "flag coverage mismatch")?;
+    Ok(format!("{:x}", flags_hash.finalize()))
+}
+
+#[allow(dead_code)]
 pub fn verify(output: &Path) -> Result<Value> {
+    verify_impl(output, true)
+}
+
+pub fn verify_fast(output: &Path) -> Result<Value> {
+    verify_impl(output, false)
+}
+
+fn verify_impl(output: &Path, full_payload_hash: bool) -> Result<Value> {
     let m = manifest(&output.join("manifest.json"))?;
     require(m["schema"] == 2, "requires Rust schema2 manifest")?;
     require(
@@ -219,19 +255,8 @@ pub fn verify(output: &Path) -> Result<Value> {
         )?;
         if let Some(runs) = row.get("flags_rle_pages_u64") {
             let runs: Vec<(u64, u64)> = serde_json::from_value(runs.clone())?;
-            let mut pages = 0u64;
-            let mut flags_hash = Sha256::new();
-            for (count, flags) in runs {
-                require(count > 0 && count <= size / PAGE, "invalid flag run length")?;
-                pages = pages.checked_add(count).ok_or("flag run overflow")?;
-                require(pages <= size / PAGE, "flag runs exceed range")?;
-                for _ in 0..count {
-                    flags_hash.update(flags.to_le_bytes());
-                }
-            }
-            require(pages == size / PAGE, "flag coverage mismatch")?;
             require(
-                row["flags_sha256"] == format!("{:x}", flags_hash.finalize()),
+                row["flags_sha256"] == hash_flags_runs(&runs, size)?,
                 "flags hash mismatch",
             )?;
         }
@@ -242,19 +267,25 @@ pub fn verify(output: &Path) -> Result<Value> {
                     "ledger/file offset mismatch",
                 )?;
                 let mut header = [0u8; 32];
-                file.read_exact(&mut header)?;
+                if full_payload_hash {
+                    file.read_exact(&mut header)?;
+                } else {
+                    file.read_exact_at(&mut header, offset)?;
+                }
                 require(
                     header == crate::capture::lime_header(start, size)?,
                     "LiME header/address mismatch",
                 )?;
-                let mut body = vec![0u8; size as usize];
-                file.read_exact(&mut body)?;
-                require(
-                    row["sha256"].as_str() == Some(sha(&body).as_str()),
-                    "payload hash mismatch",
-                )?;
-                hash.update(header);
-                hash.update(&body);
+                if full_payload_hash {
+                    let mut body = vec![0u8; size as usize];
+                    file.read_exact(&mut body)?;
+                    require(
+                        row["sha256"].as_str() == Some(sha(&body).as_str()),
+                        "payload hash mismatch",
+                    )?;
+                    hash.update(header);
+                    hash.update(&body);
+                }
                 offset += 32 + size;
                 payload += size;
             }
@@ -271,17 +302,30 @@ pub fn verify(output: &Path) -> Result<Value> {
         cursor += size;
         ranges += 1;
     }
-    let mut extra = [0u8; 1];
-    require(file.read(&mut extra)? == 0, "unaccounted trailing payload")?;
+    if full_payload_hash {
+        let mut extra = [0u8; 1];
+        require(file.read(&mut extra)? == 0, "unaccounted trailing payload")?;
+    } else {
+        require(file.metadata()?.len() == offset, "payload length mismatch")?;
+    }
     require(
         m["ranges_sha256"].as_str() == Some(format!("{:x}", ledger_hash.finalize()).as_str()),
         "ledger hash mismatch",
     )?;
-    let digest = format!("{:x}", hash.finalize());
-    require(
-        m["lime_sha256"].as_str() == Some(&digest),
-        "LiME hash mismatch",
-    )?;
+    let digest = if full_payload_hash {
+        let digest = format!("{:x}", hash.finalize());
+        require(
+            m["lime_sha256"].as_str() == Some(&digest),
+            "LiME hash mismatch",
+        )?;
+        digest
+    } else {
+        m["lime_sha256"]
+            .as_str()
+            .filter(|s| s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit()))
+            .ok_or("missing or invalid lime_sha256")?
+            .to_string()
+    };
     let accounted = payload + excluded + unavailable;
     require(
         m["payload_bytes"] == payload
@@ -320,7 +364,13 @@ pub fn verify(output: &Path) -> Result<Value> {
         )?;
         complete_additions(&m)?;
     }
-    Ok(
-        json!({"verified":true,"status":m["status"],"payload_bytes":payload,"lime_sha256":digest,"coverage_ranges":ranges}),
-    )
+    Ok(json!({
+        "verified": true,
+        "mode": if full_payload_hash { "full_sha256" } else { "fast_header_ledger" },
+        "status": m["status"],
+        "payload_bytes": payload,
+        "file_bytes": offset,
+        "lime_sha256": digest,
+        "coverage_ranges": ranges
+    }))
 }

@@ -19,10 +19,10 @@ mod cache;
 mod provenance_tests;
 
 const PFN_MASK: u64 = 0x000f_ffff_ffff_f000;
-const MAX_READ_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_READ_BYTES: u64 = 128 * 1024 * 1024;
 const MAX_REFS: usize = 16384;
 const MAX_CANDIDATES: usize = 8192;
-const MAX_THREAD_TASKS: usize = 16384;
+const MAX_THREAD_TASKS: usize = 32768;
 const QUEUE_BYTES: u64 = 64 * 1024;
 
 fn metadata_owner(mut detail: Value, identity: &Value) -> Value {
@@ -364,6 +364,7 @@ impl Resources {
             "validation_requested_bytes":self.validation_bytes.get(),"validation_ns":self.validation_ns.get(),
             "consistency":"Selected pointer/length fields checked around reads. Live, non-atomic and subject to ABA or changes in payload bytes."})
     }
+    #[allow(clippy::too_many_arguments)]
     pub fn discover(
         core: &File,
         segs: &[Segment],
@@ -375,8 +376,10 @@ impl Resources {
         code_targets: &[(u32, u64, u64, u64)],
     ) -> Self {
         let started = now();
-        let mut result = Self::default();
-        result.pod = pod.cloned();
+        let mut result = Self {
+            pod: pod.cloned(),
+            ..Self::default()
+        };
         let run = (|| -> Result<Value> {
             let btf = Btf::parse(btf_bytes?)?;
             let symbol = |name: &str| {
@@ -404,10 +407,9 @@ impl Resources {
             if let Some(va) = ["__pgtable_l5_enabled", "pgtable_l5_enabled"]
                 .iter()
                 .find_map(|n| symbol(n).ok())
+                && live.uint(va, 4)? != 0
             {
-                if live.uint(va, 4)? != 0 {
-                    live.levels = 5;
-                }
+                live.levels = 5;
             }
             let vmemmap = live.uint(symbol("vmemmap_base")?, 8)?;
             let page_size = btf.size("page")? as u64;
@@ -659,10 +661,10 @@ impl Scan<'_, '_> {
             self.tasks += 1;
             let task = at.checked_sub(tasks_off).ok_or("task address underflow")?;
             let pid = self.value(task, "task_struct", "pid")?;
-            if self.pod.is_some() {
-                if let Err(e) = self.index_mm_owner(task, pid) {
-                    self.plan.issue("mm_owner_index", e);
-                }
+            if self.pod.is_some()
+                && let Err(e) = self.index_mm_owner(task, pid)
+            {
+                self.plan.issue("mm_owner_index", e);
             }
             if self
                 .pod
@@ -785,10 +787,11 @@ impl Scan<'_, '_> {
                 self.plan.issue("memfd_vma_seed", e);
             }
         }
-        if files != 0 && self.tables.insert(files) {
-            if let Err(e) = self.fdtable(files, pid) {
-                self.plan.issue("fdtable", e);
-            }
+        if files != 0
+            && self.tables.insert(files)
+            && let Err(e) = self.fdtable(files, pid)
+        {
+            self.plan.issue("fdtable", e);
         }
         Ok(())
     }
@@ -801,8 +804,8 @@ impl Scan<'_, '_> {
         let array = self.value(table, "fdtable", "fd")?;
         let bitmap = self.value(table, "fdtable", "open_fds")?;
         let bits = self.live.read(bitmap, max.div_ceil(64) as usize * 8)?;
-        for (word, bytes) in bits.chunks_exact(8).enumerate() {
-            let mut bits = u64::from_le_bytes(bytes.try_into()?);
+        for (word, bytes) in bits.as_chunks::<8>().0.iter().enumerate() {
+            let mut bits = u64::from_le_bytes(*bytes);
             while bits != 0 {
                 if self.fd_refs >= 16384 {
                     return Err("FD reference limit".into());
@@ -818,15 +821,15 @@ impl Scan<'_, '_> {
                 if file == 0 {
                     continue;
                 }
-                if self.files.insert(file) {
-                    if let Err(e) = self.file(
+                if self.files.insert(file)
+                    && let Err(e) = self.file(
                         file,
                         pid,
                         json!({"kind":"fd","fd":fd,"files":files,"table":table,"array":array}),
-                    ) {
-                        self.files.remove(&file);
-                        self.plan.issue("file", e);
-                    }
+                    )
+                {
+                    self.files.remove(&file);
+                    self.plan.issue("file", e);
                 }
             }
         }
@@ -1135,7 +1138,10 @@ impl Scan<'_, '_> {
             let page = get(page_field)?;
             let size = get(len_field)?;
             let offset = get(off_field)?;
-            if page & 1 != 0 || page < self.vmemmap || (page - self.vmemmap) % self.page_size != 0 {
+            if page & 1 != 0
+                || page < self.vmemmap
+                || !(page - self.vmemmap).is_multiple_of(self.page_size)
+            {
                 return Err("unsupported netmem/non-page fragment".into());
             }
             accounted += size;

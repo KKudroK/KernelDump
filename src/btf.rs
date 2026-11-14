@@ -274,16 +274,36 @@ impl Btf {
     pub fn field(&self, typ: &str, path: &str) -> Result<Field> {
         self.field_id(self.id(typ)?, path)
     }
+    #[allow(dead_code)]
     pub fn enum_value(&self, name: &str, item: &str) -> Result<u32> {
+        u32::try_from(self.enum_value64(name, item)?)
+            .map_err(|_| format!("BTF enum64 exceeds u32: {name}.{item}").into())
+    }
+    pub fn enum_value64(&self, name: &str, item: &str) -> Result<u64> {
         for t in &self.types {
-            if t.kind() != 6 || self.name(t.name)? != name {
+            if self.name(t.name)? != name {
                 continue;
             }
-            for i in 0..t.count() {
-                let at = t.data + i * 8;
-                if self.name(u32_at(&self.bytes, at)?)? == item {
-                    return u32_at(&self.bytes, at + 4);
+            match t.kind() {
+                6 => {
+                    for i in 0..t.count() {
+                        let at = t.data + i * 8;
+                        if self.name(u32_at(&self.bytes, at)?)? == item {
+                            return Ok(u32_at(&self.bytes, at + 4)? as u64);
+                        }
+                    }
                 }
+                19 => {
+                    for i in 0..t.count() {
+                        let at = t.data + i * 12;
+                        if self.name(u32_at(&self.bytes, at)?)? == item {
+                            let lo = u32_at(&self.bytes, at + 4)? as u64;
+                            let hi = u32_at(&self.bytes, at + 8)? as u64;
+                            return Ok((hi << 32) | lo);
+                        }
+                    }
+                }
+                _ => continue,
             }
         }
         Err(format!("BTF enum unavailable: {name}.{item}").into())
@@ -347,5 +367,35 @@ mod tests {
         };
         assert_eq!(f.value(&[0xf8, 0x0f]).unwrap(), 511);
         assert!(f.value(&[0]).is_err());
+    }
+    #[test]
+    fn resolves_btf_kind_enum64_values() {
+        let strings = b"\0my_enum64\0SMALL\0LARGE64\0";
+        let mut records = Vec::new();
+        // Type 1: BTF_KIND_ENUM64 (kind 19) with 2 elements, size 8.
+        let header = [1u32, (19u32 << 24) | 2, 8];
+        let entries = [11u32, 42u32, 0u32, 17u32, 0x89abcdefu32, 0x01234567u32];
+        for w in header.iter().chain(entries.iter()) {
+            records.extend(w.to_le_bytes());
+        }
+        let mut bytes = vec![0x9f, 0xeb, 1, 0];
+        for v in [
+            24u32,
+            0,
+            records.len() as u32,
+            records.len() as u32,
+            strings.len() as u32,
+        ] {
+            bytes.extend(v.to_le_bytes());
+        }
+        bytes.extend(records);
+        bytes.extend(strings);
+        let btf = Btf::parse(bytes).unwrap();
+        assert_eq!(btf.enum_value("my_enum64", "SMALL").unwrap(), 42);
+        assert!(btf.enum_value("my_enum64", "LARGE64").is_err());
+        assert_eq!(
+            btf.enum_value64("my_enum64", "LARGE64").unwrap(),
+            0x0123_4567_89ab_cdef
+        );
     }
 }

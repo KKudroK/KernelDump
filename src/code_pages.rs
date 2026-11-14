@@ -11,14 +11,14 @@ use std::{
     sync::atomic::Ordering,
 };
 
-const MAX_PROCESSES: usize = 4096;
+const MAX_PROCESSES: usize = 16384;
 const MAX_PAGES: usize = 4096; // At most 16 MiB of additional payload.
 const MAX_REFERENCES: usize = 8192;
 const MAX_OPEN_PROCESSES: usize = 256;
 const MAX_EXEC_MAPPINGS: usize = 65536;
 const MAX_PROCESS_EXEC_MAPPINGS: usize = 4096;
 const MAX_METADATA_BYTES: u64 = 64 * 1024 * 1024;
-const MAX_SCAN_NS: u64 = 1_000_000_000;
+const MAX_SCAN_NS: u64 = 2_000_000_000;
 const MAX_VALIDATION_NS: u64 = 500_000_000;
 const MAX_VALIDATION_BYTES: u64 = 16 * 1024 * 1024;
 const MAPS_LIMIT: usize = 1024 * 1024;
@@ -138,8 +138,10 @@ impl CodePages {
         deadline: u64,
         pod: Option<&crate::pod_scope::PodScope>,
     ) -> Self {
-        let mut plan = Self::default();
-        plan.pod = pod.cloned();
+        let mut plan = Self {
+            pod: pod.cloned(),
+            ..Self::default()
+        };
         let begin = now();
         let deadline = deadline.min(begin + MAX_SCAN_NS);
         let mut bytes = 0u64;
@@ -216,11 +218,11 @@ impl CodePages {
                 }
             };
             bytes += text.len() as u64 + stat_bytes as u64;
-            if let Some(scope) = pod {
-                if let Err(e) = scope.validate_process(pid, start) {
-                    plan.issue("pod_identity", json!({"pid":pid,"error":e.to_string()}));
-                    continue;
-                }
+            if let Some(scope) = pod
+                && let Err(e) = scope.validate_process(pid, start)
+            {
+                plan.issue("pod_identity", json!({"pid":pid,"error":e.to_string()}));
+                continue;
             }
             let map_limit = MAX_PROCESS_EXEC_MAPPINGS.min(MAX_EXEC_MAPPINGS - mappings_examined);
             let mut maps: Vec<_> = text
@@ -257,7 +259,7 @@ impl CodePages {
                         break;
                     }
                     mapped_pages += count as u64;
-                    for (i, entry) in entries.chunks_exact(8).enumerate() {
+                    for (i, entry) in entries.as_chunks::<8>().0.iter().enumerate() {
                         if i % 64 == 0
                             && (now() >= deadline
                                 || bytes + 512 > MAX_METADATA_BYTES
@@ -267,8 +269,7 @@ impl CodePages {
                             stop_scan = true;
                             break 'maps;
                         }
-                        let Some(pfn) = anon_pfn(u64::from_le_bytes(entry.try_into().unwrap()))
-                        else {
+                        let Some(pfn) = anon_pfn(u64::from_le_bytes(*entry)) else {
                             continue;
                         };
                         if pfn == 0 {

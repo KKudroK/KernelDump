@@ -1,31 +1,35 @@
 # KernelDump
 
-The 2026-11-05 source review fixes collection omissions and identity checks. See [changes and validation limits](docs/capture_review.md). Earlier release captures and performance figures below describe previous builds.
+**Version 1.4.0** unifies the previous three-step workflow (`check`, `capture`, `verify`) into a single command and adds 4 KiB AVX2 Sparse LiME hole-seeking, recycled-buffer pipelining, `16 MiB` `FLUSH_WINDOW` page-cache eviction (`POSIX_FADV_DONTNEED`), `--allow-exited-pod`, and `--max-write-mbps` write pacing. See the consolidated [code, feature, and evidence guide](docs/CODEBASE_GUIDE.md) (Korean). Historical v9, v4, AWS, and Volatility 3 results below remain prior build records.
 
-[Release v1.3.0](https://github.com/KKudroK/KernelDump/releases/tag/v1.3.0) improves fair retention of code, socket and resident file content, validates ownership without rejecting unrelated transient page flags, and records precise validation failures. See [changes and verified scope](docs/release_v1_3_0.md). The package and release versions are both 1.3.0; policy remains `kernel-focused-v9`.
+[한국어](README.ko.md) · [Codebase guide (KO)](docs/CODEBASE_GUIDE.md) · [Deployment](docs/deployment.md) · [Original comparison](docs/original_comparison.md)
 
-See the merged [closed-FD memfd validation](docs/scenario2_memfd_20261104.md) for the team's local-VM results and bounds. [Earlier Linux 7.0 validation](docs/kernel_7_0_0_38_validation.md) and performance measurements below describe their recorded builds. The v1.2.1 AWS Pod capture and the new binary's readiness check are separate validations.
+`kerneldump` collects selected live kernel memory through `/proc/kcore`, `/proc/kpageflags`, and running-kernel BTF (`/sys/kernel/btf/vmlinux`). Without loading a kernel module or stopping processes, one invocation validates readiness, writes a Sparse LiME image (`memory.lime`), range ledger (`ranges.jsonl`), and `manifest.json`, and runs inline verification (`verify_fast`).
 
-[한국어](README.ko.md) · [Deployment](docs/deployment.md) · [Original comparison](docs/original_comparison.md) · [Release files](docs/release_v1_2_2.md)
+## Run (Unified Single Command)
 
-`kerneldump` collects selected live kernel memory through `/proc/kcore` and `/proc/kpageflags`. It writes a LiME image, an address/coverage ledger and a manifest without loading a kernel module or stopping processes.
-
-## Run
-
-One static Linux x86-64 executable; no installed runtime libraries or adjacent symbol/configuration files are needed for collection.
+One static Linux x86-64 executable; no installed runtime libraries or external ISF/configuration files are needed for collection.
 
 ```sh
 chmod 755 kerneldump
-sudo ./kerneldump check --target-dir /evidence --json
-sudo ./kerneldump capture --output /evidence/new_collection
-./kerneldump verify /evidence/new_collection
+# Node-wide kernel-focused capture (Preflight -> Sparse LiME Capture -> Inline Verify)
+sudo ./kerneldump --output /evidence/new_collection
+# Pod-scoped additional retention + production write bandwidth cap
+sudo ./kerneldump --output /evidence/new_collection --pod <FULL_POD_UID> --max-write-mbps 200
+# Allow node-wide kernel capture on a host view even when all target Pod processes have exited
+sudo ./kerneldump --output /evidence/new_collection --pod <FULL_POD_UID> --allow-exited-pod
 ```
 
-`/evidence` must exist; `new_collection` must not. `check` validates kernel access and creates, syncs and removes a temporary storage probe. It reports not-ready if storage was not specified or the checks fail. A passing check does not reserve space.
+`/evidence` must exist; `new_collection` must not. Production CLI options:
+- `--output NEW_DIR`: new output directory
+- `--pod FULL_POD_UID`: restrict additional code/socket/cache retention to one local Pod UID (node-wide kernel metadata filter stays unchanged)
+- `--allow-exited-pod`: allow node-wide kernel acquisition from a valid host view when no live Pod processes remain
+- `--request-id ID`: caller correlation identifier
+- `--max-write-mbps 1..10000`: cap storage write bandwidth (1,000,000 B/s per unit)
 
-Kernel support for kcore/page monitoring, permission to read the required interfaces and unmasked required symbols are necessary. Missing kcore remains unsupported. No security settings are changed. [Requirements and failure behavior](docs/deployment.md).
+Each invocation runs preflight (`probe_storage` with `SYS_renameat2(..., RENAME_NOREPLACE)`, 10% RAM / 1 GiB minimum free check, BTF 6-field probe, `/proc/kcore` / `/proc/kpageflags` sample PFN read), acquires Sparse LiME, and runs `verify_fast`. Kernel support for kcore/kpageflags/BTF and unmasked `page_offset_base` / `linux_banner` symbols are required; no security settings are changed. [Requirements and failure behavior](docs/deployment.md).
 
-Example output from the current v9 release, showing selected fields. Use the comparison table below for timing.
+Historical v9 example output fields:
 
 ```json
 {
@@ -37,46 +41,25 @@ Example output from the current v9 release, showing selected fields. Use the com
 }
 ```
 
-Verification of the same collection:
+[Historical capture stdout](docs/examples/capture_v9.stdout) · [Historical verification stdout](docs/examples/verify_v9.stdout).
 
-```json
-{
-  "verified": true,
-  "status": "complete_for_policy",
-  "coverage_ranges": 12300,
-  "payload_bytes": 656162816
-}
-```
+## Pod Scope and v1.4.0 Production Improvements
 
-[Capture stdout](docs/examples/capture_v9.stdout) · [Verification stdout](docs/examples/verify_v9.stdout).
+- **Strict Pod namespace view**: `--pod` requires a full Pod UID and checks `/proc/self/ns/{pid,cgroup}` against BTF `init_pid_ns` / `init_cgroup_ns`. Unsuitable namespace views (e.g., nested WSL2 PID namespaces) exit **1** without falling back silently to node-wide capture.
+- **4 KiB AVX2 Sparse LiME**: Preserves all LiME headers (`0x4c694d45`), logical offsets, and full logical `lime_sha256` digests while seeking over 4 KiB all-zero pages (`allocated_file_bytes`, `sparse_zero_hole_bytes`, `actual_written_bytes`). Verified on WSL2 `6.18.33.2`: skipped `289,443,840 B` of zero writes out of `1,066,746,240 B`, reduced total elapsed time `8,347.846 ms -> 6,101.231 ms`, and matched full disk SHA-256 (`disk_sha256_equals_manifest: true`) as well as baseline full `verify`.
+- **Recycled pipeline & cache eviction**: Reuses 4 MiB buffers (`recycle_tx`/`recycle_rx`) and calls `sync_file_range_write` + `POSIX_FADV_DONTNEED` every `16 MiB` (`FLUSH_WINDOW`).
 
-## Optional Pod scope
+## Executable Code, Socket Queues, and Selected Cache
 
-```sh
-sudo ./kerneldump capture --pod <FULL_POD_UID> --output /evidence/new_collection
-```
+Policy `kernel-focused` retains present ANON pages from private executable mappings (including COW and JIT/fileless code) and FD-referenced socket queues (at most `64 KiB` per queue), plus Pod-scoped resident shmem/`memfd`/unlinked regular file prefixes (up to `64 KiB`, bounded to `128` jobs per family, `512 KiB` per maps file, `64` reverse VMAs, `100 ms` / `4 MiB` cache budget). All three supplemental families share a deduplicated cap of **4,096 pages (at most 16 MiB payload)** allocated round-robin; hitting any bound or changed reference records `partial`. See [scope and measured costs](docs/resource_retention.md) and [codebase guide (KO)](docs/CODEBASE_GUIDE.md).
 
-Select a Pod with `--pod`, accepting a full UID rather than a name or prefix. It limits **additional** executable-page, socket and selected-cache traversal to current Pod members; the node-wide kernel metadata filter is unchanged. Omitting it retains bounded node-wide additions. Physical pages may contain unrelated bytes.
+## Historical Benchmarks & Validation Records
 
-Exact cgroup membership, PID, start time and host PID/cgroup namespace views are checked. Unknown targets and unsuitable namespace views fail without node-wide fallback. Identity changes cause partial capture. This discovers current membership, not historical ownership after a process leaves its Pod cgroup. See [validation and costs](docs/resource_retention.md).
+### Original v4 vs v9 capture cost (historical VM record)
 
-## Executable code, queued bytes and selected cache
+Comparison between **v4** (no supplemental traversal) and **v9** (node-wide vs Pod-scoped, medians of 3 runs each):
 
-Policy `kernel-focused-v9` adds present ANON pages from private executable mappings, including file COW and fileless/JIT code, and FD-referenced socket queues. Current write permission is not required; retention is not an attack verdict. Socket receive/write queues, UDP reader queues and TCP retransmit/out-of-order trees retain at most 64KiB per queue, following linear bytes, page fragments and bounded frag_list links.
-
-**Pod scope adds selected resident cache prefixes.** Open shmem/memfd and unlinked regular files retain up to the first 64KiB, including larger files. Shared memfd mappings remain eligible after descriptors close; VMA and address_space.i_mmap checks validate references before selecting resident pages. Corresponding executable COW cache pages are also considered. Each FD/maps/VMA/COW job family has a 128-job bound and receives turns. Ordinary linked disk files are filtered before consuming FD job slots. Reverse mapping remains limited to 64 VMAs. No general file-cache sweep or fault-in is performed. References are live observations, and comparison cache is not a trusted original.
-
-Memfd discovery reads proc maps only in the cache stage after socket traversal, once per selected address space, with at most 512KiB per maps file. These reads count against the cache's 4MiB and 100ms limits. Proc ranges, offsets and inode numbers must match the live shared VMA and unlinked shmem inode. Reverse mappings record shared/private status, file byte ranges and indexed process leaders with task address, PID and start time. Their identity and mm links join the file-cache checks before and after payload reads. Empty owner lists mean unresolved ownership; the discovery summary must be interpreted with the ledger validation results. An overlapping shared range is a communication opportunity, not proof of data exchange.
-
-Code, network and selected cache share 4,096 deduplicated candidate pages (at most 16MiB additional payload), allocated round-robin across all three groups. Code and resource discovery have independent cooperative one-second deadlines. Cache discovery has its own 100ms and 4MiB requested-read budget, with at most 256 candidate pages including metadata. Metadata candidates count against the shared page cap; JSON metadata, process RSS and original-policy payload are outside it. Hitting a bound remains recorded. The limits are not hard preemption of an active kernel read.
-
-Network layouts use running-kernel BTF. Both Pod-scoped and node-wide collection follow thread FD tables, including private tables, while deduplicating shared tables. Traversal is bounded to 4,096 process leaders, 4,096 threads per group and 16,384 threads in total. Only known COW addresses are looked up in the Maple Tree, and selected file offsets in XArray. Other kernels remain unqualified for these new paths. Missing required fields, unread candidates or changed checked references cause partial capture. Per-queue windows are separately recorded. Large executable regions can still exhaust the evidence budget, including important code pages. See [scope, decision and measured costs](docs/resource_retention.md).
-
-## Original versus current capture cost
-
-The original **v4** had no additional executable-anonymous, socket-queue or file-cache traversal. It was compared with current **v9** on the same VM, persistent fixture and output storage. Values are medians of three captures per configuration; image size is the actual uncompressed LiME file including headers.
-
-| Metric | Original v4 | Current v9, no Pod | Current v9, selected Pod |
+| Metric | Original v4 | v9, no Pod | v9, selected Pod |
 |---|---:|---:|---:|
 | Capture wall time | 10.11 s | 9.88 s | 9.72 s |
 | Final LiME file | 617.64 MiB | 615.01 MiB | 621.64 MiB |
@@ -86,19 +69,11 @@ The original **v4** had no additional executable-anonymous, socket-queue or file
 | Payload added to original filter | 0.00 KiB | 8.00 KiB | 28.00 KiB |
 | Capture status | Complete 3/3 | Partial 3/3 | Complete 3/3 |
 
-With a selected Pod, wall time was **10.11s → 9.72s (-0.39s)** and the final LiME file was **617.64MiB → 621.64MiB (+4.01MiB)**. Timing ranges overlap; this does not establish a speed improvement.
-
-Whole-image differences include changing live kernel state. Exact payload added to the original filter was **28KiB with a Pod** and **8KiB without one**. All three unscoped v9 captures were partial because some network references changed across reads. All nine images passed integrity verification; integrity is distinct from reference consistency.
-
-The VM reported `DiskPressure` at postflight. Running Pods and restart counts were unchanged; service latency and the condition's timing effect were not measured.
-
 [Method, limits and per-run values](docs/original_comparison.md).
 
-## Earlier release validation
+### Earlier release validation (v4 matrix)
 
-The following matrix records the earlier v4 policy and does not qualify the new BTF-dependent resource traversal.
-
-The same x86-64 release binary was used in every row.
+The table below records the earlier v4 policy and does not qualify BTF-dependent resource traversal or v1.4.0 host `--pod` capture.
 
 | Environment | Kernel | Result |
 |---|---|---|
@@ -112,13 +87,11 @@ The same x86-64 release binary was used in every row.
 | Alpine 3.16.9, cgroup v1 | 5.15.148 | Runs; capture unavailable without kcore |
 | Alpine 3.22.6, cgroup v2 | 6.12.110 | Runs; capture unavailable without kcore |
 
-Rocky retained SELinux enforcing; collection ran through sudo in an unconfined domain. Alpine lacked kcore. WSL Windows shared storage failed private-mode checks. [Test conditions](docs/distro_validation.md).
+[Test conditions](docs/distro_validation.md).
 
-The Kali cloud archive is labelled 2026.2; its internal `VERSION_ID` is 2026.1.
+### AWS comparison (pre-v0.1.1 historical record)
 
-## AWS comparison
-
-Historical run on AWS EC2 `r6i.2xlarge`: Amazon Linux 2023, Linux 6.18.54, 61.78 GiB RAM and gp3 storage. A 16 GiB allocation was touched before collection and then held in memory. Values are mean ± sample standard deviation for repeated runs.
+Historical run on AWS EC2 `r6i.2xlarge` (Amazon Linux 2023, Linux 6.18.54, 61.78 GiB RAM, gp3) touching a 16 GiB allocation before capture (*makedumpfile timer stops before post-capture sync). [Measurements and source records](docs/benchmark_summary.md).
 
 | Tool | Runs | Image size | Command elapsed | Host cache growth |
 |---|---:|---:|---:|---:|
@@ -126,44 +99,39 @@ Historical run on AWS EC2 `r6i.2xlarge`: Amazon Linux 2023, Linux 6.18.54, 61.78
 | makedumpfile `-d 31` | 5 | 2.37 ± 0.62 GiB | 1.48 ± 0.25 s* | 2.37 ± 0.62 GiB |
 | **KernelDump** | **5** | **1.99 ± 0.17 GiB** | **20.84 ± 1.78 s** | **110 ± 65 KiB** |
 
-KernelDump produced an image **96.8% smaller than full-RAM LiME**, with little observed cache growth and no LiME conversion step.
+### Volatility 3 compatibility limits
 
-*The makedumpfile timer stops before a post-capture sync; KernelDump includes durable publication. These times are not an equal-durability speed comparison. The captures have different policies and occurred at different times. This AWS run predates v0.1.1. [Measurements and source records](docs/benchmark_summary.md).
-
-## Volatility 3 analysis
-
-Tested with Volatility **2.28.0**, Debian 12 / Linux **6.1.0-53**, matching DWARF symbols and four-level paging. A full image and a filtered image made from the same bytes separate filtering limits from analyzer failures.
+Tested with Volatility **2.28.0** (Debian 12 / Linux `6.1.0-53`). [All 59 observations and failure details](docs/plugin_compatibility.md).
 
 | Result | Plugins | Observation |
 |---|---|---|
 | Verified kernel metadata | `pslist`, `pstree`, `sockstat`, `lsof`, `lsmod`, `mountinfo`, `ip`, `kmsg`, `ebpf` | Same records; all five test sockets retained |
-| Process-memory content omitted | `psaux`, `envars`, `elfs`, `library_list`, `vmaregexscan` | Arguments, environment, ELF headers and process buffers are outside the collection policy |
-| Incomplete input changes results | `process_spoofing` | Missing command lines can change `True` to `False`; `False` is not evidence of no spoofing |
-| File metadata retained; content limited | `pagecache.Files`, `pagecache.RecoverFs` | Paths and inodes matched, but excluded file-cache pages prevent complete content recovery |
-| Sparse-image compatibility limit | `psscan` | An unhandled missing-page read aborts the scan; also reproduced with the release binary |
-| Fails on full RAM too | `sockscan`, `capabilities`, `kallsyms` | Analyzer errors; not evidence of a filtering-only fault |
+| Process-memory content omitted | `psaux`, `envars`, `elfs`, `library_list`, `vmaregexscan` | Outside kernel collection policy |
+| Incomplete input changes results | `process_spoofing` | Missing command lines can turn `True` into `False` |
+| File metadata retained; content limited | `pagecache.Files`, `pagecache.RecoverFs` | Paths/inodes match; excluded page cache prevents full file recovery |
+| Sparse-image compatibility limit | `psscan` | Unhandled missing-page exception aborts scan across excluded gaps |
+| Fails on full RAM too | `sockscan`, `capabilities`, `kallsyms` | Analyzer errors |
 
-Empty output from checks such as `malfind` or `check_creds` was not counted as detection success. Analysis requires matching symbols; collection still needs only the executable. [All 59 observations and failure details](docs/plugin_compatibility.md).
-
-**`psscan` limitation:** KernelDump leaves gaps where pages are excluded. In the same-byte test, stock Volatility aborted while checking a false task candidate across one of those gaps: its missing-page exception was not handled. The full image showed an invalid exit state and PID (`-1`), so this first failure does not demonstrate a lost valid task. The gap comes from KernelDump's filtering; the scan-wide abort comes from the analyzer's handling of that gap. `psscan` is not guaranteed on these selective images, and `pslist` does not replace its search for hidden or residual tasks. No extra neighboring pages or collection options are added to work around this failure.
+Note: the dedicated `rrudrok` analyzer handles KernelDump v1.4.0 Sparse `memory.lime` and `ranges.jsonl` directly (`analyze --verify-hashes`, `show`, `read-memory`).
 
 ## Outputs and status
 
-- `memory.lime`: selected memory with physical addresses.
+- `memory.lime`: selected memory in Sparse LiME format with physical addresses.
 - `ranges.jsonl`: selected, excluded and unavailable ranges.
-- `manifest.json`: policy, source identity, errors and file hashes.
+- `manifest.json`: policy, source identity, sparse accounting (`allocated_file_bytes`, `sparse_zero_hole_bytes`, `actual_written_bytes`), errors and hashes.
 
-Exit **0** confirms complete capture for the recorded policy and successful persistence. **2** means incomplete capture or failed readiness; **1** means a command/setup/verification/persistence error. Preserve stderr and fragments. Collection is non-atomic, cancellation is cooperative, and SIGKILL can prevent the final manifest.
+Exit **0** confirms complete capture for the policy, durability, and inline verification. **2** means incomplete capture or readiness failure; **1** means command/namespace/verification/persistence error.
 
 ## Build and verify
 
 ```sh
 ./kerneldump --version
 ./kerneldump --build-info
-# Current release built with Rust 1.93.0 + x86_64-unknown-linux-musl target
+cargo test --offline --locked
+python3 scripts/build_release.py --check-vendor
 python3 scripts/build_release.py
 ```
 
-Version **1.3.0**. Outputs: `release/kerneldump`, `release/manifest.json` and `release/SHA256SUMS.txt`. Build information records source hashes and the actual running executable hash. [Release checks](docs/release_validation.md) · [Earlier documentation](docs/history_readme_20261017_en.md).
+Version **1.4.0**. Outputs: `release/kerneldump`, `release/manifest.json` and `release/SHA256SUMS.txt`. [Codebase guide (KO)](docs/CODEBASE_GUIDE.md) · [Development options](docs/development_options.md) · [Release checks](docs/release_validation.md) · [Earlier documentation](docs/history_readme_20261017_en.md).
 
 MIT license; vendored dependencies retain their respective licenses.

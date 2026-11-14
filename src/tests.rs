@@ -1,7 +1,7 @@
 use super::*;
 use source::{Memory, PAGE, Scope};
 use std::{
-    fs,
+    fs::{self, File},
     io::{Seek, SeekFrom, Write},
     sync::atomic::AtomicU64,
 };
@@ -197,16 +197,16 @@ impl Memory for Fake {
                 fs::write(path, b"foreign replacement")?;
             }
         }
-        if let Some(path) = &self.occupy_file {
-            if !path.exists() {
-                fs::write(path, b"preserve destination")?;
-            }
+        if let Some(path) = &self.occupy_file
+            && !path.exists()
+        {
+            fs::write(path, b"preserve destination")?;
         }
-        if let Some(path) = &self.replace_reserve {
-            if path.is_file() {
-                fs::rename(path, path.with_extension("saved"))?;
-                fs::create_dir(path)?;
-            }
+        if let Some(path) = &self.replace_reserve
+            && path.is_file()
+        {
+            fs::rename(path, path.with_extension("saved"))?;
+            fs::create_dir(path)?;
         }
         if self.panic {
             panic!("injected worker failure")
@@ -751,4 +751,76 @@ fn readiness_check_returns_valid_structured_json() {
     assert!(rep["checks"].is_array());
     assert!(rep["kernel_release"].is_string());
     assert!(rep["ready"].is_boolean());
+}
+
+#[test]
+fn kpf_huge_is_excluded_unless_slab_or_pgtable_is_set() {
+    let huge = 1u64 << 17;
+    assert_eq!(
+        source::classify(huge, Scope::KernelFocused),
+        "policy_excluded"
+    );
+    assert_eq!(
+        source::classify(huge | (1 << 7), Scope::KernelFocused),
+        "selected"
+    );
+    assert_eq!(
+        source::classify(huge | (1 << 26), Scope::KernelFocused),
+        "selected"
+    );
+}
+
+#[test]
+fn sparse_lime_preserves_exact_digest_and_verifies_in_both_modes() {
+    struct SparseFake {
+        ram: Vec<(u64, u64)>,
+        flags: Vec<u64>,
+    }
+    impl Memory for SparseFake {
+        fn info(&self) -> Value {
+            json!({"source":"sparse lime test fixture"})
+        }
+        fn ram(&self) -> &[(u64, u64)] {
+            &self.ram
+        }
+        fn chunk(&self, at: u64, end: u64, limit: u64) -> Result<(u64, Option<u64>)> {
+            Ok((end.min(at + limit), Some(at - PAGE)))
+        }
+        fn flags(&self, at: u64, bytes: u64) -> Result<Vec<u64>> {
+            Ok(
+                self.flags[((at - PAGE) / PAGE) as usize..((at - PAGE + bytes) / PAGE) as usize]
+                    .to_vec(),
+            )
+        }
+        fn read(&self, offset: u64, data: &mut [u8]) -> Result<()> {
+            for (chunk_idx, page) in data.chunks_mut(PAGE as usize).enumerate() {
+                let pfn = (offset / PAGE) + chunk_idx as u64;
+                if pfn == 0 || pfn == 5 {
+                    page.fill(0x5a + pfn as u8);
+                } else {
+                    page.fill(0);
+                }
+            }
+            Ok(())
+        }
+    }
+    let t = Temp::new();
+    let f = SparseFake {
+        ram: vec![(PAGE, PAGE * 17)],
+        flags: vec![1 << 7; 16], // SLAB -> all selected
+    };
+    let m = capture::acquire(f, &t.out(), Scope::KernelFocused, 16 * PAGE as usize, 2).unwrap();
+    assert_eq!(m["status"], "complete_for_policy");
+    let hole_bytes = m["sparse_zero_hole_bytes"].as_u64().unwrap();
+    let file_bytes = m["file_bytes"].as_u64().unwrap();
+    let allocated = m["allocated_file_bytes"].as_u64().unwrap();
+    assert_eq!(hole_bytes, 14 * PAGE);
+    assert_eq!(m["actual_file_bytes"], file_bytes);
+    assert!(allocated < file_bytes);
+    let full = verify::verify(&t.out()).unwrap();
+    let fast = verify::verify_fast(&t.out()).unwrap();
+    assert_eq!(full["verified"], true);
+    assert_eq!(fast["verified"], true);
+    assert_eq!(full["lime_sha256"], fast["lime_sha256"]);
+    assert_eq!(full["payload_bytes"], fast["payload_bytes"]);
 }

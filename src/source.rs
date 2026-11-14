@@ -84,6 +84,7 @@ pub const EXCLUDE: u64 = (1 << 5)
     | (1 << 12)
     | (1 << 13)
     | (1 << 14)
+    | (1 << 17)
     | (1 << 21)
     | (1 << 22)
     | (1 << 24);
@@ -218,6 +219,7 @@ pub(crate) fn file_offset(base: u64, address: u64, region_start: u64) -> Result<
     .ok_or_else(|| "file offset overflow".into())
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn segments(core: &File) -> Result<Vec<Segment>> {
     segments_counted(core, &ReadCounter::default())
 }
@@ -326,7 +328,11 @@ pub struct Source {
     flags_io: ReadCounter,
 }
 impl Source {
+    #[allow(dead_code)]
     pub fn select_pod(&mut self, uid: &str) -> Result<()> {
+        self.select_pod_with_policy(uid, false)
+    }
+    pub fn select_pod_with_policy(&mut self, uid: &str, allow_exited: bool) -> Result<()> {
         let btf = crate::btf::Btf::parse(crate::btf::read_running()?)?;
         // /proc IDs and cgroup paths must be from the host view, not container-relative.
         for (symbol, typ, ns) in [
@@ -350,7 +356,11 @@ impl Source {
                 return Err("--pod requires host PID and cgroup namespace views".into());
             }
         }
-        let scope = crate::pod_scope::PodScope::discover(uid, now() + 1_000_000_000)?;
+        let scope = crate::pod_scope::PodScope::discover_with_policy(
+            uid,
+            now() + 1_000_000_000,
+            allow_exited,
+        )?;
         self.info["pod_scope"] = scope.report.clone();
         self.pod = Some(scope);
         Ok(())
@@ -592,8 +602,10 @@ impl Memory for Source {
         let mut data = vec![0u8; (bytes / PAGE * 8) as usize];
         self.flags_io.exact(&self.flags, &mut data, at / PAGE * 8)?;
         Ok(data
-            .chunks_exact(8)
-            .map(|b| u64::from_le_bytes(b.try_into().unwrap()))
+            .as_chunks::<8>()
+            .0
+            .iter()
+            .map(|b| u64::from_le_bytes(*b))
             .collect())
     }
     fn read(&self, offset: u64, data: &mut [u8]) -> Result<()> {
@@ -636,6 +648,7 @@ pub(crate) fn allocate_extra(groups: &[Vec<u64>], limit: usize) -> std::collecti
     selected
 }
 
+#[allow(dead_code)]
 pub fn check_readiness(target_dir: Option<&Path>) -> Result<Value> {
     let mut checks = Vec::new();
     let mut ram_bytes = None;

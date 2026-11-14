@@ -185,7 +185,7 @@ fn xa_sibling(entry: u64, at: u64) -> Result<Option<u64>> {
 fn folio_pa(page: u64, base: u64, size: u64, first: u64, count: u64, index: u64) -> Result<u64> {
     if size == 0
         || page < base
-        || (page - base) % size != 0
+        || !(page - base).is_multiple_of(size)
         || count == 0
         || count > 262144
         || !count.is_power_of_two()
@@ -282,10 +282,10 @@ impl Scan<'_, '_> {
         let input = std::fs::File::open(format!("/proc/{pid}/maps"))?;
         let maps = self.read_memfd_maps(input)?;
         for line in String::from_utf8_lossy(&maps).lines() {
-            if let Some(seed) = memfd_seed(line)? {
-                if self.cache.vma_seeds.insert((pid, seed.start)) {
-                    self.queue_cache(JobKind::Vma { task, seed });
-                }
+            if let Some(seed) = memfd_seed(line)?
+                && self.cache.vma_seeds.insert((pid, seed.start))
+            {
+                self.queue_cache(JobKind::Vma { task, seed });
             }
         }
         Ok(())
@@ -724,6 +724,37 @@ impl Scan<'_, '_> {
     }
     // A point lookup, not a walk of every mapping in the process.
     fn vma_at(&self, mm: u64, va: u64, checks: &mut Vec<Check>) -> Result<u64> {
+        if self.btf.field("mm_struct", "mm_mt.ma_root").is_ok() {
+            self.vma_at_maple(mm, va, checks)
+        } else {
+            self.vma_at_rb(mm, va, checks)
+        }
+    }
+    fn vma_at_rb(&self, mm: u64, va: u64, checks: &mut Vec<Check>) -> Result<u64> {
+        let vm_rb_off = self.off("vm_area_struct", "vm_rb")?;
+        let mut node = self.checked_field(mm, "mm_struct", "mm_rb.rb_node", checks)?;
+        let mut seen = BTreeSet::new();
+        for _ in 0..64 {
+            if node == 0 || !seen.insert(node) {
+                return Err("COW VMA absent or RB cycle".into());
+            }
+            let vma = node.checked_sub(vm_rb_off).ok_or("RB node underflow")?;
+            let start = self.checked_field(vma, "vm_area_struct", "vm_start", checks)?;
+            let end = self.checked_field(vma, "vm_area_struct", "vm_end", checks)?;
+            if start > end {
+                return Err("corrupt VMA RB bounds".into());
+            }
+            if va < start {
+                node = self.checked_field(node, "rb_node", "rb_left", checks)?;
+            } else if va >= end {
+                node = self.checked_field(node, "rb_node", "rb_right", checks)?;
+            } else {
+                return Ok(vma);
+            }
+        }
+        Err("RB VMA lookup depth".into())
+    }
+    fn vma_at_maple(&self, mm: u64, va: u64, checks: &mut Vec<Check>) -> Result<u64> {
         let mut entry = self.checked_field(mm, "mm_struct", "mm_mt.ma_root", checks)?;
         let mut node = entry & 2 != 0;
         let (mut lo, mut hi) = (0u64, u64::MAX);
@@ -749,7 +780,7 @@ impl Scan<'_, '_> {
                     let s = self.field("maple_node", "mr64.slot")?;
                     let p = self.off("maple_node", "mr64.pivot")?;
                     let max = s.size / 8;
-                    if max < 2 || max > 64 {
+                    if !(2..=64).contains(&max) {
                         return Err("Maple slots".into());
                     }
                     let last = self.checked_uint(address + p + (max as u64 - 2) * 8, 8, checks)?;
@@ -806,6 +837,7 @@ impl Scan<'_, '_> {
         }
         Err("Maple lookup depth".into())
     }
+    #[allow(clippy::too_many_arguments)]
     fn cache_page(
         &mut self,
         file: u64,
@@ -1131,5 +1163,103 @@ mod tests {
         s.reserve(&[0, 1]).unwrap();
         assert!(s.reserve(&[MAX_PAGES as u64]).is_err());
         assert_eq!(s.pages.len(), MAX_PAGES);
+    }
+    #[test]
+    fn vma_at_falls_back_to_linux_5x_mm_rb_when_maple_tree_absent() {
+        use super::super::provenance_tests::TestBtf;
+        use std::io::Write;
+        const BASE: u64 = 0xffff888000000000;
+        let mut b = TestBtf::new();
+        let u64t = b.int("u64", 8);
+        let ptr = b.record(&[0, 2 << 24, 0]);
+        let rb_root = b.structure("rb_root", 8, &[("rb_node", ptr, 0)]);
+        let rb_node = b.structure("rb_node", 24, &[("rb_right", ptr, 8), ("rb_left", ptr, 16)]);
+        b.structure("mm_struct", 8, &[("mm_rb", rb_root, 0)]);
+        b.structure(
+            "vm_area_struct",
+            40,
+            &[
+                ("vm_start", u64t, 0),
+                ("vm_end", u64t, 8),
+                ("vm_rb", rb_node, 16),
+            ],
+        );
+        let path =
+            std::env::temp_dir().join(format!("kerneldump_mm_rb_{}_{}", std::process::id(), now()));
+        let mut core = std::fs::OpenOptions::new()
+            .create_new(true)
+            .read(true)
+            .write(true)
+            .open(&path)
+            .unwrap();
+        let mut data = vec![0u8; 4 * PAGE as usize];
+        let put = |data: &mut [u8], at: usize, value: u64| {
+            data[at..at + 8].copy_from_slice(&value.to_le_bytes());
+        };
+        let mm = BASE;
+        let vma_root = BASE + 0x200;
+        let vma_left = BASE + 0x300;
+        let vma_right = BASE + 0x400;
+        // mm_rb.rb_node points to &vma_root.vm_rb (+16)
+        put(&mut data, 0, vma_root + 16);
+        // root VMA [0x4000, 0x6000)
+        put(&mut data, 0x200, 0x4000);
+        put(&mut data, 0x208, 0x6000);
+        put(&mut data, 0x218, vma_right + 16); // rb_right @ 16+8=24
+        put(&mut data, 0x220, vma_left + 16); // rb_left @ 16+16=32
+        // left VMA [0x1000, 0x3000)
+        put(&mut data, 0x300, 0x1000);
+        put(&mut data, 0x308, 0x3000);
+        // right VMA [0x8000, 0x9000)
+        put(&mut data, 0x400, 0x8000);
+        put(&mut data, 0x408, 0x9000);
+        core.write_all(&data).unwrap();
+        let segs = [Segment {
+            offset: 0,
+            va: BASE,
+            pa: 0,
+            bytes: data.len() as u64,
+        }];
+        let ram = [(0, data.len() as u64)];
+        let mut plan = Resources::default();
+        let scan = Scan {
+            pod: None,
+            target_seen: BTreeSet::new(),
+            mm_owners: BTreeMap::new(),
+            cache: CacheState::default(),
+            code_targets: vec![],
+            btf: b.finish(),
+            live: Live {
+                core: &core,
+                segs: &segs,
+                ram: &ram,
+                deadline: now() + 5_000_000_000,
+                read_limit: MAX_READ_BYTES,
+                read_bytes: Cell::new(0),
+                calls: Cell::new(0),
+                root: 0,
+                levels: 4,
+            },
+            plan: &mut plan,
+            fields: RefCell::new(HashMap::new()),
+            vmemmap: BASE,
+            page_size: 64,
+            files: BTreeSet::new(),
+            tables: BTreeSet::new(),
+            tasks: 0,
+            thread_tasks: BTreeSet::new(),
+            fd_refs: 0,
+            sockets: 0,
+            skbs: 0,
+            policy_truncations: 0,
+            task_identity: json!({"pid":42}),
+            task_checks: vec![],
+        };
+        let mut checks = Vec::new();
+        assert_eq!(scan.vma_at(mm, 0x4500, &mut checks).unwrap(), vma_root);
+        assert_eq!(scan.vma_at(mm, 0x1800, &mut checks).unwrap(), vma_left);
+        assert_eq!(scan.vma_at(mm, 0x8000, &mut checks).unwrap(), vma_right);
+        assert!(scan.vma_at(mm, 0x7000, &mut checks).is_err());
+        std::fs::remove_file(path).unwrap();
     }
 }
