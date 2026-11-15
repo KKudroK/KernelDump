@@ -843,3 +843,31 @@ fn fast_verification_does_not_claim_payload_integrity() {
     assert_eq!(fast["payload_hash_verified"], false);
     assert!(verify::verify(&t.out()).is_err());
 }
+
+#[test]
+fn verify_cli_argument_validation_rejects_flag_values() {
+    let args = |xs: &[&str]| xs.iter().map(|s| (*s).to_string()).collect::<Vec<_>>();
+    assert_eq!(
+        crate::parse_verify_args(&args(&["verify", "out_dir"])).unwrap(),
+        PathBuf::from("out_dir")
+    );
+    assert_eq!(
+        crate::parse_verify_args(&args(&["verify", "--output", "out_dir"])).unwrap(),
+        PathBuf::from("out_dir")
+    );
+    assert_eq!(
+        crate::parse_verify_args(&args(&["verify", "--output=out_dir"])).unwrap(),
+        PathBuf::from("out_dir")
+    );
+    for invalid in [
+        &["verify"][..],
+        &["verify", "-x"][..],
+        &["verify", "--output"][..],
+        &["verify", "--output", "--json"][..],
+        &["verify", "--output="][..],
+        &["verify", "--output=--bad"][..],
+        &["verify", "a", "b"][..],
+    ] {
+        assert!(crate::parse_verify_args(&args(invalid)).is_err());
+    }
+}

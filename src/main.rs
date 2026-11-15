@@ -42,6 +42,30 @@ fn clock_pair() -> Value {
         .as_nanos();
     json!({"monotonic_before_ns":before,"wall_unix_utc_ns":utc,"monotonic_after_ns":now()})
 }
+pub(crate) fn parse_verify_args(args: &[String]) -> Result<PathBuf> {
+    match args {
+        [cmd, path] if cmd == "verify" && !path.is_empty() && !path.starts_with('-') => {
+            Ok(PathBuf::from(path))
+        }
+        [cmd, flag, path]
+            if cmd == "verify"
+                && flag == "--output"
+                && !path.is_empty()
+                && !path.starts_with("--") =>
+        {
+            Ok(PathBuf::from(path))
+        }
+        [cmd, flag]
+            if cmd == "verify"
+                && flag.starts_with("--output=")
+                && flag.len() > 9
+                && !flag[9..].starts_with("--") =>
+        {
+            Ok(PathBuf::from(&flag[9..]))
+        }
+        _ => Err("Usage: kerneldump verify --output EXISTING_DIR".into()),
+    }
+}
 fn run() -> Result<bool> {
     use source::Memory;
     let mut args: Vec<String> = std::env::args().skip(1).collect();
@@ -133,30 +157,26 @@ fn run() -> Result<bool> {
             }
             return Ok(ready);
         }
-        Some("probe") if args.len() == 1 => {
+        Some("probe") => {
+            if args.len() != 1 {
+                return Err("probe takes no options".into());
+            }
             println!(
                 "{}",
                 serde_json::to_string_pretty(&source::Source::open()?.info())?
             );
             return Ok(true);
         }
+        Some("verify") => {
+            let output = parse_verify_args(&args)?;
+            let result = verify::verify(&output)?;
+            println!("{result}");
+            return Ok(result["status"] == "complete_for_policy");
+        }
         Some("capture") => {
             args.remove(0);
         }
         _ => {}
-    }
-    if args.first().is_some_and(|s| s == "verify") {
-        let output = match args.as_slice() {
-            [_, path] if !path.starts_with("--") => PathBuf::from(path),
-            [_, flag, path] if flag == "--output" => PathBuf::from(path),
-            [_, flag] if flag.starts_with("--output=") && flag.len() > 9 => {
-                PathBuf::from(&flag[9..])
-            }
-            _ => return Err("Usage: kerneldump verify --output EXISTING_DIR".into()),
-        };
-        let result = verify::verify(&output)?;
-        println!("{result}");
-        return Ok(result["status"] == "complete_for_policy");
     }
     let mut output: Option<PathBuf> = None;
     let mut pod: Option<String> = None;
