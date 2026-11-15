@@ -7,8 +7,8 @@
 오프라인 환경에서 아래 검사를 모두 통과했습니다.
 
 - `cargo fmt --check`, `cargo clippy --offline --locked --all-targets -- -D warnings`, `python3 scripts/build_release.py --check-vendor` 통과
-- `cargo test --offline --locked`, `cargo test --offline --locked --release`, `x86_64-unknown-linux-musl` 정적 릴리스 테스트 각각 **103개 통과, 실패 0개**
-- 배포 바이너리(`1,383,472`바이트, SHA-256 `a295f81f09e7eb05d5d3bd5ce1ae06d61d7a20be77506b0fedfa3e34418ae4ed`) 확인: 외부 공유 라이브러리 없이 정적 연결(`statically linked`), 기능 플래그 비어 있음(`features: []`), 배포 `manifest.json`의 소스 20개 SHA-256 전부 현재 소스와 일치(자세한 해시는 배포 `manifest.json`과 `SHA256SUMS.txt` 참조)
+- `cargo test --offline --locked`, `cargo test --offline --locked --release`, `x86_64-unknown-linux-musl` 정적 릴리스 테스트 최종 코드에서 각각 **105개 통과, 실패 0개**
+- 구조 개선 후보 `d48597c`의 바이너리(`1,383,472`바이트, SHA-256 `a295f81f09e7eb05d5d3bd5ce1ae06d61d7a20be77506b0fedfa3e34418ae4ed`) 확인: 외부 공유 라이브러리 없이 정적 연결(`statically linked`), 기능 플래그 비어 있음(`features: []`), 배포 `manifest.json`의 소스 20개 SHA-256 전부 해당 후보 소스와 일치(자세한 해시는 배포 `manifest.json`과 `SHA256SUMS.txt` 참조)
 
 ## 2. 단일 명령과 기본/확장 두 가지 모드 CLI 검증
 
@@ -48,3 +48,9 @@ C NVMe SSD가 받치는 WSL2 ext4에서 수집 명령 종료까지만 측정했�
 이 비용으로 보존이 늘어난 대상이 있습니다. 직전 후보에서 앞 16 MiB까지만 읽히던 memfd는 32 MiB 전체가 rrudrok 내보내기와 독립 SHA-256 대조에서 일치했습니다. 192 KiB 통신 대기열도 기존 64 KiB 대신 전체 원문을 LiME에서 확인했습니다. 경로가 남은 tmpfs 시험 파일 두 개는 확장에서만 복구됐습니다. 일반 ext4 파일의 내용은 계속 제외됐습니다.
 
 이때 rrudrok 0.5.0의 시험 PID별 `show net`에는 소켓이 나오지 않았습니다. 수집 원문 보존과 분석기의 조회 지원은 별도입니다. 위 검증은 임의 커널·모든 파일·모든 통신 기록의 복구 보장이 아닙니다.
+
+## 최종 경계 조건 보완
+
+큰 묶음 페이지를 등록하는 반복문에서도 매 페이지마다 시간·읽기 한도·취소 요청을 확인합니다. 후보 등록에 실패한 페이지는 중복 완료 목록에 넣지 않습니다. 두 문제는 수정 전 코드에서 각각 재현했고, 수정 뒤 전체 105개 검사와 정적 릴리스 검사를 통과했습니다. 수집 정책과 보존 범위는 유지합니다.
+
+WSL의 새 실제 수집본에서 rrudrok 0.5.0의 PID 필터를 끄자 시험 TCP 연결 두 개와 수신 대기열 196,608바이트가 확인됐습니다. 이 시험의 `owner_pids`는 빈 배열이므로 PID별 조회에는 나타나지 않습니다. 수집 원문과 대기열 해석은 확인됐지만 소유 프로세스 귀속은 미확정입니다.
