@@ -745,12 +745,10 @@ fn fadvise_cache_eviction_succeeds_on_valid_output_file() {
 }
 
 #[test]
-fn readiness_check_returns_valid_structured_json() {
+fn preflight_validates_btf_and_storage_without_claiming_missing_parent_ok() {
     let t = Temp::new();
-    let rep = source::check_readiness(Some(&t.out())).unwrap();
-    assert!(rep["checks"].is_array());
-    assert!(rep["kernel_release"].is_string());
-    assert!(rep["ready"].is_boolean());
+    source::preflight_btf_and_storage(&t.0).unwrap();
+    assert!(source::preflight(&t.0.join("missing_parent")).is_err());
 }
 
 #[test]
@@ -845,29 +843,258 @@ fn fast_verification_does_not_claim_payload_integrity() {
 }
 
 #[test]
-fn verify_cli_argument_validation_rejects_flag_values() {
+fn minimal_cli_contract_accepts_output_and_rejects_legacy_flags() {
     let args = |xs: &[&str]| xs.iter().map(|s| (*s).to_string()).collect::<Vec<_>>();
     assert_eq!(
-        crate::parse_verify_args(&args(&["verify", "out_dir"])).unwrap(),
-        PathBuf::from("out_dir")
+        crate::parse_cli_args(&args(&["kerneldump"])).unwrap(),
+        crate::CliAction::Help
     );
     assert_eq!(
-        crate::parse_verify_args(&args(&["verify", "--output", "out_dir"])).unwrap(),
-        PathBuf::from("out_dir")
+        crate::parse_cli_args(&args(&["kerneldump", "-h"])).unwrap(),
+        crate::CliAction::Help
     );
     assert_eq!(
-        crate::parse_verify_args(&args(&["verify", "--output=out_dir"])).unwrap(),
-        PathBuf::from("out_dir")
+        crate::parse_cli_args(&args(&["kerneldump", "--help"])).unwrap(),
+        crate::CliAction::Help
+    );
+    assert_eq!(
+        crate::parse_cli_args(&args(&["kerneldump", "-V"])).unwrap(),
+        crate::CliAction::Version
+    );
+    assert_eq!(
+        crate::parse_cli_args(&args(&["kerneldump", "--version"])).unwrap(),
+        crate::CliAction::Version
+    );
+    assert_eq!(
+        crate::parse_cli_args(&args(&["kerneldump", "--output", "/evidence/kd_1"])).unwrap(),
+        crate::CliAction::Run {
+            output: PathBuf::from("/evidence/kd_1")
+        }
+    );
+    assert_eq!(
+        crate::parse_cli_args(&args(&["kerneldump", "--output=/evidence/kd_2"])).unwrap(),
+        crate::CliAction::Run {
+            output: PathBuf::from("/evidence/kd_2")
+        }
     );
     for invalid in [
-        &["verify"][..],
-        &["verify", "-x"][..],
-        &["verify", "--output"][..],
-        &["verify", "--output", "--json"][..],
-        &["verify", "--output="][..],
-        &["verify", "--output=--bad"][..],
-        &["verify", "a", "b"][..],
+        &["kerneldump", "check"][..],
+        &["kerneldump", "capture", "--output", "out"][..],
+        &["kerneldump", "probe"][..],
+        &["kerneldump", "verify", "out"][..],
+        &["kerneldump", "--verify", "--output", "out"][..],
+        &[
+            "kerneldump",
+            "--pod",
+            "11111111-1111-1111-1111-111111111111",
+            "--output",
+            "out",
+        ][..],
+        &["kerneldump", "--allow-exited-pod", "--output", "out"][..],
+        &["kerneldump", "--max-write-mbps", "10", "--output", "out"][..],
+        &["kerneldump", "--request-id", "r1", "--output", "out"][..],
+        &["kerneldump", "--build-info"][..],
+        &["kerneldump", "--scope", "full-ram", "--output", "out"][..],
+        &["kerneldump", "--chunk-mib", "4", "--output", "out"][..],
+        &["kerneldump", "--queue-depth", "2", "--output", "out"][..],
+        &["kerneldump", "--output"][..],
+        &["kerneldump", "--output="][..],
+        &["kerneldump", "--output", "--help"][..],
+        &["kerneldump", "--output=-bad"][..],
+        &["kerneldump", "--output=-h"][..],
+        &["kerneldump", "--output", "a", "--output", "b"][..],
+        &["kerneldump", "--output", "a", "-V"][..],
     ] {
-        assert!(crate::parse_verify_args(&args(invalid)).is_err());
+        assert!(
+            crate::parse_cli_args(&args(invalid)).is_err(),
+            "unexpectedly accepted: {invalid:?}"
+        );
     }
+}
+
+#[test]
+fn live_drift_accounting_distinguishes_recorded_drift_from_omissions_and_unsafe_pages() {
+    use std::cell::{Cell, RefCell};
+    use std::collections::BTreeSet;
+
+    struct DriftMock {
+        inner: Fake,
+        same_pfn_after: bool,
+        visited: RefCell<BTreeSet<u64>>,
+        released: RefCell<BTreeSet<u64>>,
+        drift_count: Cell<u64>,
+    }
+    impl Memory for DriftMock {
+        fn info(&self) -> Value {
+            self.inner.info()
+        }
+        fn ram(&self) -> &[(u64, u64)] {
+            self.inner.ram()
+        }
+        fn chunk(&self, a: u64, b: u64, c: u64) -> Result<(u64, Option<u64>)> {
+            self.inner.chunk(a, b, c)
+        }
+        fn flags(&self, a: u64, b: u64) -> Result<Vec<u64>> {
+            self.inner.flags(a, b)
+        }
+        fn read(&self, a: u64, b: &mut [u8]) -> Result<()> {
+            self.inner.read(a, b)
+        }
+        fn code_pages(&self, a: u64, b: u64) -> Vec<u64> {
+            (a <= PAGE && PAGE < b)
+                .then_some(PAGE)
+                .into_iter()
+                .collect()
+        }
+        fn code_witness(&self, a: u64, b: u64, after: bool) -> Value {
+            let mut out = Vec::new();
+            if a <= PAGE && PAGE < b {
+                if after {
+                    self.visited.borrow_mut().insert(PAGE);
+                }
+                let ok = if after { self.same_pfn_after } else { true };
+                if !ok {
+                    self.drift_count.set(self.drift_count.get() + 1);
+                }
+                out.push(json!({"physical":PAGE,"pid":100,"after":after,"same_pfn":ok}));
+            }
+            json!(out)
+        }
+        fn note_code_page_skipped(&self, pa: u64, _flags: u64) {
+            if pa == PAGE
+                && !self.visited.borrow().contains(&pa)
+                && self.released.borrow_mut().insert(pa)
+            {
+                self.drift_count.set(self.drift_count.get() + 1);
+            }
+        }
+        fn finish_code_pages(&self) -> Value {
+            let read_count = self.visited.borrow().len();
+            let released_count = self
+                .released
+                .borrow()
+                .difference(&self.visited.borrow())
+                .count();
+            let unread = 1usize.saturating_sub(read_count + released_count);
+            let complete = unread == 0;
+            let n = self.drift_count.get();
+            json!({
+                "complete": complete,
+                "candidate_pages": 1,
+                "read_candidate_pages": read_count,
+                "released_before_read_pages": released_count,
+                "unread_candidate_pages": unread,
+                "issue_count": if complete { 0 } else { 1 },
+                "issues": if complete { json!([]) } else { json!([{"reason":"candidates_not_read","detail":unread}]) },
+                "live_drift_count": n,
+                "live_drift": if n == 0 { json!([]) } else { json!([{"reason":"synthetic_live_drift"}]) }
+            })
+        }
+    }
+
+    // (a) & (b): Recorded live witness drift passes verification; unrecorded drift fails closed.
+    let t_drift = Temp::new();
+    let mut f_drift = Fake::new();
+    f_drift.ram = vec![(PAGE, 2 * PAGE)];
+    f_drift.flags = vec![1 << 12];
+    let m_drift = capture::acquire(
+        DriftMock {
+            inner: f_drift,
+            same_pfn_after: false,
+            visited: RefCell::new(BTreeSet::new()),
+            released: RefCell::new(BTreeSet::new()),
+            drift_count: Cell::new(0),
+        },
+        &t_drift.out(),
+        Scope::KernelFocused,
+        4096,
+        1,
+    )
+    .unwrap();
+    assert_eq!(m_drift["status"], "complete_for_policy");
+    assert_eq!(
+        m_drift["read_stages"]["code_page_retention"]["live_drift_count"],
+        1
+    );
+    verify::verify(&t_drift.out()).unwrap();
+
+    let mut hidden = m_drift;
+    hidden["read_stages"]["code_page_retention"]["live_drift_count"] = json!(0);
+    hidden["read_stages"]["code_page_retention"]["live_drift"] = json!([]);
+    fs::write(
+        t_drift.out().join("manifest.json"),
+        serde_json::to_vec(&hidden).unwrap(),
+    )
+    .unwrap();
+    assert!(verify::verify(&t_drift.out()).is_err());
+
+    // (c) Excluded non-KPF_ANON candidate page counts under released_before_read_pages,
+    // whereas UNSAFE page still omits and marks partial.
+    let t_skip = Temp::new();
+    let mut f_skip = Fake::new();
+    f_skip.ram = vec![(PAGE, 2 * PAGE)];
+    f_skip.flags = vec![1 << 10]; // buddy/excluded after discovery (not UNSAFE)
+    let m_skip = capture::acquire(
+        DriftMock {
+            inner: f_skip,
+            same_pfn_after: true,
+            visited: RefCell::new(BTreeSet::new()),
+            released: RefCell::new(BTreeSet::new()),
+            drift_count: Cell::new(0),
+        },
+        &t_skip.out(),
+        Scope::KernelFocused,
+        4096,
+        1,
+    )
+    .unwrap();
+    assert_eq!(m_skip["status"], "complete_for_policy");
+    assert_eq!(
+        m_skip["read_stages"]["code_page_retention"]["read_candidate_pages"],
+        0
+    );
+    assert_eq!(
+        m_skip["read_stages"]["code_page_retention"]["released_before_read_pages"],
+        1
+    );
+    assert_eq!(
+        m_skip["read_stages"]["code_page_retention"]["unread_candidate_pages"],
+        0
+    );
+    assert_eq!(
+        m_skip["read_stages"]["code_page_retention"]["live_drift_count"],
+        1
+    );
+    verify::verify(&t_skip.out()).unwrap();
+
+    let t_unsafe = Temp::new();
+    let mut f_unsafe = Fake::new();
+    f_unsafe.ram = vec![(PAGE, 2 * PAGE)];
+    f_unsafe.flags = vec![1 << 19]; // UNSAFE (hwpoison)
+    let m_unsafe = capture::acquire(
+        DriftMock {
+            inner: f_unsafe,
+            same_pfn_after: true,
+            visited: RefCell::new(BTreeSet::new()),
+            released: RefCell::new(BTreeSet::new()),
+            drift_count: Cell::new(0),
+        },
+        &t_unsafe.out(),
+        Scope::KernelFocused,
+        4096,
+        1,
+    )
+    .unwrap();
+    assert_eq!(m_unsafe["status"], "partial");
+    assert_eq!(m_unsafe["unavailable_bytes"], PAGE);
+    assert_eq!(
+        m_unsafe["read_stages"]["code_page_retention"]["released_before_read_pages"],
+        0
+    );
+    assert_eq!(
+        m_unsafe["read_stages"]["code_page_retention"]["unread_candidate_pages"],
+        1
+    );
+    assert!(!t_unsafe.out().join("memory.lime").exists());
+    verify::verify(&t_unsafe.out()).unwrap();
 }

@@ -43,14 +43,31 @@ fn complete_retention(report: &Value, strict: bool) -> Result<()> {
         let count = |key: &str| report[key].as_u64().ok_or("missing retention counter");
         let candidates = count("candidate_pages")?;
         let read = count("read_candidate_pages")?;
+        let released = match report.get("released_before_read_pages") {
+            Some(v) => v.as_u64().ok_or("invalid released retention counter")?,
+            None => 0,
+        };
         let unread = count("unread_candidate_pages")?;
         require(
-            read.checked_add(unread) == Some(candidates)
+            read.checked_add(released)
+                .and_then(|v| v.checked_add(unread))
+                == Some(candidates)
                 && unread == 0
                 && count("issue_count")? == 0
                 && report["issues"].as_array().is_some_and(|v| v.is_empty()),
             "false complete status: retention counters or issues contradict completion",
         )?;
+        if let Some(drift_count) = report.get("live_drift_count") {
+            let n = drift_count.as_u64().ok_or("invalid live_drift_count")?;
+            let drift_empty = report["live_drift"]
+                .as_array()
+                .ok_or("missing live_drift array")?
+                .is_empty();
+            require(
+                (n == 0) == drift_empty,
+                "false complete status: live_drift counter disagrees with live_drift samples",
+            )?;
+        }
     }
     if let Some(pod) = report.get("pod_scope_validation") {
         require(
@@ -140,6 +157,7 @@ fn hash_flags_runs(runs: &[(u64, u64)], size: u64) -> Result<String> {
     Ok(format!("{:x}", flags_hash.finalize()))
 }
 
+#[cfg(test)]
 pub fn verify(output: &Path) -> Result<Value> {
     verify_impl(output, true)
 }
@@ -215,19 +233,28 @@ fn verify_impl(output: &Path, full_payload_hash: bool) -> Result<Value> {
         ledger_hash.update(&line);
         let row: Value = serde_json::from_slice(&line)?;
         if m["status"] == "complete_for_policy" && m["filter"]["policy"] == "kernel-focused-v9" {
-            for (name, field) in [
-                ("code_pages_before", "same_pfn"),
-                ("code_pages_after", "same_pfn"),
-                ("resource_pages_before", "same_fields"),
-                ("resource_pages_after", "same_fields"),
+            for (name, field, stage) in [
+                ("code_pages_before", "same_pfn", "code_page_retention"),
+                ("code_pages_after", "same_pfn", "code_page_retention"),
+                ("resource_pages_before", "same_fields", "resource_retention"),
+                ("resource_pages_after", "same_fields", "resource_retention"),
             ] {
                 if let Some(witnesses) = row.get(name) {
+                    let entries = witnesses
+                        .as_array()
+                        .ok_or("false complete status: invalid retention witness array")?;
                     require(
-                        witnesses
-                            .as_array()
-                            .is_some_and(|v| v.iter().all(|r| r[field] == true)),
-                        "false complete status: invalid or changed retention witness",
+                        entries.iter().all(|r| r[field].is_boolean()),
+                        "false complete status: invalid or missing retention witness flag",
                     )?;
+                    if entries.iter().any(|r| r[field] == false) {
+                        require(
+                            m["read_stages"][stage]["live_drift_count"]
+                                .as_u64()
+                                .is_some_and(|n| n > 0),
+                            "false complete status: unrecorded live witness drift",
+                        )?;
+                    }
                 }
             }
         }

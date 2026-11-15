@@ -20,8 +20,21 @@ if a.check_vendor:
  raise SystemExit(0)
 name=root.joinpath('Cargo.toml').read_text().split('name = "',1)[1].split('"',1)[0]
 target='x86_64-unknown-linux-musl'
-for action in ['test','build']:
- subprocess.run(['cargo',action,'--release','--locked','--offline','--target',target],cwd=root,check=True)
+subprocess.run(['cargo','test','--release','--locked','--offline','--target',target],cwd=root,check=True)
+build=subprocess.run(['cargo','build','--release','--locked','--offline','--target',target,'--message-format=json'],cwd=root,check=True,capture_output=True,text=True)
+build_info_raw=None
+info=None
+for line in build.stdout.splitlines():
+ if not line.strip():continue
+ msg=json.loads(line)
+ if msg.get('reason')=='build-script-executed':
+  candidate=pathlib.Path(msg['out_dir'])/'build_info.json'
+  if candidate.is_file():
+   raw_bytes=candidate.read_bytes()
+   parsed=json.loads(raw_bytes.decode('utf-8'))
+   if parsed.get('package')==name:
+    build_info_raw=raw_bytes;info=parsed;break
+assert build_info_raw is not None and info is not None,'build_info.json was not produced by build script'
 target_dir=pathlib.Path(os.environ.get('CARGO_TARGET_DIR',str(root/'target')))
 if not target_dir.is_absolute():target_dir=root/target_dir
 source=target_dir/target/'release'/name
@@ -34,9 +47,10 @@ for i in range(h[10]):
   for j in range(off,off+size,16):
    tag,val=struct.unpack_from('<QQ',data,j)
    assert tag!=1,'external shared library is not allowed in a standalone release'
-info=json.loads(subprocess.check_output([str(source),'--build-info'],text=True))
-sha=hashlib.sha256(data).hexdigest();assert info['runtime_executable_sha256']==sha
-assert info['features']==[],'production release must not contain development-options'
+assert build_info_raw in data,'build_info.json is not embedded in release executable'
+sha=hashlib.sha256(data).hexdigest()
+info['runtime_executable_sha256']=sha
+assert info['features']==[],'production release must not contain unexpected features'
 for path,expected in info['source_sha256'].items():assert hashlib.sha256((root/path).read_bytes()).hexdigest()==expected,path
 out=(a.output or root/'release').resolve();out.mkdir(parents=True,exist_ok=True)
 (out/name).write_bytes(data);(out/name).chmod(0o755)

@@ -10,8 +10,8 @@ ext4에서 검사합니다. 네트워크 파일 시스템이나 WSL의 Windows �
 
 ## 배포 파일 확인
 
-다운로드한 실행 파일, 배포 `manifest.json`, `SHA256SUMS.txt`를 같은 폴더에 놓고 `sha256sum -c SHA256SUMS.txt`를 실행합니다. `--build-info`의 `source_sha256`, `vendor_tree_sha256`, target, features, compiler도 확인할 수 있습니다. 실행 파일의 해시는 실제 `/proc/self/exe`를 읽어 계산합니다.
+다운로드한 실행 파일, 배포 `manifest.json`, `SHA256SUMS.txt`를 같은 폴더에 놓고 `sha256sum -c SHA256SUMS.txt`를 실행합니다. 배포 `manifest.json` 안의 `build_info`에서 `source_sha256`, `vendor_tree_sha256`, target, features, compiler를 확인할 수 있습니다.
 
-소스 빌드는 Rust와 `x86_64-unknown-linux-musl` target, Python 3가 필요합니다. `python3 scripts/build_release.py`는 오프라인 빌드·테스트를 실행하고 외부 공유 라이브러리와 개발 옵션이 없는지 확인합니다. 배포 빌드에 CPU 전용 최적화 플래그를 넣지 않습니다.
+소스 빌드는 Rust와 `x86_64-unknown-linux-musl` target, Python 3가 필요합니다. `python3 scripts/build_release.py`는 오프라인 빌드·테스트를 실행하고 외부 공유 라이브러리와 불필요한 feature가 없는지, 빌드 정보(`build_info.json`)가 정적 실행 파일에 내장되었는지 확인합니다. 배포 빌드에 CPU 전용 최적화 플래그를 넣지 않습니다.
 
 [이전 배포 검증 기록](history_deployment_previous.md)과 [배포판별 과거 검사](distro_validation.md)는 각 문서의 빌드·환경에 한정됩니다.

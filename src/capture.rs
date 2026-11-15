@@ -271,6 +271,23 @@ fn produce<S: Memory>(
                             meta["sha256"] = json!(sha(&body));
                             stats.hash_ns += now() - t;
                             stats.payload_bytes += size as u64;
+                        } else if status == "policy_excluded" {
+                            for &pa in &code_pages {
+                                if address <= pa && pa < address + size as u64 {
+                                    source.note_code_page_skipped(
+                                        pa,
+                                        flags[((pa - at) / PAGE) as usize],
+                                    );
+                                }
+                            }
+                            for &pa in &resource_pages {
+                                if address <= pa && pa < address + size as u64 {
+                                    source.note_resource_page_skipped(
+                                        pa,
+                                        flags[((pa - at) / PAGE) as usize],
+                                    );
+                                }
+                            }
                         }
                         packet.push(Part { meta, body });
                         stats.ranges += 1;
@@ -366,7 +383,6 @@ fn write_sparse_lime_body(
     Ok(())
 }
 
-#[allow(dead_code)]
 pub fn acquire<S: Memory + 'static>(
     source: S,
     output: &Path,
@@ -399,14 +415,6 @@ pub fn acquire_with_options<S: Memory + 'static>(
     {
         return Err("invalid chunk/queue bounds".into());
     }
-    #[cfg(feature = "development-options")]
-    let writer_panic_at = {
-        let value = std::env::var("KERNEL_DUMP_TEST_WRITER_PANIC").unwrap_or_default();
-        if !["", "before-receive", "after-header"].contains(&value.as_str()) {
-            return Err("invalid development writer-panic injection point".into());
-        }
-        value
-    };
     let ram = source.ram().to_vec();
     let expected = ram
         .iter()
@@ -428,7 +436,7 @@ pub fn acquire_with_options<S: Memory + 'static>(
         "build_provenance":crate::build_info::current(),
         "status":"in_progress","source":info,"ram_ranges":ram,"expected_ram_bytes":expected,"start_ns":started,
         "wall_start_unix_ns":SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos(),"timebase":"CLOCK_MONOTONIC ns","chunk_bytes":chunk,"queue_depth":depth,"max_write_mbps":options.max_write_mbps,
-        "payload_buffer_bound_bytes":(depth+2)*chunk,"filter":{"policy":"kernel-focused-v9","unsafe_mask":UNSAFE,"retain_mask":KEEP,"exclude_mask":EXCLUDE,"slab_neighbor_pages_retained":1,"exclusion_basis":"LRU, BUDDY, MMAP, ANON, SWAPCACHE, SWAPBACKED, KSM, THP, HUGETLB and ZERO_PAGE are excluded except retained kernel neighbors and bounded executable anonymous, referenced queue and Pod file-cache candidates. Unsafe flags always exclude.","retained":"SLAB, PGTABLE, unclassified pages and immediate SLAB/PGTABLE neighbors; additionally present anonymous pages of private executable mappings, including file COW and fileless/JIT code discovered through proc. Also bounded socket queue bytes through running-kernel BTF; Pod-only bounded resident small shmem/unlinked files and cache pages corresponding to executable COW pages, after code/network discovery. Optional Pod scope applies only to these additions, not the base kernel filter. See source.pod_scope and source.shared_retention_budget, source.resource_retention and ledger references."},"errors":[],
+        "payload_buffer_bound_bytes":(depth+2)*chunk,"filter":{"policy":"kernel-focused-v9","unsafe_mask":UNSAFE,"retain_mask":KEEP,"exclude_mask":EXCLUDE,"slab_neighbor_pages_retained":1,"exclusion_basis":"LRU, BUDDY, MMAP, ANON, SWAPCACHE, SWAPBACKED, KSM, THP, HUGETLB and ZERO_PAGE are excluded except retained kernel neighbors and deterministic node-wide executable anonymous, referenced queue and unlinked/memfd file-cache candidates. Unsafe flags always exclude.","retained":"SLAB, PGTABLE, unclassified pages and immediate SLAB/PGTABLE neighbors; additionally node-wide present anonymous pages of private executable mappings (file COW and fileless/JIT code), bounded socket queue bytes via running-kernel BTF, resident unlinked regular files (i_nlink == 0, including memfd/O_TMPFILE) via open FDs or pure-BTF shared memfd VMAs, and backing cache pages corresponding to discovered executable COW pages. Ordinary linked files (i_nlink != 0) are excluded. See source.shared_retention_budget, source.resource_retention and ledger references."},"errors":[],
         "limitations":["Non-atomic live acquisition: flags, addresses and payload are observed at different times.","Kernel-focused filtering can omit kernel-relevant information and retain user/residual bytes.",
         "kcore can return internally zero-filled bytes; read success is not proof of physical-byte availability.","Unsafe/unmapped PFNs are explicit omissions and prevent complete status.",
         "Cancellation is cooperative; a kernel I/O syscall can block beyond the request.","Payload budget excludes metadata, allocator overhead and OS page cache.","Matching symbols and successful plugins do not prove complete forensic coverage.",
@@ -482,10 +490,6 @@ pub fn acquire_with_options<S: Memory + 'static>(
         worker = Some(thread::spawn(move || {
             produce(source, scope, chunk as u64, tx, recycle_rx, stop)
         }));
-        #[cfg(feature = "development-options")]
-        if writer_panic_at == "before-receive" {
-            panic!("injected acquisition writer panic before receive");
-        }
         let is_tty = unsafe { libc::isatty(libc::STDERR_FILENO) } == 1;
         let mut last_progress_bytes = 0u64;
         const FLUSH_WINDOW: u64 = 16 * 1024 * 1024;
@@ -529,10 +533,6 @@ pub fn acquire_with_options<S: Memory + 'static>(
                         part.meta["write_begin_ns"] = json!(t);
                         file.write_all(&header)?;
                         actual_written_bytes += 32;
-                        #[cfg(feature = "development-options")]
-                        if writer_panic_at == "after-header" {
-                            panic!("injected acquisition writer panic after LiME header");
-                        }
                         write_sparse_lime_body(
                             &mut file,
                             &part.body,
@@ -634,10 +634,6 @@ pub fn acquire_with_options<S: Memory + 'static>(
             local.store(true, Ordering::Relaxed);
             m["errors"].as_array_mut().unwrap().push(json!({"stage":"writer_panic","error":"acquisition writer unwound; receiver dropped before reader join","physical_start":writing_address,"time_ns":now()}));
         }
-    }
-    #[cfg(feature = "development-options")]
-    if !writer_panic_at.is_empty() {
-        m["development_fault_injection"] = json!({"writer_panic_at":writer_panic_at});
     }
     if let Some(worker) = worker {
         m["reader_join_begin_ns"] = json!(now());

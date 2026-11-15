@@ -20,8 +20,8 @@ mod provenance_tests;
 
 const PFN_MASK: u64 = 0x000f_ffff_ffff_f000;
 const MAX_READ_BYTES: u64 = 128 * 1024 * 1024;
-const MAX_REFS: usize = 16384;
-const MAX_CANDIDATES: usize = 8192;
+const MAX_REFS: usize = 65_536;
+const MAX_CANDIDATES: usize = 131_072;
 const MAX_THREAD_TASKS: usize = 32768;
 const QUEUE_BYTES: u64 = 64 * 1024;
 
@@ -72,24 +72,38 @@ mod tests {
             Ok(())
         });
         assert_eq!(result[0]["same_fields"], false);
-        assert_eq!(r.finish()["complete"], false);
-        assert_eq!(r.finish()["unread_candidate_pages"], 0);
+        let drift_finish = r.finish();
+        assert_eq!(drift_finish["complete"], true);
+        assert_eq!(drift_finish["issue_count"], 0);
+        assert_eq!(drift_finish["live_drift_count"], 1);
+        assert_eq!(drift_finish["unread_candidate_pages"], 0);
         assert!(
-            r.finish()["issues"]
+            drift_finish["live_drift"]
                 .as_array()
                 .unwrap()
                 .iter()
-                .any(|issue| issue["error"]
+                .any(|entry| entry["error"]
                     .as_str()
                     .unwrap_or("")
                     .contains("0xffff800000001000"))
         );
+
+        let unreadable = candidate();
+        unreadable.witness(PAGE, 2 * PAGE, true, |_, _| {
+            Err("synthetic read error".into())
+        });
+        let unreadable_finish = unreadable.finish();
+        assert_eq!(unreadable_finish["complete"], false);
+        assert_eq!(unreadable_finish["issue_count"], 1);
+
         let stable = candidate();
         stable.witness(PAGE, 2 * PAGE, true, |_, data| {
             data.copy_from_slice(&[1, 2, 3, 4]);
             Ok(())
         });
-        assert_eq!(stable.finish()["complete"], true);
+        let stable_finish = stable.finish();
+        assert_eq!(stable_finish["complete"], true);
+        assert_eq!(stable_finish["live_drift_count"], 0);
     }
 
     #[test]
@@ -114,11 +128,34 @@ mod tests {
             &json!({}),
             Err("missing BTF".into()),
             now() + 1_000_000,
-            None,
             &[],
         );
         assert_eq!(result.finish()["complete"], false);
         assert_eq!(result.summary()["issues_at_discovery"], 1);
+    }
+
+    #[test]
+    fn discovery_live_drift_classification_preserves_complete_while_keeping_limits_partial() {
+        let drift_only = Resources::default();
+        for (stage, msg) in [
+            ("file_cache", "cache FD closed"),
+            ("mm_vma_seed", "retired Maple node"),
+            ("fdtable", "reference changed during discovery"),
+        ] {
+            drift_only.issue_or_drift(stage, msg);
+        }
+        let drift_finish = drift_only.finish();
+        assert_eq!(drift_finish["complete"], true);
+        assert_eq!(drift_finish["issue_count"], 0);
+        assert_eq!(drift_finish["live_drift_count"], 3);
+
+        let mixed = Resources::default();
+        mixed.issue_or_drift("discovery", "resource discovery budget exhausted");
+        mixed.issue_or_drift("threads", "thread group identity changed");
+        let mixed_finish = mixed.finish();
+        assert_eq!(mixed_finish["complete"], false);
+        assert_eq!(mixed_finish["issue_count"], 2);
+        assert_eq!(mixed_finish["live_drift_count"], 0);
     }
 }
 
@@ -252,22 +289,86 @@ struct Evidence {
 }
 #[derive(Default)]
 pub struct Resources {
-    pod: Option<crate::pod_scope::PodScope>,
     pages: BTreeMap<u64, Vec<usize>>,
     evidence: Vec<Evidence>,
     summary: Value,
     issues: RefCell<Vec<Value>>,
     issue_count: Cell<u64>,
+    drift: RefCell<Vec<Value>>,
+    drift_count: Cell<u64>,
     visited: RefCell<BTreeSet<u64>>,
+    released: RefCell<BTreeSet<u64>>,
     validation_bytes: Cell<u64>,
     validation_ns: Cell<u64>,
 }
 impl Resources {
+    pub(crate) fn is_live_discovery_drift(msg: &str) -> bool {
+        matches!(
+            msg,
+            "reference changed during discovery"
+                | "thread group signal unavailable"
+                | "socket FD bounds changed"
+                | "socket FD changed"
+                | "socket FD closed"
+                | "cache file type changed"
+                | "cache FD bounds changed"
+                | "cache FD changed"
+                | "cache FD closed"
+                | "cache mapping inode mismatch"
+                | "retired Maple node"
+                | "memfd task lost mm"
+                | "memfd VMA mm mismatch"
+                | "memfd shared VMA changed"
+                | "memfd VMA lost backing file"
+                | "memfd backing inode changed or still linked"
+                | "memfd address_space inode mismatch"
+                | "memfd i_mmap is empty"
+                | "memfd reverse VMA mapping mismatch"
+                | "memfd reverse VMA invalid"
+                | "memfd reverse process identity changed"
+                | "source VMA absent from address_space.i_mmap"
+                | "COW task lost mm"
+                | "COW VMA mm mismatch"
+                | "COW VMA changed or offset mismatch"
+                | "COW VMA lost file"
+                | "COW cache inode mismatch"
+                | "COW file offset outside size"
+                | "COW VMA absent or RB cycle"
+                | "COW VMA absent or Maple cycle"
+                | "COW VMA outside Maple slots"
+        )
+    }
     fn issue(&self, stage: &str, e: impl ToString) {
         self.issue_count.set(self.issue_count.get() + 1);
         let mut v = self.issues.borrow_mut();
         if v.len() < 32 {
             v.push(json!({"stage":stage,"error":e.to_string()}));
+        }
+    }
+    fn issue_or_drift(&self, stage: &str, e: impl ToString) {
+        let msg = e.to_string();
+        if Self::is_live_discovery_drift(&msg) {
+            self.record_drift(stage, msg);
+        } else {
+            self.issue(stage, msg);
+        }
+    }
+    fn record_drift(&self, stage: &str, e: impl ToString) {
+        self.drift_count.set(self.drift_count.get() + 1);
+        let mut v = self.drift.borrow_mut();
+        if v.len() < 32 {
+            v.push(json!({"stage":stage,"error":e.to_string()}));
+        }
+    }
+    pub fn note_skipped(&self, pa: u64, flags: u64) {
+        if self.pages.contains_key(&pa)
+            && !self.visited.borrow().contains(&pa)
+            && self.released.borrow_mut().insert(pa)
+        {
+            self.record_drift(
+                "released_before_read",
+                format!("physical {pa:#x} flags {flags:#x}"),
+            );
         }
     }
     pub fn summary(&self) -> Value {
@@ -290,7 +391,6 @@ impl Resources {
         let started = now();
         let mut result = Vec::new();
         let mut checked = HashMap::new();
-        let mut identities = HashMap::new();
         for (&pa, indices) in self.pages.range(a..b) {
             if after {
                 self.visited.borrow_mut().insert(pa);
@@ -298,54 +398,57 @@ impl Resources {
             for &index in indices {
                 let e = &self.evidence[index];
                 let valid = *checked.entry(index).or_insert_with(|| {
-                    if self.validation_ns.get() + now() - started > 500_000_000
-                        || self.validation_bytes.get() > 16 * 1024 * 1024
+                    if self.validation_ns.get() + now() - started > 5_000_000_000
+                        || self.validation_bytes.get() > 64 * 1024 * 1024
                     {
                         self.issue("validation_limit", "resource reference validation budget");
                         return false;
                     }
-                    let mut valid = if let Some(scope) = &self.pod {
-                        let id = e.detail["process"]["pid"].as_u64().unwrap_or(0) as u32;
-                        let boot = e.detail["process"]["start_boottime_ns"]
-                            .as_u64()
-                            .unwrap_or(0);
-                        *identities
-                            .entry(id)
-                            .or_insert_with(|| scope.validate_thread(id, boot).is_ok())
-                    } else {
-                        true
-                    };
-                    let mut first_failure = None;
+                    let mut valid = true;
+                    let mut read_error = None;
+                    let mut first_mismatch = None;
                     for c in &e.checks {
                         let mut bytes = vec![0; c.bytes.len()];
                         self.validation_bytes
                             .set(self.validation_bytes.get() + bytes.len() as u64);
-                        let reason = match read(c.address, &mut bytes) {
+                        match read(c.address, &mut bytes) {
                             Err(error) => {
-                                Some(format!("unreadable check at {:#x}: {error}", c.address))
+                                valid = false;
+                                read_error.get_or_insert_with(|| {
+                                    format!("unreadable check at {:#x}: {error}", c.address)
+                                });
                             }
-                            Ok(()) if !c.matches(&bytes) => Some(format!(
-                                "check at {:#x}, expected {:02x?}, observed {:02x?}, mask {:?}",
-                                c.address, c.bytes, bytes, c.mask
-                            )),
-                            Ok(()) => None,
-                        };
-                        if let Some(reason) = reason {
-                            valid = false;
-                            first_failure.get_or_insert(reason);
+                            Ok(()) if !c.matches(&bytes) => {
+                                valid = false;
+                                first_mismatch.get_or_insert_with(|| {
+                                    format!(
+                                        "check at {:#x}, expected {:02x?}, observed {:02x?}, mask {:?}",
+                                        c.address, c.bytes, bytes, c.mask
+                                    )
+                                });
+                            }
+                            Ok(()) => (),
                         }
                     }
                     if !valid {
-                        self.issue(
-                            "reference_changed",
-                            format!(
-                                "{} evidence {}; {}",
-                                e.category,
-                                index,
-                                first_failure
-                                    .unwrap_or_else(|| "process identity validation failed".into())
-                            ),
-                        );
+                        if let Some(error) = read_error {
+                            self.issue(
+                                "validation_read",
+                                format!("{} evidence {}; {}", e.category, index, error),
+                            );
+                        } else {
+                            self.record_drift(
+                                "reference_changed",
+                                format!(
+                                    "{} evidence {}; {}",
+                                    e.category,
+                                    index,
+                                    first_mismatch.unwrap_or_else(|| {
+                                        "process identity validation failed".into()
+                                    })
+                                ),
+                            );
+                        }
                     }
                     valid
                 });
@@ -357,12 +460,19 @@ impl Resources {
         json!(result)
     }
     pub fn finish(&self) -> Value {
-        let omitted = self.pages.len() - self.visited.borrow().len();
-        json!({"complete":self.issue_count.get()==0&&omitted==0,"candidate_pages":self.pages.len(),"read_candidate_pages":self.visited.borrow().len(),
-            "pod_identity_validation":self.pod.as_ref().map(|p|p.validation_stats()),
+        let read_count = self.visited.borrow().len();
+        let released_count = self
+            .released
+            .borrow()
+            .difference(&self.visited.borrow())
+            .count();
+        let omitted = self.pages.len().saturating_sub(read_count + released_count);
+        json!({"complete":self.issue_count.get()==0&&omitted==0,"candidate_pages":self.pages.len(),
+            "read_candidate_pages":read_count,"released_before_read_pages":released_count,
             "unread_candidate_pages":omitted,"issue_count":self.issue_count.get(),"issues":*self.issues.borrow(),
+            "live_drift_count":self.drift_count.get(),"live_drift":*self.drift.borrow(),
             "validation_requested_bytes":self.validation_bytes.get(),"validation_ns":self.validation_ns.get(),
-            "consistency":"Selected pointer/length fields checked around reads. Live, non-atomic and subject to ABA or changes in payload bytes."})
+            "consistency":"Selected pointer/length fields checked around reads. Live, non-atomic drift is recorded separately from collector errors."})
     }
     #[allow(clippy::too_many_arguments)]
     pub fn discover(
@@ -372,14 +482,10 @@ impl Resources {
         symbols: &Value,
         btf_bytes: Result<Vec<u8>>,
         deadline: u64,
-        pod: Option<&crate::pod_scope::PodScope>,
-        code_targets: &[(u32, u64, u64, u64)],
+        code_targets: &[crate::code_pages::CowTarget],
     ) -> Self {
         let started = now();
-        let mut result = Self {
-            pod: pod.cloned(),
-            ..Self::default()
-        };
+        let mut result = Self::default();
         let run = (|| -> Result<Value> {
             let btf = Btf::parse(btf_bytes?)?;
             let symbol = |name: &str| {
@@ -433,8 +539,6 @@ impl Resources {
                 policy_truncations: 0,
                 task_identity: Value::Null,
                 task_checks: Vec::new(),
-                pod: pod.cloned(),
-                target_seen: BTreeSet::new(),
                 mm_owners: BTreeMap::new(),
                 cache: cache::CacheState::default(),
                 code_targets: code_targets.to_vec(),
@@ -442,20 +546,10 @@ impl Resources {
             if let Err(e) = scan.tasks(symbol("init_task")?) {
                 scan.plan.issue("traversal", e);
             }
-            if let Some(scope) = pod {
-                for tid in scope
-                    .threads
-                    .keys()
-                    .filter(|id| !scan.target_seen.contains(id))
-                {
-                    scan.plan.issue("pod_thread_not_observed", tid);
-                }
-            }
             scan.capture_cache();
             Ok(
                 json!({"file_cache":scan.cache.summary(),"tasks_examined":scan.tasks,"threads_examined":scan.thread_tasks.len(),"unique_fd_tables":scan.tables.len(),"address_spaces_indexed":scan.mm_owners.len(),"fd_references_examined":scan.fd_refs,
                 "unique_files":scan.files.len(),"sockets_examined":scan.sockets,"skbs_examined":scan.skbs,
-                "target_threads_observed":scan.target_seen.len(),
                 "policy_window_truncations":scan.policy_truncations,
                 "discovery_requested_bytes":scan.live.read_bytes.get(),"discovery_read_calls":scan.live.calls.get()}),
             )
@@ -467,21 +561,19 @@ impl Resources {
                 Value::Null
             }
         };
-        result.summary = json!({"policy":"referenced_socket_queues_and_pod_cache_v5","pod_uid":pod.map(|p|&p.uid),"begin_ns":started,"end_ns":now(),"stats":stats,
-            "candidate_pages":result.pages.len(),"references":result.evidence.len(),"issues_at_discovery":result.issue_count.get(),
-            "limits":{"requested_metadata_bytes":MAX_READ_BYTES,"candidate_pages":MAX_CANDIDATES,"references":MAX_REFS,"queue_payload_bytes":QUEUE_BYTES,"process_leaders":4096,"threads_per_group":4096,"threads":MAX_THREAD_TASKS},
-            "scope":"Selected Pod census threads when --pod is supplied; otherwise node-wide process leaders and threads, including separate FD tables. Shared FD tables are deduplicated. Socket receive/write queues plus TCP retransmit/out-of-order trees. With Pod scope, bounded resident small shmem/unlinked-file cache through FDs or live shared memfd VMAs, and cache pages corresponding to discovered executable COW pages are considered after sockets. No general file-cache sweep or full socket history.",
+        result.summary = json!({"policy":"referenced_socket_queues_and_unlinked_cache_v5","begin_ns":started,"end_ns":now(),"stats":stats,
+            "candidate_pages":result.pages.len(),"references":result.evidence.len(),"issues_at_discovery":result.issue_count.get(),"drift_at_discovery":result.drift_count.get(),
+            "limits":{"requested_metadata_bytes":MAX_READ_BYTES,"candidate_pages":MAX_CANDIDATES,"references":MAX_REFS,"queue_payload_bytes":QUEUE_BYTES,"process_leaders":16384,"threads_per_group":4096,"threads":MAX_THREAD_TASKS},
+            "scope":"Node-wide process leaders and threads, including separate FD tables. Shared FD tables are deduplicated. Socket receive/write queues plus TCP retransmit/out-of-order trees, plus resident unlinked regular files (i_nlink == 0, including memfd/O_TMPFILE) via open FDs or pure-BTF shared memfd VMAs, and backing cache pages for discovered executable COW pages. Ordinary linked files (i_nlink != 0) are excluded.",
             "window_policy":"64KiB per queue. Bytes beyond this per-queue limit are explicit policy truncations, not all-content coverage.",
             "btf_required":true});
         result
     }
 }
 struct Scan<'a, 'p> {
-    pod: Option<crate::pod_scope::PodScope>,
-    target_seen: BTreeSet<u32>,
     mm_owners: BTreeMap<u64, Vec<MmOwner>>,
     cache: cache::CacheState,
-    code_targets: Vec<(u32, u64, u64, u64)>,
+    code_targets: Vec<crate::code_pages::CowTarget>,
     btf: Btf,
     live: Live<'a>,
     plan: &'p mut Resources,
@@ -655,30 +747,22 @@ impl Scan<'_, '_> {
             if self.thread_tasks.len() >= MAX_THREAD_TASKS {
                 return Err("global thread traversal limit".into());
             }
-            if !seen.insert(at) || self.tasks >= 4096 {
+            if !seen.insert(at) || self.tasks >= 16384 {
                 return Err("task traversal limit/cycle".into());
             }
             self.tasks += 1;
             let task = at.checked_sub(tasks_off).ok_or("task address underflow")?;
             let pid = self.value(task, "task_struct", "pid")?;
-            if self.pod.is_some()
-                && let Err(e) = self.index_mm_owner(task, pid)
-            {
-                self.plan.issue("mm_owner_index", e);
+            if let Err(e) = self.index_mm_owner(task, pid) {
+                self.plan.issue_or_drift("mm_owner_index", e);
             }
-            if self
-                .pod
-                .as_ref()
-                .is_none_or(|scope| scope.processes.contains_key(&(pid as u32)))
-            {
-                // Preserve leader evidence even if the optional thread list is
-                // unreadable or changes while the collector walks it.
-                if let Err(e) = self.task_files(task) {
-                    self.plan.issue("task_files", e);
-                }
-                if let Err(e) = self.threads(task) {
-                    self.plan.issue("threads", e);
-                }
+            // Preserve leader evidence even if the optional thread list is
+            // unreadable or changes while the collector walks it.
+            if let Err(e) = self.task_files(task) {
+                self.plan.issue_or_drift("task_files", e);
+            }
+            if let Err(e) = self.threads(task) {
+                self.plan.issue_or_drift("threads", e);
             }
             at = self.live.uint(at, 8)?;
         }
@@ -729,7 +813,7 @@ impl Scan<'_, '_> {
                 return Err("global thread traversal limit".into());
             }
             if let Err(e) = self.task_files(task) {
-                self.plan.issue("thread_files", e);
+                self.plan.issue_or_drift("thread_files", e);
             }
             at = self.live.uint(at, 8)?;
         }
@@ -745,28 +829,13 @@ impl Scan<'_, '_> {
         self.thread_tasks.insert(task);
         let pid = self.value(task, "task_struct", "pid")?;
         let tgid = self.value(task, "task_struct", "tgid")?;
-        let boot_field = if self.pod.is_some() {
-            Some(task_boottime_field(&self.btf)?.0)
-        } else {
-            None
-        };
+        let boot_field = task_boottime_field(&self.btf).ok().map(|(name, _)| name);
         let boot = boot_field
             .map(|name| self.value(task, "task_struct", name))
             .transpose()?;
-        if let Some(scope) = &self.pod {
-            if !scope.threads.contains_key(&(pid as u32)) {
-                return Ok(());
-            }
-            let id =
-                scope.validate_thread(pid as u32, boot.ok_or("Pod start time unavailable")?)?;
-            if tgid != id.tgid as u64 {
-                return Err("target tgid changed".into());
-            }
-            self.target_seen.insert(pid as u32);
-        }
         let files = self.value(task, "task_struct", "files")?;
         let start = self.value(task, "task_struct", "start_time")?;
-        self.task_identity = json!({"task":task,"pid":pid,"tgid":tgid,"start_time_ns":start,"start_boottime_ns":boot,"start_boottime_field":boot_field,"pod_uid":self.pod.as_ref().map(|p|&p.uid)});
+        self.task_identity = json!({"task":task,"pid":pid,"tgid":tgid,"start_time_ns":start,"start_boottime_ns":boot,"start_boottime_field":boot_field});
         self.task_checks = vec![
             self.expect(task, "task_struct", "pid", pid)?,
             self.expect(task, "task_struct", "tgid", tgid)?,
@@ -781,17 +850,14 @@ impl Scan<'_, '_> {
                 boot,
             )?);
         }
-        if self.pod.is_some() {
-            self.queue_code_cache(task, pid as u32);
-            if let Err(e) = self.queue_memfd_discovery(task, pid as u32) {
-                self.plan.issue("memfd_vma_seed", e);
-            }
+        if let Err(e) = self.queue_memfd_discovery(task) {
+            self.plan.issue_or_drift("mm_vma_seed", e);
         }
         if files != 0
             && self.tables.insert(files)
             && let Err(e) = self.fdtable(files, pid)
         {
-            self.plan.issue("fdtable", e);
+            self.plan.issue_or_drift("fdtable", e);
         }
         Ok(())
     }
@@ -807,7 +873,7 @@ impl Scan<'_, '_> {
         for (word, bytes) in bits.as_chunks::<8>().0.iter().enumerate() {
             let mut bits = u64::from_le_bytes(*bytes);
             while bits != 0 {
-                if self.fd_refs >= 16384 {
+                if self.fd_refs >= MAX_REFS {
                     return Err("FD reference limit".into());
                 }
                 self.fd_refs += 1;
@@ -829,7 +895,7 @@ impl Scan<'_, '_> {
                     )
                 {
                     self.files.remove(&file);
-                    self.plan.issue("file", e);
+                    self.plan.issue_or_drift("file", e);
                 }
             }
         }
@@ -840,7 +906,7 @@ impl Scan<'_, '_> {
         if inode != 0 {
             match self.value(inode, "inode", "i_mode")? & 0xf000 {
                 0xc000 => self.socket(file, pid, origin)?,
-                0x8000 if self.pod.is_some() => self.queue_file_cache(file, origin)?,
+                0x8000 => self.queue_file_cache(file, origin)?,
                 _ => {}
             }
         }

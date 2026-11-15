@@ -274,8 +274,6 @@ fn socket_witness_must_detect_changed_ownership() {
         let ram = [(PAGE, PAGE + data.len() as u64)];
         let mut plan = Resources::default();
         let mut scan = Scan {
-            pod: None,
-            target_seen: BTreeSet::new(),
             mm_owners: BTreeMap::new(),
             cache: cache::CacheState::default(),
             code_targets: vec![],
@@ -342,8 +340,28 @@ fn socket_witness_must_detect_changed_ownership() {
             network.iter().all(|v| v["same_fields"] == valid),
             "ownership mutation at {changed_at:x}"
         );
-        assert_eq!(plan.finish()["complete"], valid);
+        let finished = plan.finish();
+        assert_eq!(finished["complete"], true);
+        assert_eq!(finished["live_drift_count"].as_u64().unwrap() == 0, valid);
     }
+
+    let mut err_plan = Resources::default();
+    err_plan.pages.insert(PAGE, vec![0]);
+    err_plan.evidence.push(Evidence {
+        category: "network",
+        detail: json!({"role":"network_bytes"}),
+        checks: vec![Check {
+            address: 0xffff_8880_0000_0050,
+            bytes: vec![0xaa; 8],
+            mask: None,
+        }],
+    });
+    err_plan.witness(PAGE, 2 * PAGE, true, |_, _| {
+        Err("synthetic validation read failure".into())
+    });
+    let err_finished = err_plan.finish();
+    assert_eq!(err_finished["complete"], false);
+    assert!(err_finished["issue_count"].as_u64().unwrap() > 0);
 }
 
 #[test]
@@ -388,8 +406,6 @@ fn bad_tcp_tree_buffer_does_not_discard_other_branch_payloads() {
     let ram = [(PAGE, PAGE + data.len() as u64)];
     let mut plan = Resources::default();
     let mut scan = Scan {
-        pod: None,
-        target_seen: BTreeSet::new(),
         mm_owners: BTreeMap::new(),
         cache: cache::CacheState::default(),
         code_targets: vec![],
@@ -526,8 +542,6 @@ fn node_collection_follows_private_thread_fds_and_preserves_leader_on_list_error
         let ram = [(PAGE, PAGE + data.len() as u64)];
         let mut plan = Resources::default();
         let mut scan = Scan {
-            pod: None,
-            target_seen: BTreeSet::new(),
             mm_owners: BTreeMap::new(),
             cache: cache::CacheState::default(),
             code_targets: vec![],
@@ -634,7 +648,7 @@ fn pod_task_walk_survives_unrelated_mm_owner_error_and_retries_failed_shared_fil
     put(&mut data, 0x3100, 42, 4);
     put(&mut data, 0x3104, 42, 4);
     put(&mut data, 0x3108, signal, 8);
-    put(&mut data, 0x3110, BASE + 0x100, 8);
+    put(&mut data, 0x3110, 0, 8);
     put(&mut data, 0x3118, 4200, 8);
     put(&mut data, 0x3120, init + 32, 8);
     put(&mut data, 0x3140, 8400, 8);
@@ -681,11 +695,8 @@ fn pod_task_walk_survives_unrelated_mm_owner_error_and_retries_failed_shared_fil
         bytes: data.len() as u64,
     }];
     let ram = [(PAGE, PAGE + data.len() as u64)];
-    let pod = crate::pod_scope::PodScope::test_empty("pod-uid-1");
     let mut plan = Resources::default();
     let mut scan = Scan {
-        pod: Some(pod),
-        target_seen: BTreeSet::new(),
         mm_owners: BTreeMap::new(),
         cache: cache::CacheState::default(),
         code_targets: vec![],
@@ -724,6 +735,8 @@ fn pod_task_walk_survives_unrelated_mm_owner_error_and_retries_failed_shared_fil
     scan.tasks(init).unwrap();
     assert_eq!(scan.tasks, 2);
     assert!(scan.mm_owners.contains_key(&(BASE + 0x900)));
+    core.write_all_at(&(BASE + 0x100).to_le_bytes(), 0x3110)
+        .unwrap();
     // 2. First holder fails file inspection because socket.file backlink is 0; file must be removed from seen set.
     scan.fdtable(BASE + 0x180, 41).unwrap();
     assert!(!scan.files.contains(&(BASE + 0x500)));

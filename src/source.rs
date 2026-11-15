@@ -180,9 +180,11 @@ pub trait Memory: Send {
     fn code_witness(&self, _start: u64, _end: u64, _after: bool) -> Value {
         json!([])
     }
+    fn note_code_page_skipped(&self, _pa: u64, _flags: u64) {}
     fn finish_code_pages(&self) -> Value {
         json!({"complete":true,"applicable":false})
     }
+    fn note_resource_page_skipped(&self, _pa: u64, _flags: u64) {}
     fn info(&self) -> Value;
     fn io_stats(&self) -> Value {
         json!({"available":false})
@@ -313,7 +315,6 @@ pub fn ram_ranges(text: &str) -> Result<Vec<(u64, u64)>> {
 }
 
 pub struct Source {
-    pod: Option<crate::pod_scope::PodScope>,
     code_pages: crate::code_pages::CodePages,
     resources: crate::resources::Resources,
     all_segments: Vec<Segment>,
@@ -328,45 +329,7 @@ pub struct Source {
     flags_io: ReadCounter,
 }
 impl Source {
-    #[allow(dead_code)]
-    pub fn select_pod(&mut self, uid: &str) -> Result<()> {
-        self.select_pod_with_policy(uid, false)
-    }
-    pub fn select_pod_with_policy(&mut self, uid: &str, allow_exited: bool) -> Result<()> {
-        let btf = crate::btf::Btf::parse(crate::btf::read_running()?)?;
-        // /proc IDs and cgroup paths must be from the host view, not container-relative.
-        for (symbol, typ, ns) in [
-            ("init_pid_ns", "pid_namespace", "pid"),
-            ("init_cgroup_ns", "cgroup_namespace", "cgroup"),
-        ] {
-            let address = self.info["symbols"][symbol]
-                .as_u64()
-                .filter(|&v| v != 0)
-                .ok_or("host namespace symbol unavailable")?;
-            let field = btf.field(typ, "ns.inum")?;
-            let mut value = [0u8; 4];
-            crate::resources::virtual_read(
-                &self.core,
-                &self.all_segments,
-                address + field.offset,
-                &mut value,
-            )?;
-            let expected = format!("{ns}:[{}]", u32::from_le_bytes(value));
-            if fs::read_link(format!("/proc/self/ns/{ns}"))?.to_string_lossy() != expected {
-                return Err("--pod requires host PID and cgroup namespace views".into());
-            }
-        }
-        let scope = crate::pod_scope::PodScope::discover_with_policy(
-            uid,
-            now() + 1_000_000_000,
-            allow_exited,
-        )?;
-        self.info["pod_scope"] = scope.report.clone();
-        self.pod = Some(scope);
-        Ok(())
-    }
-    pub fn add_context(&mut self, request_id: String, clock: Value) {
-        self.info["request_id"] = json!(request_id);
+    pub fn add_clock_context(&mut self, clock: Value) {
         self.info["clock_correlation_start"] = clock;
     }
     pub fn open() -> Result<Self> {
@@ -468,7 +431,6 @@ impl Source {
             "physical_segments":segments.iter().map(|s|json!({"offset":s.offset,"vaddr":s.va,"paddr":s.pa,"filesz":s.bytes})).collect::<Vec<_>>(),
             "meminfo_before":fs::read_to_string("/proc/meminfo")?,"source_init_begin_ns":started,"source_init_end_ns":now()});
         Ok(Self {
-            pod: None,
             code_pages: crate::code_pages::CodePages::default(),
             resources: crate::resources::Resources::default(),
             all_segments: all,
@@ -486,10 +448,11 @@ impl Source {
 }
 impl Memory for Source {
     fn prepare(&mut self, _scope: Scope) {
+        const MAX_EXTRA_PAGES: usize = 131_072;
+        const STAGE_DEADLINE_NS: u64 = 5_000_000_000;
         let start = now();
-        let deadline = start + 1_000_000_000;
-        self.code_pages =
-            crate::code_pages::CodePages::scan(&self.flags, &self.ram, deadline, self.pod.as_ref());
+        let deadline = start + STAGE_DEADLINE_NS;
+        self.code_pages = crate::code_pages::CodePages::scan(&self.flags, &self.ram, deadline);
         self.info["code_page_retention"] = self.code_pages.summary();
         self.resources = crate::resources::Resources::discover(
             &self.core,
@@ -497,8 +460,7 @@ impl Memory for Source {
             &self.ram,
             &self.info["symbols"],
             crate::btf::read_running(),
-            now().saturating_add(1_000_000_000),
-            self.pod.as_ref(),
+            now().saturating_add(STAGE_DEADLINE_NS),
             &self.code_pages.file_targets(),
         );
         let groups = [
@@ -506,7 +468,7 @@ impl Memory for Source {
             self.resources.category_pages("network"),
         ];
         let cache = self.resources.category_pages("file_cache");
-        self.extra_selected = allocate_with_cache(&groups, &cache, 4096);
+        self.extra_selected = allocate_with_cache(&groups, &cache, MAX_EXTRA_PAGES);
         let candidates: std::collections::BTreeSet<_> = groups
             .iter()
             .flatten()
@@ -514,12 +476,12 @@ impl Memory for Source {
             .copied()
             .collect();
         self.info["resource_retention"] = self.resources.summary();
-        self.info["shared_retention_budget"] = json!({"max_candidate_pages":4096,"max_additional_payload_bytes":4096*PAGE,
-            "allocation":"round-robin code/network/Pod file cache; deduplicate physical pages",
+        self.info["shared_retention_budget"] = json!({"max_candidate_pages":MAX_EXTRA_PAGES,"max_additional_payload_bytes":MAX_EXTRA_PAGES as u64*PAGE,
+            "allocation":"deterministic node-wide condition selection (code, network, unlinked/memfd cache); runaway safety ceiling only",
             "candidate_pages":candidates.len(),"selected_candidate_pages":self.extra_selected.len(),
             "unselected_candidate_pages":candidates.len()-self.extra_selected.len(),"discovery_begin_ns":start,"discovery_end_ns":now(),
-            "discovery_limit_ns_per_primary_stage":1_000_000_000,
-            "scope":"Code and resource discovery have independent deadlines; Pod file cache has its own recorded budget. Active kernel calls are cooperative"});
+            "discovery_limit_ns_per_primary_stage":STAGE_DEADLINE_NS,
+            "scope":"Code and resource discovery have independent 5s ceilings; unlinked file/memfd cache discovery has its own recorded bounds. Active kernel calls are cooperative"});
     }
     fn code_pages(&self, start: u64, end: u64) -> Vec<u64> {
         self.code_pages
@@ -530,6 +492,9 @@ impl Memory for Source {
     }
     fn code_witness(&self, start: u64, end: u64, after: bool) -> Value {
         self.code_pages.witness(start, end, after)
+    }
+    fn note_code_page_skipped(&self, pa: u64, flags: u64) {
+        self.code_pages.note_skipped(pa, flags);
     }
     fn finish_code_pages(&self) -> Value {
         self.code_pages.finish()
@@ -546,16 +511,11 @@ impl Memory for Source {
             crate::resources::virtual_read(&self.core, &self.all_segments, va, data)
         })
     }
+    fn note_resource_page_skipped(&self, pa: u64, flags: u64) {
+        self.resources.note_skipped(pa, flags);
+    }
     fn finish_resources(&self) -> Value {
-        let mut result = self.resources.finish();
-        if let Some(scope) = &self.pod {
-            let validation = scope.finish();
-            if validation["complete"] != true {
-                result["complete"] = json!(false);
-            }
-            result["pod_scope_validation"] = validation;
-        }
-        result
+        self.resources.finish()
     }
     fn info(&self) -> Value {
         let mut info = self.info.clone();
@@ -648,71 +608,39 @@ pub(crate) fn allocate_extra(groups: &[Vec<u64>], limit: usize) -> std::collecti
     selected
 }
 
-#[allow(dead_code)]
-pub fn check_readiness(target_dir: Option<&Path>) -> Result<Value> {
-    let mut checks = Vec::new();
-    let mut ram_bytes = None;
-    let layout_check = (|| -> Result<()> {
-        let btf = crate::btf::Btf::parse(crate::btf::read_running()?)?;
-        for (t, f) in [
-            ("task_struct", "start_time"),
-            ("files_struct", "fdt"),
-            ("file", "private_data"),
-            ("fdtable", "open_fds"),
-            ("skb_shared_info", "frags"),
-            ("sock", "tcp_rtx_queue"),
-        ] {
-            btf.field(t, f)?;
-        }
-        Ok(())
-    })();
-    checks.push(json!({"name":"resource_layout","passed":layout_check.is_ok(),
-        "detail":layout_check.err().map(|e|e.to_string()).unwrap_or_else(|| "Running-kernel BTF and required resource layout paths readable".into())}));
-    // Use the acquisition source itself: opening kcore alone cannot establish
-    // correct ELF/direct-map/symbol/iomem compatibility or usable capabilities.
-    match Source::open() {
-        Ok(source) => {
-            let total = source
-                .ram()
-                .iter()
-                .try_fold(0u64, |n, (a, b)| n.checked_add(b.checked_sub(*a)?));
-            ram_bytes = total;
-            let sample = (|| -> Result<()> {
-                let &(start, end) = source.ram().first().ok_or("no RAM ranges")?;
-                source.flags(start, PAGE)?;
-                let (_, offset) = source.chunk(start, end, PAGE)?;
-                if let Some(offset) = offset {
-                    source.read(offset, &mut [0u8; 16])?;
-                }
-                Ok(())
-            })();
-            checks.push(json!({"name":"acquisition_source","passed":sample.is_ok() && total.is_some(),
-                "detail":sample.err().map(|e|e.to_string()).unwrap_or_else(|| "Acquisition source, required symbols, direct map and sample PFN read validated".into())}));
-        }
-        Err(e) => {
-            checks.push(json!({"name":"acquisition_source","passed":false,"detail":e.to_string()}))
+pub(crate) fn preflight_btf_and_storage(parent: &Path) -> Result<()> {
+    crate::safe_output::probe_storage(parent)?;
+    let btf = crate::btf::Btf::parse(crate::btf::read_running()?)?;
+    for (t, f) in [
+        ("task_struct", "start_time"),
+        ("task_struct", "mm"),
+        ("files_struct", "fdt"),
+        ("file", "private_data"),
+        ("fdtable", "open_fds"),
+        ("skb_shared_info", "frags"),
+        ("sock", "tcp_rtx_queue"),
+        ("vm_area_struct", "vm_file"),
+        ("vm_area_struct", "vm_flags"),
+        ("vm_area_struct", "vm_pgoff"),
+        ("inode", "i_ino"),
+        ("inode", "i_nlink"),
+    ] {
+        btf.field(t, f)?;
+    }
+    btf.field("mm_struct", "mm_mt.ma_root")
+        .or_else(|_| btf.field("mm_struct", "mm_rb.rb_node"))?;
+    Ok(())
+}
+
+pub fn preflight(parent: &Path) -> Result<Source> {
+    preflight_btf_and_storage(parent)?;
+    let memory = Source::open()?;
+    if let Some(&(start, end)) = memory.ram().first() {
+        memory.flags(start, PAGE)?;
+        let (_, offset) = memory.chunk(start, end, PAGE)?;
+        if let Some(offset) = offset {
+            memory.read(offset, &mut [0u8; 16])?;
         }
     }
-    if let Some(dir) = target_dir {
-        match crate::safe_output::probe_storage(dir) {
-            Ok(()) => checks.push(json!({"name":"storage_contract","passed":true,
-                "detail":"Private directory/file creation, write, file fsync, no-replace publication, directory/parent fsync and probe cleanup passed"})),
-            Err(e) => checks.push(json!({"name":"storage_contract","passed":false,"detail":e.to_string()})),
-        }
-        let required = (ram_bytes.unwrap_or(0) / 10).max(1024 * 1024 * 1024);
-        match crate::safe_output::check_available_space(dir,required) {
-            Ok(bytes) => checks.push(json!({"name":"storage_capacity","passed":true,"available_bytes":bytes,
-                "required_bytes":required,"detail":"Same 10%-of-System-RAM / 1-GiB minimum gate as capture; this does not reserve space"})),
-            Err(e) => checks.push(json!({"name":"storage_capacity","passed":false,"required_bytes":required,"detail":e.to_string()})),
-        }
-    } else {
-        checks.push(json!({"name":"storage_contract","passed":false,
-            "detail":"Storage not checked: pass --target-dir with an existing output parent directory"}));
-    }
-    Ok(
-        json!({"ready":checks.iter().all(|c|c["passed"]==true),"checks":checks,
-        "kernel_release":fs::read_to_string("/proc/sys/kernel/osrelease")?.trim(),
-        "effective_uid":unsafe{libc::geteuid()},"target_dir":target_dir,
-        "scope":"Readiness at check time only. Capture revalidates; concurrent writes and later policy changes can still fail. No kernel or security settings are changed."}),
-    )
+    Ok(memory)
 }
