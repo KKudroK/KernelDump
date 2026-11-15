@@ -16,6 +16,8 @@ KernelDump는 커널 모듈 없이 Linux의 메모리 읽기 파일과 BTF를 �
 
 프로세스와 커널은 수집 중 계속 실행됩니다.
 
+큰 묶음 페이지(`folio`)를 펼칠 때도 페이지마다 시간·읽기 한도와 취소 요청을 확인합니다. 트리 노드가 하나뿐인 큰 파일도 이 검사를 건너뛰지 않습니다. 페이지를 수집 후보에 등록한 뒤에만 중복 처리 목록에 넣으며, 등록 실패를 수집 성공으로 세지 않습니다.
+
 ## 구조 검사
 
 수집 완료 직후 `verify_fast`가 LiME 헤더, 범위 기록 해시, PFN 플래그, 파일 길이, `live_drift`와 수집 카운터를 검증합니다(`verify_fast` 내부 모드 이름 `fast_header_ledger`, CLI 출력 `verification_mode: "fast_structural"`, `payload_hash_verified: false`). 전체 메모리 바이트와 `lime_sha256` 대조는 분석 단계에서 수행합니다.

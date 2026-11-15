@@ -747,6 +747,74 @@ fn prepare_fd(scan: &mut Scan<'_, '_>, core: &File) -> Value {
 }
 
 #[test]
+fn direct_folio_emission_enforces_time_and_read_budget() {
+    fixture(|scan, _| {
+        let origin = json!({"kind":"test"});
+        let ctx = XaWalkCtx {
+            file: FILE,
+            inode: INODE,
+            mapping: MAPPING,
+            size: 4 * PAGE,
+            max_index: 4,
+            origin: &origin,
+            slots_offset: 0,
+            seen_nodes: BTreeSet::new(),
+        };
+        let folio = ValidatedFolio {
+            page: scan.vmemmap + 12 * scan.page_size,
+            first: 0,
+            count: 4,
+            flags: 0,
+            flag_mask: 0,
+            checks: vec![],
+        };
+        scan.live.deadline = 0;
+        assert!(scan.emit_folio_range(&ctx, &folio, 0..4).is_err());
+        assert!(scan.cache.seen.is_empty());
+        assert!(scan.plan.evidence.is_empty());
+        scan.live.deadline = now() + 5_000_000_000;
+        scan.live.read_bytes.set(scan.live.read_limit);
+        assert!(scan.emit_folio_range(&ctx, &folio, 0..4).is_err());
+        assert!(scan.plan.evidence.is_empty());
+        scan.live.read_bytes.set(0);
+        scan.emit_folio_range(&ctx, &folio, 0..4).unwrap();
+        assert_eq!(scan.cache.hits, 4);
+    });
+}
+
+#[test]
+fn rejected_folio_page_does_not_poison_duplicate_tracking() {
+    fixture(|scan, _| {
+        let origin = json!({"kind":"test"});
+        let ctx = XaWalkCtx {
+            file: FILE,
+            inode: INODE,
+            mapping: MAPPING,
+            size: PAGE,
+            max_index: 1,
+            origin: &origin,
+            slots_offset: 0,
+            seen_nodes: BTreeSet::new(),
+        };
+        let mut folio = ValidatedFolio {
+            page: scan.vmemmap + 100 * scan.page_size,
+            first: 0,
+            count: 1,
+            flags: 0,
+            flag_mask: 0,
+            checks: vec![],
+        };
+        assert!(scan.emit_folio_range(&ctx, &folio, 0..1).is_err());
+        assert!(!scan.cache.seen.contains(&(MAPPING, 0)));
+        assert_eq!(scan.cache.hits, 0);
+        folio.page = scan.vmemmap + 12 * scan.page_size;
+        scan.emit_folio_range(&ctx, &folio, 0..1).unwrap();
+        assert_eq!(scan.cache.hits, 1);
+        assert_eq!(scan.plan.evidence[0].detail["physical_start"], 12 * PAGE);
+    });
+}
+
+#[test]
 fn cache_fd_validation_ignores_other_allocation_bits_but_detects_target_close() {
     fixture(|scan, core| {
         let origin = prepare_fd(scan, core);

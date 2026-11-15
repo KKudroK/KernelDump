@@ -1088,7 +1088,15 @@ impl Scan<'_, '_> {
     ) -> Result<()> {
         let mut sample_detail = None;
         for idx in indices {
-            if !self.cache.seen.insert((ctx.mapping, idx)) {
+            // A large folio can cover many pages without another XArray read.
+            // Bound this loop as well as tree traversal, including direct roots.
+            if now() >= self.live.deadline
+                || self.live.read_bytes.get() >= self.live.read_limit
+                || crate::CANCEL.load(std::sync::atomic::Ordering::Relaxed)
+            {
+                return Err("file cache folio budget exhausted".into());
+            }
+            if self.cache.seen.contains(&(ctx.mapping, idx)) {
                 self.cache.duplicates += 1;
                 continue;
             }
@@ -1105,6 +1113,8 @@ impl Scan<'_, '_> {
                 "file":ctx.file,"inode":ctx.inode,"mapping":ctx.mapping,"page":folio.page,"file_offset":idx*PAGE,"origin":ctx.origin,
                 "page_flags_at_discovery":folio.flags,"page_flag_validation_mask":folio.flag_mask,"folio_pages":folio.count});
             self.add(pa, n, "file_cache", detail.clone(), folio.checks.clone())?;
+            // Failed admission must not suppress a later valid observation.
+            self.cache.seen.insert((ctx.mapping, idx));
             self.cache.hits += 1;
             if sample_detail.is_none() {
                 sample_detail = Some(detail);
