@@ -6,12 +6,33 @@ mod memfd_tests;
 
 const MAX_JOBS: usize = 4096;
 const MAX_PAGES: usize = 65_536;
-const MAX_FILE: u64 = 16 * 1024 * 1024;
+const MAX_XA_NODES_PER_FILE: usize = 16_384;
+const TMPFS_MAGIC: u64 = 0x01021994;
 const MAX_NS: u64 = 5_000_000_000;
 const MAX_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_MAPLE_WALK_NODES: usize = 4096;
 const MAX_VMAS_PER_MM: usize = 65_536;
 const MAX_REVERSE_VMAS: usize = 256;
+
+struct XaWalkCtx<'a> {
+    file: u64,
+    inode: u64,
+    mapping: u64,
+    size: u64,
+    max_index: u64,
+    origin: &'a Value,
+    slots_offset: u64,
+    seen_nodes: BTreeSet<u64>,
+}
+
+struct ValidatedFolio {
+    page: u64,
+    first: u64,
+    count: u64,
+    flags: u64,
+    flag_mask: u64,
+    checks: Vec<Check>,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 struct MemfdSeed {
@@ -58,6 +79,7 @@ impl JobKind {
 }
 #[derive(Default)]
 pub(super) struct CacheState {
+    pub(super) extended: bool,
     jobs: Vec<Job>,
     maps_jobs: Vec<Job>,
     maps_mms: BTreeSet<u64>,
@@ -73,7 +95,6 @@ pub(super) struct CacheState {
     queued_by_kind: [usize; 4],
     omitted: usize,
     excluded: usize,
-    oversized: usize,
     empty: usize,
     observations: Vec<Value>,
     hits: usize,
@@ -84,6 +105,12 @@ pub(super) struct CacheState {
     calls: u64,
 }
 impl CacheState {
+    pub(super) fn with_extended(extended: bool) -> Self {
+        Self {
+            extended,
+            ..Self::default()
+        }
+    }
     pub(super) fn reserve(&mut self, pages: &[u64]) -> Result<()> {
         if self.pages.len() + pages.iter().filter(|p| !self.pages.contains(p)).count() > MAX_PAGES {
             return Err("cache candidate-page safety limit".into());
@@ -92,8 +119,8 @@ impl CacheState {
         Ok(())
     }
     pub(super) fn summary(&self) -> Value {
-        json!({"queued_jobs":self.queued,"unprocessed_or_unqueued_jobs":self.omitted,
-            "ordinary_files_excluded":self.excluded,"files_truncated_to_prefix":self.oversized,
+        json!({"retention_mode":if self.extended{"extended"}else{"default"},"queued_jobs":self.queued,"unprocessed_or_unqueued_jobs":self.omitted,
+            "ordinary_files_excluded":self.excluded,"files_truncated_to_prefix":0,
             "empty_files":self.empty,"observations":self.observations,
             "resident_pages_found":self.hits,"nonresident_or_value_entries":self.misses,
             "duplicate_mapping_indices":self.duplicates,"candidate_pages_including_metadata":self.pages.len(),
@@ -101,9 +128,13 @@ impl CacheState {
             "memfd_reverse_mappings":self.reverse_observations,
             "requested_bytes":self.bytes,"read_calls":self.calls,"elapsed_ns":self.elapsed,
             "limits":{"jobs_per_kind":MAX_JOBS,"candidate_pages_including_metadata":MAX_PAGES,
-                "file_prefix_bytes":MAX_FILE,"additional_discovery_ns":MAX_NS,"additional_read_bytes":MAX_BYTES,
+                "xa_nodes_per_file":MAX_XA_NODES_PER_FILE,"additional_discovery_ns":MAX_NS,"additional_read_bytes":MAX_BYTES,
                 "maple_walk_nodes_per_mm":MAX_MAPLE_WALK_NODES,"vmas_per_mm":MAX_VMAS_PER_MM,"reverse_vmas_per_mapping":MAX_REVERSE_VMAS},
-            "selection":"Node-wide resident unlinked regular files (i_nlink == 0, including memfd/O_TMPFILE) through open FDs or shared memfd VMAs with address_space.i_mmap reverse validation, plus one backing cache page per discovered executable COW page. Ordinary linked files (i_nlink != 0, including linked tmpfs) are excluded. Only already resident pages; no file-content reads or fault-in.",
+            "selection":if self.extended{
+                "Node-wide resident unlinked regular files (i_nlink == 0, including memfd/O_TMPFILE) and linked tmpfs files (s_magic == 0x01021994, /dev/shm, emptyDir: Memory) via XArray tree walk through open FDs or shared VMAs with address_space.i_mmap reverse validation, plus one backing cache page per discovered executable COW page. Disk-backed linked files remain excluded. Only already resident pages; no file-content reads or fault-in."
+            }else{
+                "Node-wide resident unlinked regular files (i_nlink == 0, including memfd/O_TMPFILE) via XArray tree walk through open FDs or shared memfd VMAs with address_space.i_mmap reverse validation, plus one backing cache page per discovered executable COW page. Ordinary linked files (i_nlink != 0, including linked tmpfs unless --extended) are excluded. Only already resident pages; no file-content reads or fault-in."
+            },
             "meaning":"Cache is current in-memory file content, not a trusted original. References are live and checked around reads; payload bytes can still change."})
     }
 }
@@ -181,12 +212,16 @@ impl Scan<'_, '_> {
         // Admission is a hint; small_file revalidates the complete chain later.
         let inode = self.value(file, "file", "f_inode")?;
         let links = self.value(inode, "inode", "i_nlink")?;
-        if links != 0 {
+        if links != 0 && !self.cache.extended {
             self.cache.excluded += 1;
             return Ok(());
         }
         let sb = self.value(inode, "inode", "i_sb")?;
         let magic = self.value(sb, "super_block", "s_magic")?;
+        if links != 0 && !(self.cache.extended && magic == TMPFS_MAGIC) {
+            self.cache.excluded += 1;
+            return Ok(());
+        }
         require_supported_cache_fs(magic)?;
         self.queue_cache(JobKind::Fd { file, origin });
         Ok(())
@@ -231,7 +266,7 @@ impl Scan<'_, '_> {
                     continue;
                 }
                 let links = self.value(inode, "inode", "i_nlink")?;
-                if links != 0 {
+                if links != 0 && !self.cache.extended {
                     continue;
                 }
                 let mode = self.value(inode, "inode", "i_mode")?;
@@ -239,7 +274,7 @@ impl Scan<'_, '_> {
                     continue;
                 }
                 let sb = self.value(inode, "inode", "i_sb")?;
-                if self.value(sb, "super_block", "s_magic")? != 0x01021994 {
+                if self.value(sb, "super_block", "s_magic")? != TMPFS_MAGIC {
                     continue;
                 }
                 let start = self.value(vma, "vm_area_struct", "vm_start")?;
@@ -367,7 +402,6 @@ impl Scan<'_, '_> {
                 self.cache.misses,
                 self.cache.duplicates,
                 self.cache.excluded,
-                self.cache.oversized,
                 self.cache.empty,
             );
             let result = match job.kind {
@@ -394,9 +428,7 @@ impl Scan<'_, '_> {
                 "error"
             } else if self.cache.excluded > counts.3 {
                 "ordinary_file_excluded"
-            } else if self.cache.oversized > counts.4 {
-                "file_prefix_retained"
-            } else if self.cache.empty > counts.5 {
+            } else if self.cache.empty > counts.4 {
                 "empty_file"
             } else {
                 "inspected_resident_entries"
@@ -475,19 +507,20 @@ impl Scan<'_, '_> {
             return Err("cache file type changed".into());
         }
         let links = self.checked_field(inode, "inode", "i_nlink", &mut checks)?;
-        if links != 0 {
+        if links != 0 && !self.cache.extended {
             self.cache.excluded += 1;
             return Ok(());
         }
         let sb = self.checked_field(inode, "inode", "i_sb", &mut checks)?;
         let magic = self.checked_field(sb, "super_block", "s_magic", &mut checks)?;
+        if links != 0 && !(self.cache.extended && magic == TMPFS_MAGIC) {
+            self.cache.excluded += 1;
+            return Ok(());
+        }
         require_supported_cache_fs(magic)?;
         let size = self.checked_field(inode, "inode", "i_size", &mut checks)?;
         if size > i64::MAX as u64 {
             return Err("negative or corrupt file size".into());
-        }
-        if size > MAX_FILE {
-            self.cache.oversized += 1;
         }
         if size == 0 {
             self.cache.empty += 1;
@@ -516,25 +549,18 @@ impl Scan<'_, '_> {
         if self.checked_field(mapping, "address_space", "host", &mut checks)? != inode {
             return Err("cache mapping inode mismatch".into());
         }
-        for index in 0..size.min(MAX_FILE).div_ceil(PAGE) {
-            let reason = if magic == 0x01021994 {
+        let reason = if links == 0 {
+            if magic == TMPFS_MAGIC {
                 "small_shmem"
             } else {
                 "small_unlinked_file"
-            };
-            if let Err(error) = self.cache_page(
-                file,
-                inode,
-                mapping,
-                index,
-                (size - index * PAGE).min(PAGE),
-                json!({"kind":reason,"fd":fd,"file_size":size,"prefix_limit_bytes":MAX_FILE,"truncated":size>MAX_FILE}),
-                checks.clone(),
-            ) {
-                self.plan.issue("file_cache_index", format!("file {file:#x}, index {index}: {error}"));
             }
-        }
-        Ok(())
+        } else {
+            "extended_linked_tmpfs"
+        };
+        let origin_detail =
+            json!({"kind":reason,"fd":fd,"file_size":size,"nlink":links,"truncated":false});
+        self.retain_mapping_pages(file, inode, mapping, size, &origin_detail, &checks)
     }
     fn memfd_vma(&mut self, task: u64, seed: &MemfdSeed) -> Result<()> {
         let va = seed.start;
@@ -562,13 +588,13 @@ impl Scan<'_, '_> {
         if self.checked_field(inode, "inode", "i_mode", &mut checks)? & 0xf000 != 0x8000 {
             return Err("memfd backing object is not regular".into());
         }
-        if self.checked_field(inode, "inode", "i_ino", &mut checks)? != seed.inode
-            || self.checked_field(inode, "inode", "i_nlink", &mut checks)? != 0
-        {
+        let ino = self.checked_field(inode, "inode", "i_ino", &mut checks)?;
+        let links = self.checked_field(inode, "inode", "i_nlink", &mut checks)?;
+        if ino != seed.inode || (!self.cache.extended && links != 0) {
             return Err("memfd backing inode changed or still linked".into());
         }
         let sb = self.checked_field(inode, "inode", "i_sb", &mut checks)?;
-        if self.checked_field(sb, "super_block", "s_magic", &mut checks)? != 0x01021994 {
+        if self.checked_field(sb, "super_block", "s_magic", &mut checks)? != TMPFS_MAGIC {
             return Err("memfd VMA is not shmem".into());
         }
         let mapping = self.checked_field(file, "file", "f_mapping", &mut checks)?;
@@ -578,9 +604,6 @@ impl Scan<'_, '_> {
         let size = self.checked_field(inode, "inode", "i_size", &mut checks)?;
         if size > i64::MAX as u64 {
             return Err("negative or corrupt file size".into());
-        }
-        if size > MAX_FILE {
-            self.cache.oversized += 1;
         }
         if size == 0 {
             self.cache.empty += 1;
@@ -596,19 +619,14 @@ impl Scan<'_, '_> {
                 "validation":"Selected reverse-tree and owner fields are included in file-cache ledger same_fields checks. Summary alone does not establish stability or communication."
             }));
         }
-        for index in 0..size.min(MAX_FILE).div_ceil(PAGE) {
-            self.cache_page(
-                file,
-                inode,
-                mapping,
-                index,
-                (size - index * PAGE).min(PAGE),
-                json!({"kind":"shared_memfd_vma","vma":vma,
-                    "virtual_address":va,"file_size":size,"prefix_limit_bytes":MAX_FILE,"truncated":size>MAX_FILE,"fd_required":false}),
-                checks.clone(),
-            )?;
-        }
-        Ok(())
+        let kind_label = if links == 0 {
+            "shared_memfd_vma"
+        } else {
+            "extended_shared_tmpfs_vma"
+        };
+        let origin_detail = json!({"kind":kind_label,"vma":vma,
+            "virtual_address":va,"file_size":size,"nlink":links,"truncated":false,"fd_required":false});
+        self.retain_mapping_pages(file, inode, mapping, size, &origin_detail, &checks)
     }
     fn reverse_memfd_vmas(
         &self,
@@ -991,6 +1009,269 @@ impl Scan<'_, '_> {
         }
         Err("Maple lookup depth".into())
     }
+    fn validate_folio(
+        &self,
+        entry: u64,
+        mapping: u64,
+        mut checks: Vec<Check>,
+    ) -> Result<Option<ValidatedFolio>> {
+        let Some(page) = leaf(entry)? else {
+            return Ok(None);
+        };
+        let owner = self.checked_field(page, "page", "mapping", &mut checks)?;
+        if owner != mapping {
+            return Err("page cache owner mismatch".into());
+        }
+        // XArray leaves are folio heads. folio.index survives the rename of
+        // page.index to page.__folio_index in newer kernels.
+        let first = self.checked_field(page, "folio", "index", &mut checks)?;
+        let head = self.btf.enum_value("pageflags", "PG_head")?;
+        let uptodate = self.btf.enum_value("pageflags", "PG_uptodate")?;
+        if head >= 64 || uptodate >= 64 || head == uptodate {
+            return Err("invalid folio identity flags".into());
+        }
+        // Dirty, writeback, referenced and lock state may change while the
+        // same folio still belongs to the same file/index. Do not mistake
+        // those changes for a replaced reference. Keep geometry and initialized
+        // content state checked, alongside mapping, index, XArray and owner links.
+        let mut flag_mask = (1u64 << head) | (1u64 << uptodate);
+        if let Ok(poison) = self.btf.enum_value("pageflags", "PG_hwpoison") {
+            if poison >= 64 {
+                return Err("invalid hardware poison flag".into());
+            }
+            flag_mask |= 1u64 << poison;
+        }
+        let flags = self.checked_field_mask(page, "page", "flags", Some(flag_mask), &mut checks)?;
+        let count = if flags & (1u64 << head) != 0 {
+            let name = if self.field("folio", "_nr_pages").is_ok() {
+                "_nr_pages"
+            } else {
+                "_folio_nr_pages"
+            };
+            self.checked_field(page, "folio", name, &mut checks)?
+        } else {
+            1
+        };
+        Ok(Some(ValidatedFolio {
+            page,
+            first,
+            count,
+            flags,
+            flag_mask,
+            checks,
+        }))
+    }
+    fn emit_folio_metadata(&mut self, checks: &[Check], detail: &Value) -> Result<()> {
+        // Retain pages containing the exact provenance fields, deduplicated.
+        for check in checks {
+            let mut va = check.address / PAGE * PAGE;
+            let end = check.address + check.bytes.len() as u64;
+            while va < end {
+                let p = self.live.physical(va)?;
+                if !self.cache.metadata.contains(&p) {
+                    let mut d = detail.clone();
+                    d["role"] = json!("reference_metadata");
+                    d["virtual_address"] = json!(va);
+                    self.add(p, PAGE, "file_cache", d, checks.to_vec())?;
+                    self.cache.metadata.insert(p);
+                }
+                va += PAGE;
+            }
+        }
+        Ok(())
+    }
+    fn emit_folio_range(
+        &mut self,
+        ctx: &XaWalkCtx<'_>,
+        folio: &ValidatedFolio,
+        indices: std::ops::Range<u64>,
+    ) -> Result<()> {
+        let mut sample_detail = None;
+        for idx in indices {
+            if !self.cache.seen.insert((ctx.mapping, idx)) {
+                self.cache.duplicates += 1;
+                continue;
+            }
+            let pa = folio_pa(
+                folio.page,
+                self.vmemmap,
+                self.page_size,
+                folio.first,
+                folio.count,
+                idx,
+            )?;
+            let n = (ctx.size - idx * PAGE).min(PAGE);
+            let detail = json!({"role":"file_bytes","pid":self.task_identity["pid"],"process":self.task_identity,
+                "file":ctx.file,"inode":ctx.inode,"mapping":ctx.mapping,"page":folio.page,"file_offset":idx*PAGE,"origin":ctx.origin,
+                "page_flags_at_discovery":folio.flags,"page_flag_validation_mask":folio.flag_mask,"folio_pages":folio.count});
+            self.add(pa, n, "file_cache", detail.clone(), folio.checks.clone())?;
+            self.cache.hits += 1;
+            if sample_detail.is_none() {
+                sample_detail = Some(detail);
+            }
+        }
+        if let Some(detail) = sample_detail {
+            self.emit_folio_metadata(&folio.checks, &detail)?;
+        }
+        Ok(())
+    }
+    fn handle_xa_leaf(
+        &mut self,
+        ctx: &XaWalkCtx<'_>,
+        entry: u64,
+        slot_base: u64,
+        checks: Vec<Check>,
+    ) -> Result<()> {
+        let Some(folio) = self.validate_folio(entry, ctx.mapping, checks)? else {
+            self.cache.misses += 1;
+            return Ok(());
+        };
+        if folio.first > slot_base || slot_base - folio.first >= folio.count {
+            return Err("page cache folio bounds".into());
+        }
+        let end = folio.first.saturating_add(folio.count).min(ctx.max_index);
+        self.emit_folio_range(ctx, &folio, folio.first..end)
+    }
+    fn walk_xa_node(
+        &mut self,
+        ctx: &mut XaWalkCtx<'_>,
+        entry: u64,
+        prefix_index: u64,
+        parent_shift: Option<u64>,
+        depth: usize,
+        checks: &[Check],
+    ) -> Result<()> {
+        if now() >= self.live.deadline
+            || self.cache.pages.len() >= MAX_PAGES
+            || self.live.read_bytes.get() >= self.live.read_limit
+            || crate::CANCEL.load(std::sync::atomic::Ordering::Relaxed)
+        {
+            return Err("file cache XArray budget exhausted".into());
+        }
+        if depth >= 16 || !ctx.seen_nodes.insert(entry) {
+            return Err("XArray lookup depth/cycle".into());
+        }
+        if ctx.seen_nodes.len() > MAX_XA_NODES_PER_FILE {
+            return Err("XArray traversal node limit".into());
+        }
+        let node = entry - 2;
+        let mut node_checks = checks.to_vec();
+        let shift = self.checked_field(node, "xa_node", "shift", &mut node_checks)?;
+        if shift > 60 || !shift.is_multiple_of(6) || parent_shift.is_some_and(|ps| shift >= ps) {
+            return Err("unsupported XArray geometry".into());
+        }
+        let raw_slots = self.live.read(node + ctx.slots_offset, 64 * 8)?;
+        let slot_span = 1u64 << shift;
+        for slot_idx in 0..64u64 {
+            let Some(slot_base) = slot_idx
+                .checked_mul(slot_span)
+                .and_then(|v| prefix_index.checked_add(v))
+            else {
+                break;
+            };
+            if slot_base >= ctx.max_index {
+                break;
+            }
+            let off = slot_idx as usize * 8;
+            let child_bytes = &raw_slots[off..off + 8];
+            let child = u64::from_le_bytes(child_bytes.try_into().unwrap());
+            if child == 0 {
+                continue;
+            }
+            match xa_sibling(child, slot_idx) {
+                Ok(Some(sibling)) => {
+                    let p_off = sibling as usize * 8;
+                    let primary =
+                        u64::from_le_bytes(raw_slots[p_off..p_off + 8].try_into().unwrap());
+                    if primary == 0 || (primary & 3 == 2 && primary >> 2 < 63) {
+                        self.plan.issue_or_drift(
+                            "file_cache_index",
+                            format!(
+                                "file {:#x}, index {slot_base}: recursive XArray sibling",
+                                ctx.file
+                            ),
+                        );
+                    }
+                    continue;
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    self.plan.issue_or_drift(
+                        "file_cache_index",
+                        format!("file {:#x}, index {slot_base}: {error}", ctx.file),
+                    );
+                    continue;
+                }
+            }
+            let mut slot_checks = node_checks.clone();
+            slot_checks.push(Check {
+                address: node + ctx.slots_offset + off as u64,
+                bytes: child_bytes.to_vec(),
+                mask: None,
+            });
+            if shift > 0 && child & 3 == 2 && child > 4096 {
+                self.walk_xa_node(ctx, child, slot_base, Some(shift), depth + 1, &slot_checks)?;
+            } else if let Err(error) = self.handle_xa_leaf(ctx, child, slot_base, slot_checks) {
+                self.plan.issue_or_drift(
+                    "file_cache_index",
+                    format!("file {:#x}, index {slot_base}: {error}", ctx.file),
+                );
+            }
+        }
+        Ok(())
+    }
+    fn retain_mapping_pages(
+        &mut self,
+        file: u64,
+        inode: u64,
+        mapping: u64,
+        size: u64,
+        origin: &Value,
+        base_checks: &[Check],
+    ) -> Result<()> {
+        let max_index = size.div_ceil(PAGE);
+        let mut checks = base_checks.to_vec();
+        let entry = self.checked_field(mapping, "address_space", "i_pages.xa_head", &mut checks)?;
+        if entry == 0 {
+            return Ok(());
+        }
+        if entry & 3 != 2 || entry <= 4096 {
+            let ctx = XaWalkCtx {
+                file,
+                inode,
+                mapping,
+                size,
+                max_index,
+                origin,
+                slots_offset: 0,
+                seen_nodes: BTreeSet::new(),
+            };
+            let Some(folio) = self.validate_folio(entry, mapping, checks)? else {
+                self.cache.misses += 1;
+                return Ok(());
+            };
+            if folio.first != 0 {
+                return Err("page cache root folio index mismatch".into());
+            }
+            let end = folio.count.min(max_index);
+            return self.emit_folio_range(&ctx, &folio, 0..end);
+        }
+        let slots = self.field("xa_node", "slots")?;
+        if slots.size != 64 * 8 {
+            return Err("unsupported XArray geometry".into());
+        }
+        let mut ctx = XaWalkCtx {
+            file,
+            inode,
+            mapping,
+            size,
+            max_index,
+            origin,
+            slots_offset: slots.offset,
+            seen_nodes: BTreeSet::new(),
+        };
+        self.walk_xa_node(&mut ctx, entry, 0, None, 0, &checks)
+    }
     #[allow(clippy::too_many_arguments)]
     fn cache_page(
         &mut self,
@@ -1034,72 +1315,25 @@ impl Scan<'_, '_> {
             }
             root = false;
         }
-        let Some(page) = leaf(entry)? else {
-            self.cache.misses += 1;
-            return Ok(());
-        };
         if root && index != 0 {
             self.cache.misses += 1;
             return Ok(());
         }
-        let owner = self.checked_field(page, "page", "mapping", &mut checks)?;
-        if owner != mapping {
-            return Err("page cache owner mismatch".into());
-        }
-        // XArray leaves are folio heads. folio.index survives the rename of
-        // page.index to page.__folio_index in newer kernels.
-        let first = self.checked_field(page, "folio", "index", &mut checks)?;
-        let head = self.btf.enum_value("pageflags", "PG_head")?;
-        let uptodate = self.btf.enum_value("pageflags", "PG_uptodate")?;
-        if head >= 64 || uptodate >= 64 || head == uptodate {
-            return Err("invalid folio identity flags".into());
-        }
-        // Dirty, writeback, referenced and lock state may change while the
-        // same folio still belongs to the same file/index. Do not mistake
-        // those changes for a replaced reference. Keep geometry and initialized
-        // content state checked, alongside mapping, index, XArray and owner links.
-        let mut flag_mask = (1u64 << head) | (1u64 << uptodate);
-        if let Ok(poison) = self.btf.enum_value("pageflags", "PG_hwpoison") {
-            if poison >= 64 {
-                return Err("invalid hardware poison flag".into());
-            }
-            flag_mask |= 1u64 << poison;
-        }
-        let flags = self.checked_field_mask(page, "page", "flags", Some(flag_mask), &mut checks)?;
-        let count = if flags & (1u64 << head) != 0 {
-            let name = if self.field("folio", "_nr_pages").is_ok() {
-                "_nr_pages"
-            } else {
-                "_folio_nr_pages"
-            };
-            self.checked_field(page, "folio", name, &mut checks)?
-        } else {
-            1
+        let Some(folio) = self.validate_folio(entry, mapping, checks)? else {
+            self.cache.misses += 1;
+            return Ok(());
         };
-        let pa = folio_pa(page, self.vmemmap, self.page_size, first, count, index)?;
-        let detail = json!({"role":"file_bytes","pid":self.task_identity["pid"],"process":self.task_identity,
-            "file":file,"inode":inode,"mapping":mapping,"page":page,"file_offset":index*PAGE,"origin":origin,
-            "page_flags_at_discovery":flags,"page_flag_validation_mask":flag_mask,"folio_pages":count});
-        self.add(pa, n, "file_cache", detail.clone(), checks.clone())?;
-        self.cache.seen.insert((mapping, index));
-        self.cache.hits += 1;
-        // Retain pages containing the exact provenance fields, deduplicated.
-        for check in &checks {
-            let mut va = check.address / PAGE * PAGE;
-            let end = check.address + check.bytes.len() as u64;
-            while va < end {
-                let p = self.live.physical(va)?;
-                if !self.cache.metadata.contains(&p) {
-                    let mut d = detail.clone();
-                    d["role"] = json!("reference_metadata");
-                    d["virtual_address"] = json!(va);
-                    self.add(p, PAGE, "file_cache", d, checks.clone())?;
-                    self.cache.metadata.insert(p);
-                }
-                va += PAGE;
-            }
-        }
-        Ok(())
+        let ctx = XaWalkCtx {
+            file,
+            inode,
+            mapping,
+            size: index * PAGE + n,
+            max_index: index + 1,
+            origin: &origin,
+            slots_offset: 0,
+            seen_nodes: BTreeSet::new(),
+        };
+        self.emit_folio_range(&ctx, &folio, index..index + 1)
     }
 }
 

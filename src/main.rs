@@ -46,7 +46,7 @@ fn clock_pair() -> Value {
 pub(crate) enum CliAction {
     Help,
     Version,
-    Run { output: PathBuf },
+    Run { output: PathBuf, extended: bool },
 }
 
 pub(crate) fn parse_cli_args(args: &[String]) -> Result<CliAction> {
@@ -61,6 +61,7 @@ pub(crate) fn parse_cli_args(args: &[String]) -> Result<CliAction> {
         return Ok(CliAction::Version);
     }
     let mut output: Option<PathBuf> = None;
+    let mut extended = false;
     let mut i = 0usize;
     while i < rest.len() {
         let arg = &rest[i];
@@ -84,24 +85,30 @@ pub(crate) fn parse_cli_args(args: &[String]) -> Result<CliAction> {
             }
             output = Some(PathBuf::from(value));
             i += 1;
+        } else if arg == "--extended" {
+            if extended {
+                return Err("duplicate --extended".into());
+            }
+            extended = true;
+            i += 1;
         } else {
             return Err(format!("unknown or unsupported argument: {arg}; try --help").into());
         }
     }
     let output = output.ok_or("--output NEW_DIR is required (try --help)")?;
-    Ok(CliAction::Run { output })
+    Ok(CliAction::Run { output, extended })
 }
 
 fn help_text() -> String {
     format!(
-        "kerneldump {}\n\nUsage:\n  kerneldump --output <NEW_DIR>\n\nOptions:\n  --output <NEW_DIR>  New output directory for memory.lime, ranges.jsonl, and manifest.json\n  -h, --help          Show help and exit\n  -V, --version       Show version and exit\n\nSingle unified workflow:\n  1. Preflight check (storage contract, BTF kernel/VMA layout, kcore/kpageflags probe)\n  2. PFN-selective sparse LiME capture with deterministic node-wide code/network/unlinked-cache retention\n  3. Inline fast structural verification (headers, ledger hashes, counters, logical file bounds)\n\nExit 0 confirms complete acquisition for policy, durable publication, and structural verification; exit 2 means incomplete.",
+        "kerneldump {}\n\nUsage:\n  kerneldump --output <NEW_DIR> [--extended]\n\nOptions:\n  --output <NEW_DIR>  New output directory for memory.lime, ranges.jsonl, and manifest.json\n  --extended          Also retain resident pages of linked tmpfs files (/dev/shm, emptyDir: Memory)\n  -h, --help          Show help and exit\n  -V, --version       Show version and exit\n\nSingle unified workflow:\n  1. Preflight check (storage contract, BTF kernel/VMA layout, kcore/kpageflags probe)\n  2. PFN-selective sparse LiME capture with deterministic node-wide code/network/file-cache retention\n  3. Inline fast structural verification (headers, ledger hashes, counters, logical file bounds)\n\nExit 0 confirms complete acquisition for policy, durable publication, and structural verification; exit 2 means incomplete.",
         env!("CARGO_PKG_VERSION")
     )
 }
 
 fn run() -> Result<bool> {
     let args: Vec<String> = std::env::args().collect();
-    let output = match parse_cli_args(&args)? {
+    let (output, extended) = match parse_cli_args(&args)? {
         CliAction::Help => {
             println!("{}", help_text());
             return Ok(true);
@@ -110,7 +117,7 @@ fn run() -> Result<bool> {
             println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
             return Ok(true);
         }
-        CliAction::Run { output } => output,
+        CliAction::Run { output, extended } => (output, extended),
     };
     if output.symlink_metadata().is_ok() {
         return Err(format!("output path already exists: {}", output.display()).into());
@@ -121,6 +128,7 @@ fn run() -> Result<bool> {
         .unwrap_or(Path::new("."));
     // Unified Step 1: Preflight storage contract, BTF layouts, and kcore/kpageflags.
     let mut memory = source::preflight(parent)?;
+    memory.set_extended(extended);
     memory.add_clock_context(clock_pair());
     // Unified Step 2: Acquire PFN-selective sparse LiME payload + ledger + manifest.
     let m = capture::acquire(
@@ -147,6 +155,7 @@ fn run() -> Result<bool> {
         json!({
             "status": m["status"],
             "completeness": if m["status"] == "complete_for_policy" { "complete" } else { "incomplete" },
+            "retention_mode": m["retention_mode"],
             "output": output,
             "verification_mode": if verified.is_some() { "fast_structural" } else { "skipped" },
             "verified": verified_ok,

@@ -319,6 +319,7 @@ pub struct Source {
     resources: crate::resources::Resources,
     all_segments: Vec<Segment>,
     extra_selected: std::collections::BTreeSet<u64>,
+    extended: bool,
     core: File,
     flags: File,
     segments: Vec<Segment>,
@@ -329,6 +330,9 @@ pub struct Source {
     flags_io: ReadCounter,
 }
 impl Source {
+    pub fn set_extended(&mut self, extended: bool) {
+        self.extended = extended;
+    }
     pub fn add_clock_context(&mut self, clock: Value) {
         self.info["clock_correlation_start"] = clock;
     }
@@ -435,6 +439,7 @@ impl Source {
             resources: crate::resources::Resources::default(),
             all_segments: all,
             extra_selected: std::collections::BTreeSet::new(),
+            extended: false,
             core,
             flags,
             segments,
@@ -452,6 +457,7 @@ impl Memory for Source {
         const STAGE_DEADLINE_NS: u64 = 5_000_000_000;
         let start = now();
         let deadline = start + STAGE_DEADLINE_NS;
+        self.info["retention_mode"] = json!(if self.extended { "extended" } else { "default" });
         self.code_pages = crate::code_pages::CodePages::scan(&self.flags, &self.ram, deadline);
         self.info["code_page_retention"] = self.code_pages.summary();
         self.resources = crate::resources::Resources::discover(
@@ -462,6 +468,7 @@ impl Memory for Source {
             crate::btf::read_running(),
             now().saturating_add(STAGE_DEADLINE_NS),
             &self.code_pages.file_targets(),
+            self.extended,
         );
         let groups = [
             self.code_pages.addresses(0, u64::MAX),
@@ -475,13 +482,17 @@ impl Memory for Source {
             .chain(cache.iter())
             .copied()
             .collect();
+        if candidates.len() > self.extra_selected.len() {
+            self.resources
+                .record_budget_truncation(candidates.len() - self.extra_selected.len());
+        }
         self.info["resource_retention"] = self.resources.summary();
         self.info["shared_retention_budget"] = json!({"max_candidate_pages":MAX_EXTRA_PAGES,"max_additional_payload_bytes":MAX_EXTRA_PAGES as u64*PAGE,
-            "allocation":"deterministic node-wide condition selection (code, network, unlinked/memfd cache); runaway safety ceiling only",
+            "allocation":"deterministic node-wide condition selection (code, network, file cache); runaway safety ceiling only",
             "candidate_pages":candidates.len(),"selected_candidate_pages":self.extra_selected.len(),
             "unselected_candidate_pages":candidates.len()-self.extra_selected.len(),"discovery_begin_ns":start,"discovery_end_ns":now(),
             "discovery_limit_ns_per_primary_stage":STAGE_DEADLINE_NS,
-            "scope":"Code and resource discovery have independent 5s ceilings; unlinked file/memfd cache discovery has its own recorded bounds. Active kernel calls are cooperative"});
+            "scope":"Code and resource discovery have independent 5s ceilings; file cache discovery walks resident XArray subtrees within recorded bounds. Active kernel calls are cooperative"});
     }
     fn code_pages(&self, start: u64, end: u64) -> Vec<u64> {
         self.code_pages

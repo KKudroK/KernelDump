@@ -58,7 +58,7 @@ impl TestBtf {
     }
 }
 
-fn network_btf() -> Btf {
+pub(super) fn network_btf() -> Btf {
     let mut b = TestBtf::new();
     let u8t = b.int("u8", 1);
     let u16t = b.int("u16", 2);

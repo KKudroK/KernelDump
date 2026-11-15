@@ -1,33 +1,42 @@
 # 릴리스 검증
 
-`kerneldump 1.4.0` 후보판은 오프라인 코드·빌드 검사, 정적 `musl` 바이너리 무결성, 단순 CLI 20건 검사, 지역 WSL2 환경의 다중 파드·대용량 잡음 수집 검증, `rrudrok 0.4.0` 분석 호환 검증을 모두 통과했습니다. 실제 AWS EC2 노드 수집 검증은 아직 남아 있으므로, 이 확인이 끝나기 전에는 `main` 병합과 공개 릴리스를 완료하지 않습니다.
+`kerneldump 1.4.0`(`prod-hardening` 브랜치)은 오프라인 코드·빌드 검사, 정적 `musl` 바이너리 무결성, 단순 CLI 검사, 지역 WSL2(`ext4`) 환경의 반례 검증(`1db4019` vs 기본 수집 vs `--extended`), 3회 교차 측정, `rrudrok 0.5.0` 분석 호환 검증을 모두 통과했습니다. `main` 병합과 공개 릴리스 여부는 사용자 결정에 따라 진행합니다.
 
 ## 1. 정적 빌드와 코드 검사
 
 오프라인 환경에서 아래 검사를 모두 통과했습니다.
 
 - `cargo fmt --check`, `cargo clippy --offline --locked --all-targets -- -D warnings`, `python3 scripts/build_release.py --check-vendor` 통과
-- `cargo test --offline --locked`, `cargo test --offline --locked --release`, `x86_64-unknown-linux-musl` 정적 릴리스 테스트 각각 **101개 통과, 실패 0개**
-- 배포 바이너리(`1,365,888`바이트, SHA-256 `88b2745435ec58572e8e0945258fdff371afa2fb7157cc393aabe042c2e12090`) 확인: 외부 공유 라이브러리 없이 정적 연결(`statically linked`), 기능 플래그 비어 있음(`features: []`), 배포 `manifest.json`의 소스 20개 SHA-256 전부 현재 소스와 일치(자세한 해시는 배포 `manifest.json`과 `SHA256SUMS.txt` 참조)
+- `cargo test --offline --locked`, `cargo test --offline --locked --release`, `x86_64-unknown-linux-musl` 정적 릴리스 테스트 각각 **103개 통과, 실패 0개**
+- 배포 바이너리(`1,383,472`바이트, SHA-256 `a295f81f09e7eb05d5d3bd5ce1ae06d61d7a20be77506b0fedfa3e34418ae4ed`) 확인: 외부 공유 라이브러리 없이 정적 연결(`statically linked`), 기능 플래그 비어 있음(`features: []`), 배포 `manifest.json`의 소스 20개 SHA-256 전부 현재 소스와 일치(자세한 해시는 배포 `manifest.json`과 `SHA256SUMS.txt` 참조)
 
-## 2. 단일 명령 CLI 검증
+## 2. 단일 명령과 기본/확장 두 가지 모드 CLI 검증
 
-정적 배포 바이너리로 CLI 20건을 확인했습니다. 정상 경로 5건(`--help`, `-h`, `--version`, `-V`, 도움말 출력)과 오류 거부 15건(제거된 하위 명령 `check`·`capture`·`probe`·`verify`, 제거된 옵션 `--pod`·`--pod-uid`·`--allow-exited-pod`·`--max-write-mbps`·`--request-id`·`--build-info`·`--wait-timeout-ms` 등) 모두 기대한 종료 코드와 오류 안내를 확인했습니다.
+정적 배포 바이너리는 `kerneldump --output <새_폴더> [--extended]`와 `-h`/`--help`, `-V`/`--version`만 제공합니다. 도움말·버전 출력과 중복 `--extended`, 제거된 하위 명령(`capture`), 제거된 `--pod` 옵션 거부를 확인했습니다.
 
-## 3. 다중 파드·배경 잡음 환경의 조건 기반 보존과 `rrudrok` 호환성
+## 3. 반례 검증·3회 교차 측정·`rrudrok` 호환 검증
 
-조건 기반 보존은 특정 파드 UID나 임의의 작은 용량 제한에 의존하지 않고, PFN 플래그(물리 메모리 4 KiB 칸마다 커널이 붙이는 상태 표시)와 커널 자료구조를 기준으로 분석에 필요한 커널·코드·공유 캐시·소켓 영역을 고르는 방식입니다. 일반 디스크나 `tmpfs`에 경로가 연결된 파일 캐시(`i_nlink != 0`)는 빼고, 익명 실행 페이지, CoW(원본 파일을 고쳐 쓰면서 프로세스 전용으로 분리된 복사) 페이지, 디스크 경로는 지워졌지만 메모리에 남은 실행 파일(`unlinked`), `memfd`(디스크 파일 없이 메모리 안에서 만든 공유 파일), 닫힌 파일 기술자 공유 캐시, TCP 수신 큐를 남깁니다. 추가 페이로드 **512 MiB**, 후보 **131,072페이지**, 주요 탐색 단계당 **5초** 한도는 평소 덤프를 자르는 기준이 아니라 비정상 팽창을 막는 안전 상한입니다.
+개선판(`v1.4.0`)은 `address_space.i_pages` XArray 트리를 직접 순회(`MAX_XA_NODES_PER_FILE = 16,384`)해 `16 MiB` 파일 앞부분 자름을 없앴고, 소켓 대기열 안전 상한을 `64 KiB`에서 **`16 MiB`**로 올렸으며, 큐·후보 상한에 걸리면 `issues`와 `status: "partial"`(종료 코드 `2`)을 남깁니다. 또한 기본 수집(`default`, `i_nlink == 0`)과 `--extended` 확장 수집(링크가 남은 `tmpfs` `0x01021994` 추가 보존)으로 모드를 분리했습니다(`filter.policy = "kernel-focused-v9"` 유지).
 
-지역 WSL2 커널(`6.18.33.2-microsoft-standard-WSL2`)에서 기준 수집(`kd_baseline`)과 파드 3개 + 384 MiB 잡음 프로세스(익명 128 MiB + 일반 파일 캐시 192 MiB + 일반 `tmpfs` 공유 파일 64 MiB)가 함께 실행되는 상태(`kd_multipod_noise`)를 비교했습니다.
+지역 WSL2 커널(`6.18.33.2-microsoft-standard-WSL2`, `ext4`)에서 `32 MiB memfd`(0 MiB·20 MiB 지점 증인), `192 KiB` TCP 수신 대기열, 열린 FD `tmpfs`, 닫힌 FD `MAP_SHARED tmpfs`, 삭제 후 열린 파일, CoW·익명 실행 페이지와 함께 `384 MiB` `ext4` 배경 파일 프로세스를 두고 비교했습니다.
 
-- **증인 복원과 잡음 배제**: 심어 둔 증인 문자열 **8종을 모두 복원**했고, 잡음 프로세스(PID 6757)의 `file_cache` 상주 페이지와 `memfd` 역매핑은 **0건**, 제외 대상 일반 `tmpfs` 문자열 미설명 잔존은 **0건**, 일반 파일 제외는 **125건**이었습니다.
-- **크기 억제와 안전 상한 여유**: 후보 **2,817페이지**(코드 1,337 + 자원 1,480)를 전량 수집해 상한 초과로 탈락한 페이지는 **0페이지**였습니다. 기준 상태 대비 전체 논리 파일 크기는 **4,051,296바이트 감소**(`1,032,773,856` → `1,028,722,560`), 디스크 실제 할당 크기는 **454,656바이트 감소**(`861,822,976` → `861,368,320`)해 384 MiB 잡음이 덤프를 키우지 않았습니다.
-- **비원자적 탐색 drift 분리**: 수집 도중 외부 프로세스 종료로 바뀐 탐색 대상 1건은 수집기 결함(`issue_count: 0`)과 분리해 `live_drift`로 기록하고, 정책 기준 완료(`complete_for_policy`, 종료 코드 0)를 유지했습니다.
-- **`rrudrok 0.4.0` 분석 호환**: 생성한 ISF(커널 구조체·심볼 위치를 분석기에 알려 주는 안내 파일, 타입 16,441개, 심볼 197,535개)와 덤프로 `analyze --verify-hashes`를 실행해 오류 0건, 경고 0건, 분석 후 해시 일치, 레코드 **45,397건**을 확인했습니다. `show` 6종(`summary`, `pods`, `processes`, `net`, `files`, `drift`)과 물리 주소·`linux_banner` `read-memory` 복원도 정상 동작했습니다.
+- **이전 후보(`1db4019`) 반례**: `memfd 20 MiB` 지점을 `policy_excluded`로 제외했고, `192 KiB` TCP 수신 대기열도 `[32,767, 32,769]`(`65,536`B)에서 잘려 뒷부분 증인이 빠졌지만(`policy_window_truncations: 2`), `issue_count: 0`, `complete_for_policy`(종료 코드 `0`)로 보고했습니다.
+- **개선판 기본 수집 (`--output DIR`)**: `rc=0`, `complete_for_policy`, `retention_mode: "default"`, `policy_window_truncations: 0`, `issue_count: 0`을 기록했습니다. `memfd` 0 MiB·20 MiB, `196,608 B`(`192 KiB`) TCP 수신 대기열 전체(분할 물리 페이지 재조합 100% 일치), 삭제 후 열린 파일·CoW·익명 실행 페이지를 모두 복원했고, 일반 `tmpfs`와 `384 MiB` `ext4` 배경 파일(`noise_pid_file_cache_pages: 0`, `ext4_noise: 0`)은 제외했습니다.
+- **개선판 확장 수집 (`--output DIR --extended`)**: 기본 수집 항목 전체에 더해 `/dev/shm` 일반 `tmpfs` 열린 FD와 닫힌 FD `MAP_SHARED` VMA 증인까지 모두 복원하면서도 `ext4` 배경 파일은 그대로 제외했습니다(`noise_pid_file_cache_pages: 0`, `ext4_noise: 0`).
 
-검증에 사용한 임시 덤프와 작업 폴더는 확인 직후 삭제했습니다. 이 결과는 단일 WSL2 커널에서 모의 부하로 확인한 것이며, 실제 쿠버네티스 노드의 컨테이너 런타임과 디스크·네트워크 환경을 대신하지 않습니다.
+| 버전/모드 | 3회 중앙값 수집 시간 | 논리 파일 크기 | 실제 디스크 할당 | Sparse 0 절약 |
+|---|---:|---:|---:|---:|
+| `main` (`v1.3.0`) | 3,132.8 ms | 1,158,084,416 B | 1,158,090,752 B | 0 B |
+| 개선판 기본 (`--output`) | 8,207.66 ms | 1,216,247,776 B | 1,052,975,104 B | 222,277,632 B |
+| 개선판 확장 (`--extended`) | 7,829.467 ms | 1,131,277,600 B | 975,777,792 B | 211,447,808 B |
 
-## 4. 남은 확인
+`v1.4.0`은 XArray 전체 순회, `16 MiB` 소켓 큐 검사, 0 페이지 Sparse 저장과 직후 구조 검사(`verify_fast`)까지 한 명령에서 수행해 실제 디스크 사용량을 줄이면서도 `main`이 놓치던 `20 MiB+ memfd`와 긴 TCP 대기열을 복원합니다. (위 수치는 WSL2 `ext4` 모의 부하 환경 측정값이며, 이전 EC2 기록과는 별개입니다.)
 
-AWS 로그인 후 실제 EC2 쿠버네티스 노드에서 `kerneldump --output <새_폴더>` 실수집, 전체 SHA-256과 희소 파일(0바이트만 연속된 구간은 실제 디스크 블록을 쓰지 않고 빈 구간 정보만 남기는 파일) 할당, `rrudrok` 분석 호환을 확인하고 임시 덤프를 정리한 뒤 `main` 병합과 릴리스를 진행합니다.
+- **`rrudrok 0.5.0` 분석 호환**: PodDump Core(`Pod` cgroup 1개)와 KernelDump 확장 수집본, ISF(타입 16,441개, 심볼 197,535개)를 함께 `analyze --verify-hashes`로 분석해 **오류 0건, 경고 0건, 분석 후 해시 검증 일치, 레코드 53,745건**을 확인했습니다. `show` 6종(`summary`, `pods`, `processes`, `net`, `files`, `drift`)과 `read-memory` 3종(Core 가상 주소, 커널 물리 `0x1000`, `linux_banner`)도 정상 종료했습니다.
+
+검증에 사용한 임시 덤프와 작업 폴더는 확인 직후 모두 삭제했습니다.
+
+## 4. 배포 전 확인 상태
+
+소스 검증, 정적 musl 릴리스 빌드, WSL2 반례·교차 비교와 `rrudrok` 호환 검증, 임시 덤프 정리를 마쳤습니다. `main` 병합과 공개 릴리스만 사용자 확인 후 진행합니다.
 

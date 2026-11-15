@@ -75,19 +75,28 @@ printf '종료 코드: %s\n' "$result"
 | 옵션 | 사용 방법 |
 |---|---|
 | `--output NEW_DIR` | 필수. 새로 생성할 수집 결과 디렉터리 경로 |
+| `--extended` | 선택. 기본 대상에 더해 경로가 남은 `tmpfs`(`0x01021994`, `/dev/shm` 등) 상주 페이지까지 추가로 수집 |
 | `-h`, `--help` | 도움말 출력 후 종료 (인자 없이 실행해도 동일) |
 | `-V`, `--version` | 버전 출력 후 종료 |
 
+```sh
+# 기본 수집: 비연결 파일·memfd, 실행 코드, 소켓 대기열 수집 (링크된 tmpfs 및 디스크 파일 제외)
+sudo ./kerneldump --output /evidence/node_001
+
+# 확장 수집: 기본 수집 + 링크가 남은 일반 tmpfs 상주 페이지 추가 (ext4 등 디스크 파일은 계속 제외)
+sudo ./kerneldump --output /evidence/node_001 --extended
+```
+
 ## 수집 범위
 
-- 커널의 프로세스·파일·통신 등을 분석하는 데 필요한 SLAB·페이지 테이블과 인접 커널 페이지를 선별합니다. 일반 프로세스 메모리 전체와 일반 파일 캐시 전체는 제외합니다.
+- 커널의 프로세스·파일·통신 등을 분석하는 데 필요한 SLAB·페이지 테이블과 인접 커널 페이지를 선별합니다. 일반 프로세스 메모리 전체와 디스크 파일 캐시(`ext4`, `xfs`, `overlayfs` 등) 전체는 제외합니다.
 - 추가 증거는 Pod를 지정하지 않고 **노드 전체에서 조건에 맞는 대상만** 수집합니다.
   - 실행 중인 모든 프로세스의 private 실행 매핑(`r-xp`) 중 익명·COW 코드 페이지
-  - 실행 커널 BTF를 따라 찾은 소켓 송신·수신 대기열과 TCP 재전송·비순차 큐(큐별 64KiB 한도)
-  - 링크가 끊긴 일반 파일(`i_nlink == 0`, 예: `memfd_create`, `O_TMPFILE`, 삭제 후 열린 파일)의 상주 페이지(열린 FD 또는 커널 VMA 트리에서 직접 탐색한 공유 `memfd` VMA, 파일별 최대 16MiB)
+  - 실행 커널 BTF를 따라 찾은 소켓 송신·수신 대기열과 TCP 재전송·비순차 큐(큐당 최대 `16 MiB`, 큐당 최대 `16,384`개 `sk_buff`, 전체 최대 `65,536`개 `sk_buff`)
+  - 링크가 끊긴 정규 파일(`i_nlink == 0`, 예: `memfd_create`, `O_TMPFILE`, 삭제 후 열린 파일)의 상주 페이지: 열린 FD 또는 커널 VMA 트리에서 직접 찾은 공유 매핑을 대상으로 `address_space.i_pages` XArray 트리를 직접 순회해 앞부분 `16 MiB` 자름 없이 상주 페이지를 수집합니다(파일당 최대 `16,384` XArray 노드).
+  - `--extended` 지정 시 링크가 남아 있는 `tmpfs`(`s_magic == 0x01021994`, 예: `/dev/shm`, `emptyDir: Memory`)의 상주 페이지도 열린 FD 또는 `MAP_SHARED` VMA를 통해 추가로 수집합니다.
   - 발견한 COW 실행 코드 페이지와 1:1로 대응하는 원본 파일 캐시 페이지
-- 디스크에 경로 이름이 남아 있는 일반 파일(`i_nlink != 0`, 일반 호스트 `tmpfs` 포함)은 캐시 추가 수집에서 제외합니다.
-- 동시 작업 수, 쓰기 속도, 안전 상한(runaway 커널 방어용 상한 512MiB)은 내부 기본값으로 자동 관리합니다. 상한에 걸리거나 읽기 오류가 나면 `partial`과 `issues`를 남기고, 프로세스 정지 없이 수집하는 도중 대상 프로세스나 소켓 참조가 바뀐 경우에는 `ranges.jsonl`과 `live_drift`에 변경 사실을 함께 기록합니다.
+- 동시 작업 수, 쓰기 속도, 안전 상한(runaway 커널 방어용 공용 후보 `512 MiB` / `131,072`페이지, 소켓 큐 `16 MiB`)은 내부 기본값으로 자동 관리합니다. 상한에 걸려 일부가 잘리거나 읽기 오류가 나면 `queue_window_truncation`·`shared_retention_budget` 등의 `issues`와 `status: "partial"`(종료 코드 `2`)을 남기며 완료(`complete_for_policy`)로 보고하지 않습니다. 프로세스 정지 없이 수집하는 도중 대상 프로세스나 소켓 참조가 바뀐 경우에는 `ranges.jsonl`과 `live_drift`에 변경 사실을 함께 기록합니다.
 - Sparse 방식으로 0 페이지의 디스크 쓰기를 줄입니다. 파일을 읽으면 같은 0바이트가 나옵니다.
 - 프로세스 메모리까지 분석하려면 [PodDump](https://github.com/KKudroK/PodDump)의 Core·manifest와 해당 커널의 ISF도 준비합니다. 수집 결과와 일치하는 ISF를 사용해야 합니다.
 

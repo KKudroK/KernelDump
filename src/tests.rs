@@ -868,13 +868,40 @@ fn minimal_cli_contract_accepts_output_and_rejects_legacy_flags() {
     assert_eq!(
         crate::parse_cli_args(&args(&["kerneldump", "--output", "/evidence/kd_1"])).unwrap(),
         crate::CliAction::Run {
-            output: PathBuf::from("/evidence/kd_1")
+            output: PathBuf::from("/evidence/kd_1"),
+            extended: false,
         }
     );
     assert_eq!(
         crate::parse_cli_args(&args(&["kerneldump", "--output=/evidence/kd_2"])).unwrap(),
         crate::CliAction::Run {
-            output: PathBuf::from("/evidence/kd_2")
+            output: PathBuf::from("/evidence/kd_2"),
+            extended: false,
+        }
+    );
+    assert_eq!(
+        crate::parse_cli_args(&args(&[
+            "kerneldump",
+            "--output",
+            "/evidence/kd_3",
+            "--extended"
+        ]))
+        .unwrap(),
+        crate::CliAction::Run {
+            output: PathBuf::from("/evidence/kd_3"),
+            extended: true,
+        }
+    );
+    assert_eq!(
+        crate::parse_cli_args(&args(&[
+            "kerneldump",
+            "--extended",
+            "--output=/evidence/kd_4"
+        ]))
+        .unwrap(),
+        crate::CliAction::Run {
+            output: PathBuf::from("/evidence/kd_4"),
+            extended: true,
         }
     );
     for invalid in [
@@ -883,6 +910,9 @@ fn minimal_cli_contract_accepts_output_and_rejects_legacy_flags() {
         &["kerneldump", "probe"][..],
         &["kerneldump", "verify", "out"][..],
         &["kerneldump", "--verify", "--output", "out"][..],
+        &["kerneldump", "--extended"][..],
+        &["kerneldump", "--extended", "--extended", "--output", "out"][..],
+        &["kerneldump", "--extended=true", "--output", "out"][..],
         &[
             "kerneldump",
             "--pod",

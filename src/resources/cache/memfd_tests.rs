@@ -599,32 +599,81 @@ fn cache_job_limit_applies_after_pending_jobs_are_drained() {
 }
 
 #[test]
-fn memfd_above_old_64kib_is_fully_retained_and_above_16mib_keeps_prefix() {
+fn memfd_above_16mib_retains_sparse_high_offset_via_xarray_tree_walk() {
+    // Two-level XArray (shift=6 root -> shift=0 leaves at 0 MiB and 20 MiB):
+    // index 0 -> page12 (order 0)
+    // index 5120 (20 MiB = (1 << 6) * 80 -> root slot 1 [4096..4160],Wait: 5120 = 1*4096 + 16*64 -> Wait: root shift=12! 5120 >> 12 = 1!
+    // Wait: even simpler! shift=12 root -> slot 0 covers [0..4096), slot 1 covers [4096..8192)!
+    // Wait: let's build shift=12 root node -> shift=6 mid node? Or shift=12 root -> shift=0? No, 4096 slots in shift=6 is 4096!
+    // At shift=6 root node, 64 slots * 64 = 4096 indices (16 MiB). At shift=12 root node, 64 slots * 4096 = 262144 indices (1 GiB)!
+    // Under shift=12 root: slot 0 points to shift=0 leaf node (covers 0..64 -> index 0),
+    // OR slot 1 covers 4096..8192 -> points to shift=6 node whose slot 16 covers 4096+16*64 = 5120 (20 MiB)!
+    // Wait: shift=6 -> shift=0 is ALSO easy: under shift=12 root -> slot 0 -> shift=6 -> ... -> shift=0, AND slot 1 -> shift=6 -> slot 16 -> shift=0 (index 5120 = 20 MiB)!
     fixture(|scan, core| {
-        core.write_all_at(&(96 * 1024u64).to_le_bytes(), INODE + 32 - BASE)
-            .unwrap();
+        // Need _folio_nr_pages / _nr_pages in TestBtf? Check: fixture() above has PG_head=3, order-0 doesn't read _nr_pages.
+        // We can test BOTH order-0 page at index=0 AND order-0 page at index=5120 (20 MiB), plus verify sibling order-0 in memfd!
+        let xa_root_12 = BASE + 0x2000;
+        let xa_mid_1 = BASE + 0x2800;
+        let xa_leaf_0 = BASE + 0x3000;
+        let xa_leaf_20m = BASE + 0x3800;
+        let page0 = BASE + 0x8000 + 12 * 64;
+        let page20 = BASE + 0x8000 + 13 * 64;
+        // Grow fake RAM / core to cover BASE + 0x4000? fixture() allocates 16 * PAGE = 64 KiB (0..0x10000), plenty of room!
+        for (at, value) in [
+            (INODE + 32 - BASE, 32 * 1024 * 1024u64), // 32 MiB file (8,192 pages)
+            (MAPPING + 16 - BASE, xa_root_12 + 2),    // i_pages.xa_head -> root node (shift=12)
+            // Root (shift=12): slot 0 -> xa_leaf_0 (shift=0, covers 0..64), slot 1 -> xa_mid_1 (shift=6, covers 4096..8192)
+            (xa_root_12 - BASE, 12u64),
+            (xa_root_12 + 8 - BASE, xa_leaf_0 + 2),
+            (xa_root_12 + 8 + 8 - BASE, xa_mid_1 + 2),
+            // xa_leaf_0 (shift=0): slot 0 -> page0 (index=0)
+            (xa_leaf_0 - BASE, 0u64),
+            (xa_leaf_0 + 8 - BASE, page0),
+            // xa_mid_1 (shift=6): slot 16 (4096 + 16*64 = 5120 = 20 MiB) -> xa_leaf_20m (shift=0)
+            (xa_mid_1 - BASE, 6u64),
+            (xa_mid_1 + 8 + 16 * 8 - BASE, xa_leaf_20m + 2),
+            // xa_leaf_20m (shift=0): slot 0 (index 5120) -> page20
+            (xa_leaf_20m - BASE, 0u64),
+            (xa_leaf_20m + 8 - BASE, page20),
+            // Initialize page20 fields (flags=PG_uptodate, mapping=MAPPING, folio.index=5120)
+            (page20 - BASE, 1u64 << 4),
+            (page20 + 24 - BASE, MAPPING),
+            (page20 + 32 - BASE, 5120u64),
+        ] {
+            core.write_all_at(&value.to_le_bytes(), at).unwrap();
+        }
+        let calls_before = scan.live.calls.get();
         scan.memfd_vma(TASK1, &seed()).unwrap();
-        assert_eq!(scan.cache.oversized, 0);
-        assert_eq!(scan.cache.hits, 1);
-        assert_eq!(scan.cache.misses, 23);
-    });
-    fixture(|scan, core| {
-        core.write_all_at(&(MAX_FILE + 32 * 1024).to_le_bytes(), INODE + 32 - BASE)
-            .unwrap();
-        scan.memfd_vma(TASK1, &seed()).unwrap();
-        assert_eq!(scan.cache.oversized, 1);
-        let retained = scan
+        let calls_used = scan.live.calls.get() - calls_before;
+        assert_eq!(scan.cache.hits, 2);
+        assert!(
+            calls_used < 64,
+            "expected O(resident) XArray tree walk, got {calls_used} calls"
+        );
+        let offsets: Vec<u64> = scan
             .plan
             .evidence
             .iter()
-            .find(|e| e.detail["role"] == "file_bytes");
-        assert!(retained.is_some());
-        assert_eq!(scan.cache.hits, 1);
+            .filter(|e| e.detail["role"] == "file_bytes")
+            .map(|e| e.detail["file_offset"].as_u64().unwrap())
+            .collect();
+        assert_eq!(offsets, vec![0, 20 * 1024 * 1024]);
+        let witness = scan.plan.witness(0, 16 * PAGE, true, |va, buf| {
+            virtual_read(core, scan.live.segs, va, buf)
+        });
+        assert!(
+            witness
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|r| r["same_fields"] == true)
+        );
+        assert_eq!(scan.cache.summary()["files_truncated_to_prefix"], 0);
     });
 }
 
 #[test]
-fn linked_tmpfs_fd_is_excluded_without_affecting_unlinked_files() {
+fn linked_tmpfs_is_excluded_by_default_and_retained_when_extended() {
     fixture(|scan, core| {
         let origin = prepare_fd(scan, core);
         core.write_all_at(&1u64.to_le_bytes(), INODE + 8 - BASE)
@@ -632,9 +681,35 @@ fn linked_tmpfs_fd_is_excluded_without_affecting_unlinked_files() {
         scan.queue_file_cache(FILE, origin.clone()).unwrap();
         assert_eq!(scan.cache.excluded, 1);
         assert!(scan.cache.jobs.is_empty());
-        scan.small_file(FILE, origin).unwrap();
+        scan.small_file(FILE, origin.clone()).unwrap();
         assert_eq!(scan.cache.excluded, 2);
         assert!(scan.plan.evidence.is_empty());
+
+        // Enabling extended mode retains linked tmpfs (s_magic = 0x01021994) via both FD and MAP_SHARED VMA,
+        // while continuing to exclude disk-backed linked filesystems (e.g. ext4 0xef53).
+        scan.cache.extended = true;
+        scan.queue_file_cache(FILE, origin.clone()).unwrap();
+        assert_eq!(scan.cache.jobs.len(), 1);
+        scan.small_file(FILE, origin.clone()).unwrap();
+        assert_eq!(scan.cache.hits, 1);
+        let fd_item = scan
+            .plan
+            .evidence
+            .iter()
+            .find(|e| e.detail["role"] == "file_bytes")
+            .unwrap();
+        assert_eq!(fd_item.detail["origin"]["kind"], "extended_linked_tmpfs");
+
+        // Linked VMA also works when FD is closed.
+        scan.cache.seen.clear();
+        scan.memfd_vma(TASK1, &seed()).unwrap();
+        assert_eq!(scan.cache.hits, 2);
+
+        // Disk-backed linked inode (ext4 = 0xef53) must remain excluded even in extended mode.
+        core.write_all_at(&0xef53u64.to_le_bytes(), BASE + 0x700 - BASE)
+            .unwrap();
+        scan.small_file(FILE, origin).unwrap();
+        assert_eq!(scan.cache.excluded, 3);
     });
 }
 

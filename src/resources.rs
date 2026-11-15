@@ -23,7 +23,9 @@ const MAX_READ_BYTES: u64 = 128 * 1024 * 1024;
 const MAX_REFS: usize = 65_536;
 const MAX_CANDIDATES: usize = 131_072;
 const MAX_THREAD_TASKS: usize = 32768;
-const QUEUE_BYTES: u64 = 64 * 1024;
+const QUEUE_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_QUEUE_SKBS: usize = 16_384;
+const MAX_TOTAL_SKBS: usize = 65_536;
 
 fn metadata_owner(mut detail: Value, identity: &Value) -> Value {
     detail["pid"] = identity["pid"].clone();
@@ -129,6 +131,7 @@ mod tests {
             Err("missing BTF".into()),
             now() + 1_000_000,
             &[],
+            false,
         );
         assert_eq!(result.finish()["complete"], false);
         assert_eq!(result.summary()["issues_at_discovery"], 1);
@@ -156,6 +159,271 @@ mod tests {
         assert_eq!(mixed_finish["complete"], false);
         assert_eq!(mixed_finish["issue_count"], 2);
         assert_eq!(mixed_finish["live_drift_count"], 0);
+    }
+
+    #[test]
+    fn socket_queue_retains_more_than_64kib_without_truncation() {
+        use std::io::Write;
+        const BASE: u64 = 0xffff_8880_0000_0000;
+        let path = std::env::temp_dir().join(format!(
+            "kerneldump_socket_192k_{}_{}",
+            std::process::id(),
+            now()
+        ));
+        let mut core = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .unwrap();
+        let mut data = vec![0u8; 0x38000];
+        let put = |data: &mut [u8], at: usize, value: u64, n: usize| {
+            data[at..at + n].copy_from_slice(&value.to_le_bytes()[..n]);
+        };
+        for (at, value, n) in [
+            (0x100, BASE + 0x200, 8),
+            (0x200, 64, 4),
+            (0x208, BASE + 0x300, 8),
+            (0x210, BASE + 0x400, 8),
+            (0x300, BASE + 0x500, 8),
+            (0x400, 1, 8),
+            (0x500, BASE + 0x600, 8),
+            (0x508, BASE + 0x700, 8),
+            (0x600, 0xc000, 2),
+            (0x700, BASE + 0x500, 8),
+            (0x708, BASE + 0x800, 8),
+            (0x800, 1, 2),
+            (0x808, BASE + 0x700, 8),
+            (0x810, BASE + 0x1000, 8),
+            (0x818, BASE + 0x1080, 8),
+            (0x820, BASE + 0x820, 8),
+            (0x828, BASE + 0x820, 8),
+        ] {
+            put(&mut data, at, value, n);
+        }
+        let skbs = [
+            (0x1000usize, 0x4000usize, BASE + 0x1040, 0x11u8),
+            (0x1040usize, 0x15000usize, BASE + 0x1080, 0x22u8),
+            (0x1080usize, 0x26000usize, BASE + 0x810, 0x33u8),
+        ];
+        for &(skb_off, buf_off, next_va, fill) in &skbs {
+            put(&mut data, skb_off, BASE + buf_off as u64, 8);
+            put(&mut data, skb_off + 8, BASE + buf_off as u64, 8);
+            put(&mut data, skb_off + 16, 0x10000, 4);
+            put(&mut data, skb_off + 20, 0, 4);
+            put(&mut data, skb_off + 24, 0x10000, 4);
+            put(&mut data, skb_off + 28, 0x10000, 4);
+            put(&mut data, skb_off + 32, next_va, 8);
+            data[buf_off..buf_off + 0x10000].fill(fill);
+        }
+        core.write_all(&data).unwrap();
+        let segs = [Segment {
+            offset: 0,
+            va: BASE,
+            pa: PAGE,
+            bytes: data.len() as u64,
+        }];
+        let ram = [(PAGE, PAGE + data.len() as u64)];
+        let mut plan = Resources::default();
+        let mut scan = Scan {
+            mm_owners: BTreeMap::new(),
+            cache: cache::CacheState::default(),
+            code_targets: vec![],
+            btf: provenance_tests::network_btf(),
+            live: Live {
+                core: &core,
+                segs: &segs,
+                ram: &ram,
+                deadline: now() + 5_000_000_000,
+                read_limit: MAX_READ_BYTES,
+                read_bytes: Cell::new(0),
+                calls: Cell::new(0),
+                root: 0,
+                levels: 4,
+            },
+            plan: &mut plan,
+            fields: RefCell::new(HashMap::new()),
+            vmemmap: BASE + 0x3000,
+            page_size: 64,
+            files: BTreeSet::new(),
+            tables: BTreeSet::new(),
+            tasks: 0,
+            thread_tasks: BTreeSet::new(),
+            fd_refs: 0,
+            sockets: 0,
+            skbs: 0,
+            policy_truncations: 0,
+            task_identity: json!({"pid":42,"start_time_ns":4200}),
+            task_checks: Vec::new(),
+        };
+        scan.fdtable(BASE + 0x100, 42).unwrap();
+        assert_eq!(scan.skbs, 3);
+        assert_eq!(scan.policy_truncations, 0);
+        let net_pages: BTreeSet<u64> = plan.category_pages("network").into_iter().collect();
+        for &(_, buf_off, _, _) in &skbs {
+            for pg in 0..16u64 {
+                assert!(net_pages.contains(&(PAGE + buf_off as u64 + pg * PAGE)));
+            }
+        }
+        plan.witness(PAGE, PAGE + data.len() as u64, true, |va, buf| {
+            virtual_read(&core, &segs, va, buf)
+        });
+        let done = plan.finish();
+        assert_eq!(done["complete"], true);
+        assert_eq!(done["issue_count"], 0);
+        drop(core);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn queue_or_budget_truncation_marks_discovery_incomplete() {
+        use std::io::Write;
+        const BASE: u64 = 0xffff_8880_0000_0000;
+        let path = std::env::temp_dir().join(format!(
+            "kerneldump_socket_trunc_{}_{}",
+            std::process::id(),
+            now()
+        ));
+        let mut core = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .unwrap();
+        let mut data = vec![0u8; 0x4000];
+        let put = |data: &mut [u8], at: usize, value: u64, n: usize| {
+            data[at..at + n].copy_from_slice(&value.to_le_bytes()[..n]);
+        };
+        for (at, value, n) in [
+            (0x100, BASE + 0x200, 8),
+            (0x200, 64, 4),
+            (0x208, BASE + 0x300, 8),
+            (0x210, BASE + 0x400, 8),
+            (0x300, BASE + 0x500, 8),
+            (0x400, 1, 8),
+            (0x500, BASE + 0x600, 8),
+            (0x508, BASE + 0x700, 8),
+            (0x600, 0xc000, 2),
+            (0x700, BASE + 0x500, 8),
+            (0x708, BASE + 0x800, 8),
+            (0x800, 1, 2),
+            (0x808, BASE + 0x700, 8),
+            (0x810, BASE + 0x1000, 8),
+            (0x818, BASE + 0x1040, 8),
+            (0x820, BASE + 0x820, 8),
+            (0x828, BASE + 0x820, 8),
+        ] {
+            put(&mut data, at, value, n);
+        }
+        let chunk: u64 = 10 * 1024 * 1024;
+        for (skb_off, buf_va, next_va) in [
+            (0x1000usize, BASE + 0x100_0000, BASE + 0x1040),
+            (0x1040usize, BASE + 0x200_0000, BASE + 0x810),
+        ] {
+            put(&mut data, skb_off, buf_va, 8);
+            put(&mut data, skb_off + 8, buf_va, 8);
+            put(&mut data, skb_off + 16, chunk, 4);
+            put(&mut data, skb_off + 20, 0, 4);
+            put(&mut data, skb_off + 24, chunk, 4);
+            put(&mut data, skb_off + 28, chunk, 4);
+            put(&mut data, skb_off + 32, next_va, 8);
+        }
+        core.write_all(&data).unwrap();
+        let segs = [
+            Segment {
+                offset: 0,
+                va: BASE,
+                pa: PAGE,
+                bytes: data.len() as u64,
+            },
+            Segment {
+                offset: 0,
+                va: BASE + 0x100_0000,
+                pa: 0x100_0000,
+                bytes: chunk,
+            },
+            Segment {
+                offset: 0x2000,
+                va: BASE + 0x100_0000 + chunk,
+                pa: 0x100_0000 + chunk,
+                bytes: 0x1000,
+            },
+            Segment {
+                offset: 0,
+                va: BASE + 0x200_0000,
+                pa: 0x200_0000,
+                bytes: chunk,
+            },
+            Segment {
+                offset: 0x2000,
+                va: BASE + 0x200_0000 + chunk,
+                pa: 0x200_0000 + chunk,
+                bytes: 0x1000,
+            },
+        ];
+        let ram = [(PAGE, PAGE + data.len() as u64), (0x100_0000, 0x300_0000)];
+        let mut plan = Resources::default();
+        let mut scan = Scan {
+            mm_owners: BTreeMap::new(),
+            cache: cache::CacheState::default(),
+            code_targets: vec![],
+            btf: provenance_tests::network_btf(),
+            live: Live {
+                core: &core,
+                segs: &segs,
+                ram: &ram,
+                deadline: now() + 5_000_000_000,
+                read_limit: MAX_READ_BYTES,
+                read_bytes: Cell::new(0),
+                calls: Cell::new(0),
+                root: 0,
+                levels: 4,
+            },
+            plan: &mut plan,
+            fields: RefCell::new(HashMap::new()),
+            vmemmap: BASE + 0x3000,
+            page_size: 64,
+            files: BTreeSet::new(),
+            tables: BTreeSet::new(),
+            tasks: 0,
+            thread_tasks: BTreeSet::new(),
+            fd_refs: 0,
+            sockets: 0,
+            skbs: 0,
+            policy_truncations: 0,
+            task_identity: json!({"pid":42,"start_time_ns":4200}),
+            task_checks: Vec::new(),
+        };
+        scan.fdtable(BASE + 0x100, 42).unwrap();
+        assert!(scan.policy_truncations > 0);
+        let truncations = scan.policy_truncations;
+        plan.witness(0, u64::MAX, true, |va, buf| {
+            virtual_read(&core, &segs, va, buf)
+        });
+        plan.issue(
+            "queue_window_truncation",
+            format!("{truncations} socket queue(s) exceeded {QUEUE_BYTES}B per-queue safety bound"),
+        );
+        let done = plan.finish();
+        assert_eq!(done["complete"], false);
+        assert!(done["issue_count"].as_u64().unwrap() >= 1);
+        assert!(
+            done["issues"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|i| i["stage"] == "queue_window_truncation")
+        );
+
+        let mut budget_plan = Resources::default();
+        budget_plan.record_budget_truncation(5);
+        let budget_done = budget_plan.finish();
+        assert_eq!(budget_done["complete"], false);
+        assert_eq!(budget_done["issue_count"], 1);
+        assert_eq!(budget_plan.summary()["issues_at_discovery"], 1);
+
+        drop(core);
+        std::fs::remove_file(path).unwrap();
     }
 }
 
@@ -483,6 +751,7 @@ impl Resources {
         btf_bytes: Result<Vec<u8>>,
         deadline: u64,
         code_targets: &[crate::code_pages::CowTarget],
+        extended: bool,
     ) -> Self {
         let started = now();
         let mut result = Self::default();
@@ -540,13 +809,22 @@ impl Resources {
                 task_identity: Value::Null,
                 task_checks: Vec::new(),
                 mm_owners: BTreeMap::new(),
-                cache: cache::CacheState::default(),
+                cache: cache::CacheState::with_extended(extended),
                 code_targets: code_targets.to_vec(),
             };
             if let Err(e) = scan.tasks(symbol("init_task")?) {
                 scan.plan.issue("traversal", e);
             }
             scan.capture_cache();
+            if scan.policy_truncations > 0 {
+                scan.plan.issue(
+                    "queue_window_truncation",
+                    format!(
+                        "{} socket queue(s) exceeded {}B per-queue safety bound",
+                        scan.policy_truncations, QUEUE_BYTES
+                    ),
+                );
+            }
             Ok(
                 json!({"file_cache":scan.cache.summary(),"tasks_examined":scan.tasks,"threads_examined":scan.thread_tasks.len(),"unique_fd_tables":scan.tables.len(),"address_spaces_indexed":scan.mm_owners.len(),"fd_references_examined":scan.fd_refs,
                 "unique_files":scan.files.len(),"sockets_examined":scan.sockets,"skbs_examined":scan.skbs,
@@ -561,13 +839,20 @@ impl Resources {
                 Value::Null
             }
         };
-        result.summary = json!({"policy":"referenced_socket_queues_and_unlinked_cache_v5","begin_ns":started,"end_ns":now(),"stats":stats,
+        result.summary = json!({"policy":"referenced_socket_queues_and_unlinked_cache_v5","retention_mode":if extended{"extended"}else{"default"},"begin_ns":started,"end_ns":now(),"stats":stats,
             "candidate_pages":result.pages.len(),"references":result.evidence.len(),"issues_at_discovery":result.issue_count.get(),"drift_at_discovery":result.drift_count.get(),
-            "limits":{"requested_metadata_bytes":MAX_READ_BYTES,"candidate_pages":MAX_CANDIDATES,"references":MAX_REFS,"queue_payload_bytes":QUEUE_BYTES,"process_leaders":16384,"threads_per_group":4096,"threads":MAX_THREAD_TASKS},
-            "scope":"Node-wide process leaders and threads, including separate FD tables. Shared FD tables are deduplicated. Socket receive/write queues plus TCP retransmit/out-of-order trees, plus resident unlinked regular files (i_nlink == 0, including memfd/O_TMPFILE) via open FDs or pure-BTF shared memfd VMAs, and backing cache pages for discovered executable COW pages. Ordinary linked files (i_nlink != 0) are excluded.",
-            "window_policy":"64KiB per queue. Bytes beyond this per-queue limit are explicit policy truncations, not all-content coverage.",
+            "limits":{"requested_metadata_bytes":MAX_READ_BYTES,"candidate_pages":MAX_CANDIDATES,"references":MAX_REFS,"queue_payload_bytes":QUEUE_BYTES,"queue_skbs":MAX_QUEUE_SKBS,"total_skbs":MAX_TOTAL_SKBS,"process_leaders":16384,"threads_per_group":4096,"threads":MAX_THREAD_TASKS},
+            "scope":if extended{"Node-wide process leaders and threads, including separate FD tables. Shared FD tables are deduplicated. Socket receive/write queues plus TCP retransmit/out-of-order trees, plus resident unlinked regular files (i_nlink == 0, memfd/O_TMPFILE) and linked tmpfs files (s_magic == 0x01021994) via XArray tree walk, and backing cache pages for discovered executable COW pages. Disk-backed linked files are excluded."}else{"Node-wide process leaders and threads, including separate FD tables. Shared FD tables are deduplicated. Socket receive/write queues plus TCP retransmit/out-of-order trees, plus resident unlinked regular files (i_nlink == 0, including memfd/O_TMPFILE) via XArray tree walk, and backing cache pages for discovered executable COW pages. Ordinary linked files (i_nlink != 0, including linked tmpfs unless --extended) are excluded."},
+            "window_policy":"16MiB per-queue safety ceiling; any queue hitting the ceiling records a queue_window_truncation issue so capture finishes as partial rather than complete_for_policy.",
             "btf_required":true});
         result
+    }
+    pub(crate) fn record_budget_truncation(&mut self, dropped: usize) {
+        self.issue(
+            "shared_retention_budget",
+            format!("{dropped} candidate page(s) exceeded shared MAX_EXTRA_PAGES ceiling"),
+        );
+        self.summary["issues_at_discovery"] = json!(self.issue_count.get());
     }
 }
 struct Scan<'a, 'p> {
@@ -1031,7 +1316,7 @@ impl Scan<'_, '_> {
                     let mut seen = BTreeSet::new();
                     let mut left = QUEUE_BYTES;
                     while at != 0 && at != queue {
-                        if !seen.insert(at) || seen.len() > 256 {
+                        if !seen.insert(at) || seen.len() > MAX_QUEUE_SKBS {
                             return Err("skb queue cycle/node limit".into());
                         }
                         self.skb(at, &detail, name, &mut left, 0)?;
@@ -1078,7 +1363,7 @@ impl Scan<'_, '_> {
             if node == 0 {
                 continue;
             }
-            if seen.len() >= 256 {
+            if seen.len() >= MAX_QUEUE_SKBS {
                 return Err("TCP skb tree node limit".into());
             }
             if !seen.insert(node) {
@@ -1119,7 +1404,7 @@ impl Scan<'_, '_> {
         left: &mut u64,
         depth: usize,
     ) -> Result<()> {
-        if depth > 4 || self.skbs >= 8192 {
+        if depth > 4 || self.skbs >= MAX_TOTAL_SKBS {
             return Err("skb recursion/global node limit".into());
         }
         self.skbs += 1;
